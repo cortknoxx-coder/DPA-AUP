@@ -32,15 +32,15 @@
               @switch (connectionService.connectionStatus()) {
                 @case ('disconnected') {
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
-                  <span>No Device Connected</span>
+                  <span class="hidden sm:inline">No Device Connected</span>
                 }
                 @case ('usb') {
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 10.512V15.5a.75.75 0 01-1.5 0v-4.988L7.452 12.01a.75.75 0 01-1.04-1.082l3.75-3.5a.75.75 0 011.04 0l3.75 3.5a.75.75 0 01-1.04 1.082l-1.798-1.5zM10 4.5a.75.75 0 000 1.5A.75.75 0 0010 4.5z" /></svg>
-                  <span>Connected via USB-C</span>
+                  <span class="hidden sm:inline">Connected via USB-C</span>
                 }
                 @case ('bluetooth') {
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M10.205 3.184a.75.75 0 01.9 1.125l-2.09 2.613 2.09 2.612a.75.75 0 11-.9 1.125L8.5 8.351v4.298l1.705 2.132a.75.75 0 11-.9 1.125l-2.5-3.125a.75.75 0 010-1.125l2.5-3.125a.75.75 0 01.9 1.125L8.5 7.649l1.705-2.131zM11.5 7.649l1.705 2.132-1.705 2.13a.75.75 0 10.9 1.125l2.5-3.125a.75.75 0 000-1.125l-2.5-3.125a.75.75 0 00-.9 1.125L11.5 7.65z" /></svg>
-                  <span>Connected via Bluetooth</span>
+                  <span class="hidden sm:inline">Connected via Bluetooth</span>
                 }
               }
             </div>

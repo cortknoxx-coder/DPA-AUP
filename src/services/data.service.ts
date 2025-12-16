@@ -1,6 +1,6 @@
 
 import { Injectable, signal, computed } from '@angular/core';
-import { Album, Track, DcnpEvent, Theme } from '../types';
+import { Album, Track, DcnpEvent, Theme, ResaleTransaction, UnitEconomics } from '../types';
 
 @Injectable({
   providedIn: 'root'
@@ -18,6 +18,41 @@ export class DataService {
         charging: { color: '#ffcc33', pattern: 'breathing' }
       },
       dcnp: { concert: '#ff4bcb', video: '#00f1df', merch: '#ffcc33', signing: '#7d29ff' }
+    };
+  }
+
+  // Mock Data Generators
+  private generateResales(count: number): ResaleTransaction[] {
+    const resales: ResaleTransaction[] = [];
+    for (let i = 0; i < count; i++) {
+      const price = 45 + Math.random() * 80; // Random price between $45 and $125
+      const royalty = 0.10; // 10% royalty
+      resales.push({
+        id: `TX-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+        date: new Date(Date.now() - Math.random() * 10000000000).toISOString(),
+        deviceId: `0x${Math.random().toString(16).substr(2, 4).toUpperCase()}...${Math.random().toString(16).substr(2, 4).toUpperCase()}`,
+        skuType: 'DPA Silver',
+        sellerHash: `0x${Math.random().toString(16).substr(2, 4)}...`,
+        buyerHash: `0x${Math.random().toString(16).substr(2, 4)}...`,
+        priceUsd: price,
+        royaltyPercentage: royalty * 100,
+        artistEarnings: price * royalty,
+        marketRegion: Math.random() > 0.5 ? 'NA-EAST' : (Math.random() > 0.5 ? 'EU-WEST' : 'APAC')
+      });
+    }
+    return resales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+
+  private generateEconomics(): UnitEconomics {
+    return {
+      totalManufactured: 5000,
+      totalSold: 4210,
+      manufacturingCost: 12.50,
+      wholesalePrice: 35.00,
+      grossRevenue: 147350,
+      netProfit: 94725,
+      secondaryVolume: 12400,
+      secondaryRevenue: 1240
     };
   }
 
@@ -40,10 +75,58 @@ export class DataService {
         { id: 't3', albumId: 'ALB-8A8-2025-0001', trackIndex: 2, trackId: 'TRK-003', title: 'Analog Dreams', durationSec: 245 }
       ],
       dcnpEvents: [
-        { 
-          id: 'ev1', albumId: 'ALB-8A8-2025-0001', eventType: 'concert', target: 'album', 
+        {
+          id: 'ev1', albumId: 'ALB-8A8-2025-0001', eventType: 'concert', target: 'album',
           status: 'delivered', createdAt: new Date(Date.now() - 86400000).toISOString(), deliveredAt: new Date().toISOString(),
-          payload: { kind: 'concert', data: { title: 'Live at Dome', city: 'Tokyo' } }
+          payload: {
+            title: 'Surprise Show in Tokyo!',
+            description: 'We are playing a last-minute secret show at the Liquid Room in Tokyo next Friday. Verified DPA owners get priority access to tickets for the first 24 hours.',
+            imageUrl: 'https://picsum.photos/seed/concert/800/400',
+            cta: { label: 'Get Tickets Now', url: '#', action: 'link' }
+          }
+        },
+        {
+          id: 'ev2', albumId: 'ALB-8A8-2025-0001', eventType: 'remix', target: 'album',
+          status: 'delivered', createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), deliveredAt: new Date(Date.now() - 86400000 * 1.5).toISOString(),
+          payload: {
+            title: 'Neon Rain (Starlight Remix Pack)',
+            description: 'Exclusive remix pack featuring reworks by Starlight, Cygnus, and a fan-voted winner. Stems included.',
+            imageUrl: 'https://picsum.photos/seed/remix/800/400',
+            price: 5.99,
+            cta: { label: 'Buy & Download Stems', action: 'download' }
+          }
+        },
+        {
+          id: 'ev3', albumId: 'ALB-8A8-2025-0001', eventType: 'merch', target: 'album',
+          status: 'delivered', createdAt: new Date(Date.now() - 86400000 * 3).toISOString(), deliveredAt: new Date(Date.now() - 86400000 * 2.5).toISOString(),
+          payload: {
+            title: "Limited 'Horizons' Tour Tee",
+            description: "A new limited edition tour t-shirt just dropped in our store. Only 500 available, grab yours before they're gone forever. DPA owners get a 15% discount code applied at checkout.",
+            imageUrl: 'https://picsum.photos/seed/merch/800/400',
+            cta: { label: 'Shop Now', url: '#', action: 'link' }
+          }
+        },
+        {
+          id: 'ev4', albumId: 'ALB-8A8-2025-0001', eventType: 'video', target: 'album',
+          status: 'delivered', createdAt: new Date(Date.now() - 86400000 * 4).toISOString(), deliveredAt: new Date(Date.now() - 86400000 * 3.5).toISOString(),
+          payload: {
+            title: "'Cyber Heart' Official Music Video (4K)",
+            description: "The official music video for Cyber Heart is here. Experience the visual world of Midnight Horizons. Download the high-bitrate 4K master file directly to your device.",
+            imageUrl: 'https://picsum.photos/seed/video/800/400',
+            price: 2.99,
+            cta: { label: 'Buy & Download Video', action: 'download' }
+          }
+        },
+        {
+          id: 'ev5', albumId: 'ALB-8A8-2025-0001', eventType: 'other', target: 'album',
+          status: 'delivered', createdAt: new Date(Date.now() - 86400000 * 5).toISOString(), deliveredAt: new Date(Date.now() - 86400000 * 4.5).toISOString(),
+          payload: {
+            title: 'Behind the Scenes: Making Midnight Horizons',
+            description: 'Step into the studio with us. A short documentary on the creative process, late-night sessions, and synth magic that brought the album to life. Free for owners.',
+            imageUrl: 'https://picsum.photos/seed/bts/800/400',
+            price: 0,
+            cta: { label: 'Download Documentary', action: 'download' }
+          }
         }
       ],
       genre: 'Synthwave',
@@ -52,8 +135,37 @@ export class DataService {
       releaseDate: '2025-11-15',
       upcCode: '19029384756',
       parentalAdvisory: false,
-      description: 'A sonic journey through the rain-slicked streets of a future metropolis.',
-      lyrics: "It's raining neon light...\n(Instrumental Break)\n\nCyber heart beating fast..."
+      description: 'A sonic journey through the rain-slicked streets of a future metropolis, Midnight Horizons is the defining sound of a new generation of synthwave.',
+      lyrics: "## 1. Neon Rain\n\n(Verse 1)\nStreetlights bleed in the pouring rain\nA digital ghost in a memory pane\nReflections dance on the wet terrain\nWhispering your name, a sweet refrain...\n\n(Chorus)\nIn the neon rain, we lose our way\nChasing echoes of yesterday\nA thousand colors in shades of gray\nIn the neon rain, we'll forever stay.\n\n\n## 2. Cyber Heart\n\n(Verse 1)\nA circuit hums where a heartbeat should be\nBinary code for my love for thee\nIn this silicon cage, I long to be free\nWith you in the static, for eternity...\n\n(Chorus)\nMy cyber heart beats in 1s and 0s\nA love encoded where nobody knows\nThrough firewalls, my affection flows\nA digital seed that forever grows.",
+      
+      // Booklet Data
+      booklet: {
+        credits: "PRODUCED BY 808 DREAMS\nMIXED BY NEON SKY\nMASTERED AT CYBER STUDIOS TOKYO\n\nART DIRECTION: PIXEL VOYAGER\nPHOTOGRAPHY: LENS FLARE COLLECTIVE\n\nSPECIAL THANKS TO:\nMom, Dad, The Neon City Crew, and every fan who bought a DPA device.",
+        gallery: [
+          'https://picsum.photos/seed/studio1/800/600',
+          'https://picsum.photos/seed/studio2/800/600',
+          'https://picsum.photos/seed/studio3/800/600',
+          'https://picsum.photos/seed/studio4/800/600'
+        ],
+        videos: [
+          {
+            id: 'v1',
+            title: 'Studio Diaries: Episode 1',
+            url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            poster: 'https://picsum.photos/seed/video1/800/450'
+          },
+          {
+            id: 'v2',
+            title: 'Cyber Heart (Live Rehearsal)',
+            url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+            poster: 'https://picsum.photos/seed/video2/800/450'
+          }
+        ]
+      },
+
+      // Analytics Data
+      economics: this.generateEconomics(),
+      resales: this.generateResales(45)
     },
     {
       id: '2',
@@ -66,7 +178,17 @@ export class DataService {
       dpacVersion: 0,
       themeJson: this.getDefaultTheme(),
       tracks: [],
-      dcnpEvents: []
+      dcnpEvents: [],
+      booklet: {
+        credits: '',
+        gallery: [],
+        videos: []
+      },
+      economics: {
+        totalManufactured: 0, totalSold: 0, manufacturingCost: 0, wholesalePrice: 0,
+        grossRevenue: 0, netProfit: 0, secondaryVolume: 0, secondaryRevenue: 0
+      },
+      resales: []
     }
   ];
 
@@ -79,6 +201,20 @@ export class DataService {
 
   getAlbum(id: string) {
     return computed(() => this.albumsSignal().find(a => a.id === id || a.albumId === id));
+  }
+  
+  getAllCapsules() {
+    return computed(() => {
+      return this.albumsSignal()
+        .flatMap(album =>
+          album.dcnpEvents.map(event => ({
+            ...event,
+            albumTitle: album.title,
+            artistName: album.artistName
+          }))
+        )
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    });
   }
 
   createAlbum(title: string) {
@@ -93,7 +229,8 @@ export class DataService {
       dpacVersion: 0,
       themeJson: this.getDefaultTheme(),
       tracks: [],
-      dcnpEvents: []
+      dcnpEvents: [],
+      booklet: { credits: '', gallery: [], videos: [] }
     };
     this.albumsSignal.update(list => [newAlbum, ...list]);
   }
@@ -153,7 +290,7 @@ export class DataService {
           albumId,
           eventType: event.eventType!,
           target: event.target || 'album',
-          payload: event.payload,
+          payload: event.payload!,
           status: 'pending',
           createdAt: new Date().toISOString(),
           ...event
@@ -166,15 +303,15 @@ export class DataService {
 
   triggerRebuild(albumId: string) {
     // Simulate build process
-    this.albumsSignal.update(list => list.map(a => 
+    this.albumsSignal.update(list => list.map(a =>
       a.albumId === albumId ? { ...a, status: 'building' } : a
     ));
-    
+
     setTimeout(() => {
-      this.albumsSignal.update(list => list.map(a => 
-        a.albumId === albumId ? { 
-          ...a, 
-          status: 'ready', 
+      this.albumsSignal.update(list => list.map(a =>
+        a.albumId === albumId ? {
+          ...a,
+          status: 'ready',
           dpacVersion: a.dpacVersion + 1,
           lastBuiltAt: new Date().toISOString()
         } : a

@@ -1,5 +1,6 @@
 
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
+import { DeviceConnectionService } from './device-connection.service';
 
 export interface PlayerTrack {
   id: string;
@@ -14,6 +15,8 @@ export interface PlayerTrack {
   providedIn: 'root'
 })
 export class PlayerService {
+  private deviceService = inject(DeviceConnectionService);
+
   // State
   isPlaying = signal(false);
   currentTrack = signal<PlayerTrack | null>(null);
@@ -29,6 +32,14 @@ export class PlayerService {
   ]);
 
   private timer: any;
+  private readonly SNIPPET_LIMIT = 30; // seconds
+
+  // Computed Duration that respects snippet mode
+  effectiveDuration = computed(() => {
+    const track = this.currentTrack();
+    if (!track) return 0;
+    return this.deviceService.isSnippetMode() ? Math.min(track.duration, this.SNIPPET_LIMIT) : track.duration;
+  });
 
   constructor() {}
 
@@ -92,14 +103,21 @@ export class PlayerService {
     this.stopTimer();
     this.timer = setInterval(() => {
       if (this.isPlaying() && this.currentTrack()) {
-        const duration = this.currentTrack()!.duration;
-        this.currentTime.update(t => {
-          if (t >= duration) {
-            this.next();
-            return 0;
-          }
-          return t + 1;
-        });
+        const duration = this.effectiveDuration();
+        
+        // Check playback limits
+        if (this.currentTime() >= duration) {
+            if (this.deviceService.isSnippetMode()) {
+                this.pause();
+                this.currentTime.set(0);
+                alert('Snippet Mode: Track finished (limited to 30s). Register device to unlock full playback.');
+            } else {
+                this.next();
+            }
+            return;
+        }
+
+        this.currentTime.update(t => t + 1);
         this.progress.set((this.currentTime() / duration) * 100);
       }
     }, 1000);

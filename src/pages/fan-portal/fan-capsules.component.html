@@ -1,0 +1,104 @@
+
+<div class="space-y-8 pb-20">
+  <header>
+    <h1 class="text-4xl font-bold text-white tracking-tight">Capsule Inbox</h1>
+    <p class="text-slate-400 mt-2">Exclusive content drops and updates from your favorite artists.</p>
+  </header>
+
+  <div class="space-y-6">
+    @for (capsule of allCapsules(); track capsule.id) {
+      <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col md:flex-row shadow-lg">
+        
+        <!-- Image Section -->
+        @if (capsule.payload.imageUrl) {
+          <div class="md:w-72 shrink-0 relative group">
+            <img [src]="capsule.payload.imageUrl" alt="Capsule Image" class="w-full h-48 md:h-full object-cover">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent md:bg-gradient-to-r"></div>
+            
+            <!-- Type Badge -->
+            <div class="absolute top-4 left-4">
+              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded shadow-sm border border-white/10 backdrop-blur-md" 
+                [style.background-color]="'rgba(0,0,0,0.6)'" [style.color]="'#fff'">
+                {{ capsule.eventType }}
+              </span>
+            </div>
+          </div>
+        }
+
+        <!-- Content Section -->
+        <div class="p-6 flex flex-col flex-1 relative">
+          <div class="flex items-center justify-between mb-2">
+             <span class="text-xs text-slate-500">{{ capsule.createdAt | date:'mediumDate' }}</span>
+             @if (capsule.payload.price && capsule.payload.price > 0) {
+                <span class="text-xs font-bold text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 rounded">
+                  {{ capsule.payload.price | currency }}
+                </span>
+             } @else if (capsule.payload.cta?.action === 'download') {
+                <span class="text-xs font-bold text-slate-400 border border-slate-700 bg-slate-800 px-2 py-0.5 rounded">
+                  FREE
+                </span>
+             }
+          </div>
+
+          <h2 class="text-xl font-bold text-white mb-2">{{ capsule.payload.title }}</h2>
+          <p class="text-sm text-slate-400 leading-relaxed flex-1 mb-6">
+            {{ capsule.payload.description }}
+          </p>
+          
+          @if (capsule.payload.cta) {
+            <div class="mt-auto">
+              <!-- Download Logic / State -->
+              @if (downloadState()[capsule.id] === 'installed') {
+                <button disabled class="inline-flex items-center gap-2 bg-slate-800 text-slate-400 font-semibold text-sm px-5 py-2.5 rounded-full cursor-default border border-slate-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                  Installed on DPA
+                </button>
+              } 
+              @else if (downloadState()[capsule.id] !== undefined && downloadState()[capsule.id] !== 'installed') {
+                <!-- Progress Bar -->
+                <div class="w-full max-w-xs">
+                   <div class="flex justify-between text-xs text-slate-400 mb-1">
+                      <span>Transferring to Device...</span>
+                      <span>{{ downloadState()[capsule.id] }}%</span>
+                   </div>
+                   <div class="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                      <div class="h-full bg-indigo-500 transition-all duration-100 ease-linear" [style.width.%]="downloadState()[capsule.id]"></div>
+                   </div>
+                </div>
+              }
+              @else {
+                <!-- Action Button -->
+                <button (click)="onInteraction(capsule)" 
+                  class="inline-flex items-center gap-2 font-semibold text-sm px-6 py-2.5 rounded-full transition-all transform hover:scale-105 active:scale-95 shadow-lg"
+                  [ngClass]="capsule.payload.cta.action === 'download' ? 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-indigo-900/20' : 'bg-slate-100 text-slate-900 hover:bg-white shadow-white/10'">
+                  
+                  @if (capsule.payload.cta.action === 'download') {
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  } @else {
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                  }
+                  
+                  {{ capsule.payload.cta.label }}
+                </button>
+                
+                @if (capsule.payload.cta.action === 'download') {
+                  <p class="text-[10px] text-slate-500 mt-2 ml-1">
+                    Req: DPA Connected via USB/BT • Secure Transfer
+                  </p>
+                }
+              }
+            </div>
+          }
+        </div>
+      </div>
+    } @empty {
+      <div class="text-center py-20 rounded-xl border border-dashed border-slate-800">
+        <div class="h-16 w-16 mx-auto rounded-full bg-slate-800/50 flex items-center justify-center border border-slate-700 mb-4">
+           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+        </div>
+        <h3 class="text-slate-200 font-semibold">Inbox Zero</h3>
+        <p class="text-sm text-slate-500 mt-1">No capsules have been dropped yet.</p>
+      </div>
+    }
+  </div>
+</div>
