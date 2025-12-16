@@ -1,4 +1,5 @@
 
+
 export interface Track {
   id: string;
   albumId: string;
@@ -24,6 +25,14 @@ export interface DcnpPayload {
     label: string;
     url?: string;
     action: 'link' | 'download'; // Differentiates web links from device transfers
+  };
+  metadata?: {
+    venue?: string;
+    date?: string;
+    discountCode?: string;
+    format?: string;
+    exclusive?: boolean;
+    capacity?: number;
   };
 }
 
