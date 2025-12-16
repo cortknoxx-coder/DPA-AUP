@@ -1,3 +1,4 @@
+
 import { Injectable, signal, computed } from '@angular/core';
 import { Album, Track, DcnpEvent, Theme } from '../types';
 
@@ -26,6 +27,7 @@ export class DataService {
       id: '1',
       albumId: 'ALB-8A8-2025-0001',
       artistId: 'ART-001',
+      artistName: '808 Dreams',
       title: 'Midnight Horizons',
       skuType: 'premium',
       status: 'ready',
@@ -43,12 +45,21 @@ export class DataService {
           status: 'delivered', createdAt: new Date(Date.now() - 86400000).toISOString(), deliveredAt: new Date().toISOString(),
           payload: { kind: 'concert', data: { title: 'Live at Dome', city: 'Tokyo' } }
         }
-      ]
+      ],
+      genre: 'Synthwave',
+      recordLabel: 'Neon City Records',
+      copyright: '© 2025 808 Dreams',
+      releaseDate: '2025-11-15',
+      upcCode: '19029384756',
+      parentalAdvisory: false,
+      description: 'A sonic journey through the rain-slicked streets of a future metropolis.',
+      lyrics: "It's raining neon light...\n(Instrumental Break)\n\nCyber heart beating fast..."
     },
     {
       id: '2',
       albumId: 'ALB-9X9-2025-0042',
       artistId: 'ART-001',
+      artistName: '808 Dreams',
       title: 'Echoes of Silence',
       skuType: 'premium',
       status: 'draft',
@@ -75,6 +86,7 @@ export class DataService {
       id: Math.random().toString(36).substr(2, 9),
       albumId: `ALB-${Math.floor(Math.random()*1000)}-2025`,
       artistId: 'ART-001',
+      artistName: '808 Dreams',
       title,
       skuType: 'premium',
       status: 'draft',
@@ -90,6 +102,15 @@ export class DataService {
     this.albumsSignal.update(list => list.map(a => {
       if (a.albumId === albumId) {
         return { ...a, themeJson: theme, status: 'needs-rebuild' };
+      }
+      return a;
+    }));
+  }
+
+  updateAlbumMetadata(albumId: string, metadata: Partial<Album>) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId === albumId) {
+        return { ...a, ...metadata, status: 'needs-rebuild' };
       }
       return a;
     }));

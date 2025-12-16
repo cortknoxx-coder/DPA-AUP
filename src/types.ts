@@ -1,3 +1,4 @@
+
 export interface Track {
   id: string;
   albumId: string;
@@ -65,4 +66,15 @@ export interface Album {
   tracks: Track[];
   dcnpEvents: DcnpEvent[];
   lastBuiltAt?: string;
+  
+  // Distribution Metadata
+  artistName?: string;
+  genre?: string;
+  recordLabel?: string;
+  copyright?: string;
+  releaseDate?: string;
+  upcCode?: string;
+  parentalAdvisory?: boolean;
+  description?: string;
+  lyrics?: string; // Global album lyrics or liner notes
 }

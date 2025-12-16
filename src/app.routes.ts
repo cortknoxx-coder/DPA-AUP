@@ -1,3 +1,4 @@
+
 import { Routes } from '@angular/router';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { CreateAlbumComponent } from './pages/create-album/create-album.component';
@@ -8,6 +9,7 @@ import { ThemeEditorComponent } from './pages/theme-editor/theme-editor.componen
 import { PerksConsoleComponent } from './pages/perks-console/perks-console.component';
 import { DevicesDashboardComponent } from './pages/devices-dashboard/devices-dashboard.component';
 import { UserAdminComponent } from './pages/user-admin/user-admin.component';
+import { AlbumMetadataComponent } from './pages/album-metadata/album-metadata.component';
 
 export const routes: Routes = [
   { path: '', component: DashboardComponent },
@@ -19,6 +21,7 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'overview', pathMatch: 'full' },
       { path: 'overview', component: AlbumOverviewComponent },
+      { path: 'metadata', component: AlbumMetadataComponent },
       { path: 'tracks', component: TrackListComponent },
       { path: 'theme', component: ThemeEditorComponent },
       { path: 'perks', component: PerksConsoleComponent },
