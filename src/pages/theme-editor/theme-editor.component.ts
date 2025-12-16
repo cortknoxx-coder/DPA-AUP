@@ -1,4 +1,4 @@
-import { Component, inject, computed, effect } from '@angular/core';
+import { Component, inject, computed, effect, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
@@ -19,6 +19,9 @@ export class ThemeEditorComponent {
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
 
+  // Visualizer State
+  previewMode = signal<'idle' | 'playback' | 'charging'>('idle');
+
   form = this.fb.group({
     albumColor: this.fb.group({
       primary: [''],
@@ -38,6 +41,27 @@ export class ThemeEditorComponent {
     })
   });
 
+  // Computed state for the visualizer
+  currentPreviewStyle = computed(() => {
+    // Need to subscribe to form changes for real-time updates.
+    // In Angular ReactiveForms, values aren't signals, so we rely on the component change detection
+    // or manual signal updates. For simplicity here, we'll let Angular change detection handle the binding
+    // in the template by accessing the form value directly in the HTML or via a getter.
+    // However, to use signals effectively:
+    
+    const mode = this.previewMode();
+    const ledGroup = this.form.get('led')?.get(mode);
+    
+    // Fallbacks
+    return {
+      color: ledGroup?.value?.color || '#333',
+      pattern: ledGroup?.value?.pattern || 'solid'
+    };
+  });
+
+  // Track real-time form values for the template binding without explicit subscription overhead
+  // The template will access `form.value` directly.
+
   constructor() {
     effect(() => {
       const a = this.album();
@@ -45,6 +69,10 @@ export class ThemeEditorComponent {
         this.form.patchValue(a.themeJson as any, { emitEvent: false });
       }
     });
+  }
+
+  setPreviewMode(mode: 'idle' | 'playback' | 'charging') {
+    this.previewMode.set(mode);
   }
 
   save() {
