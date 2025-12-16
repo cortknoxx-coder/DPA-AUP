@@ -1,0 +1,52 @@
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-50">Dashboard</h1>
+      <p class="text-sm text-slate-400 mt-1">Manage your DPA projects and releases.</p>
+    </div>
+    <a routerLink="/albums/new" class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 transition-colors">
+      + New Album
+    </a>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    @for (album of albums(); track album.id) {
+      <div class="group relative rounded-xl border border-slate-800 bg-slate-900/50 p-6 hover:border-slate-700 hover:bg-slate-900 transition-all">
+        <div class="flex items-start justify-between">
+          <div class="h-12 w-12 rounded bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 flex items-center justify-center text-slate-500">
+            <span class="text-lg">💿</span>
+          </div>
+          <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset"
+            [class.bg-teal-900-30]="album.status === 'ready'"
+            [class.text-teal-400]="album.status === 'ready'"
+            [class.ring-teal-400-30]="album.status === 'ready'"
+            [class.bg-slate-800]="album.status !== 'ready'"
+            [class.text-slate-400]="album.status !== 'ready'"
+            [class.ring-slate-700]="album.status !== 'ready'">
+            {{ album.status | uppercase }}
+          </span>
+        </div>
+        
+        <div class="mt-4">
+          <h3 class="text-base font-semibold text-slate-100 group-hover:text-teal-400 transition-colors">
+            <a [routerLink]="['/albums', album.albumId]">
+              <span class="absolute inset-0"></span>
+              {{ album.title }}
+            </a>
+          </h3>
+          <p class="mt-1 text-xs text-slate-500 font-mono">{{ album.albumId }}</p>
+        </div>
+
+        <div class="mt-6 flex items-center justify-between border-t border-slate-800/50 pt-4 text-xs text-slate-400">
+          <span>{{ album.skuType | titlecase }} SKU</span>
+          <span>v{{ album.dpacVersion }}</span>
+        </div>
+      </div>
+    }
+    @empty {
+      <div class="col-span-full rounded-xl border border-dashed border-slate-800 p-12 text-center text-slate-500">
+        No albums found. Create your first DPA project to get started.
+      </div>
+    }
+  </div>
+</div>
