@@ -1,55 +1,64 @@
+
 <div class="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-teal-500/30">
-  <nav class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex h-16 justify-between items-center">
-        <div class="flex items-center gap-4">
-          <a routerLink="/" class="flex items-center gap-2">
-            <div class="h-6 w-6 rounded bg-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.5)]"></div>
-            <span class="font-bold text-lg tracking-tight">DPA <span class="text-slate-400 font-normal">Portal</span></span>
-          </a>
-        </div>
-        <div class="flex items-center gap-4">
-          
-          <!-- Device Connection Status -->
-          <div (click)="connectionService.cycleConnection()" 
-               class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs cursor-pointer transition-colors"
-               [class.border-slate-800]="connectionService.connectionStatus() === 'disconnected'"
-               [class.hover:bg-slate-800]="connectionService.connectionStatus() === 'disconnected'"
-               [class.text-slate-500]="connectionService.connectionStatus() === 'disconnected'"
-
-               [class.border-teal-500/50]="connectionService.connectionStatus() === 'usb'"
-               [class.bg-teal-500/10]="connectionService.connectionStatus() === 'usb'"
-               [class.text-teal-400]="connectionService.connectionStatus() === 'usb'"
-               
-               [class.border-blue-500/50]="connectionService.connectionStatus() === 'bluetooth'"
-               [class.bg-blue-500/10]="connectionService.connectionStatus() === 'bluetooth'"
-               [class.text-blue-400]="connectionService.connectionStatus() === 'bluetooth'">
-
-            @switch (connectionService.connectionStatus()) {
-              @case ('disconnected') {
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
-                <span>No Device Connected</span>
-              }
-              @case ('usb') {
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 10.512V15.5a.75.75 0 01-1.5 0v-4.988L7.452 12.01a.75.75 0 01-1.04-1.082l3.75-3.5a.75.75 0 011.04 0l3.75 3.5a.75.75 0 01-1.04 1.082l-1.798-1.5zM10 4.5a.75.75 0 000 1.5A.75.75 0 0010 4.5z" /></svg>
-                <span>Connected via USB-C</span>
-              }
-              @case ('bluetooth') {
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M10.205 3.184a.75.75 0 01.9 1.125l-2.09 2.613 2.09 2.612a.75.75 0 11-.9 1.125L8.5 8.351v4.298l1.705 2.132a.75.75 0 11-.9 1.125l-2.5-3.125a.75.75 0 010-1.125l2.5-3.125a.75.75 0 01.9 1.125L8.5 7.649l1.705-2.131zM11.5 7.649l1.705 2.132-1.705 2.13a.75.75 0 10.9 1.125l2.5-3.125a.75.75 0 000-1.125l-2.5-3.125a.75.75 0 00-.9 1.125L11.5 7.65z" /></svg>
-                <span>Connected via Bluetooth</span>
-              }
-            }
+  
+  <!-- Artist Portal Navigation (Hidden in Fan Mode/Login) -->
+  @if (!hideArtistNav()) {
+    <nav class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 justify-between items-center">
+          <div class="flex items-center gap-4">
+            <a routerLink="/artist/dashboard" class="flex items-center gap-2">
+              <div class="h-6 w-6 rounded bg-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.5)]"></div>
+              <span class="font-bold text-lg tracking-tight">DPA <span class="text-slate-400 font-normal">Portal</span></span>
+            </a>
           </div>
+          <div class="flex items-center gap-4">
+            
+            <!-- Device Connection Status -->
+            <div (click)="connectionService.cycleConnection()" 
+                class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs cursor-pointer transition-colors"
+                [class.border-slate-800]="connectionService.connectionStatus() === 'disconnected'"
+                [class.hover:bg-slate-800]="connectionService.connectionStatus() === 'disconnected'"
+                [class.text-slate-500]="connectionService.connectionStatus() === 'disconnected'"
 
-          <a routerLink="/account" class="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-semibold hover:border-teal-500 transition-colors">
-            {{ userInitials() }}
-          </a>
+                [class.border-teal-500/50]="connectionService.connectionStatus() === 'usb'"
+                [class.bg-teal-500/10]="connectionService.connectionStatus() === 'usb'"
+                [class.text-teal-400]="connectionService.connectionStatus() === 'usb'"
+                
+                [class.border-blue-500/50]="connectionService.connectionStatus() === 'bluetooth'"
+                [class.bg-blue-500/10]="connectionService.connectionStatus() === 'bluetooth'"
+                [class.text-blue-400]="connectionService.connectionStatus() === 'bluetooth'">
+
+              @switch (connectionService.connectionStatus()) {
+                @case ('disconnected') {
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                  <span>No Device Connected</span>
+                }
+                @case ('usb') {
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 10.512V15.5a.75.75 0 01-1.5 0v-4.988L7.452 12.01a.75.75 0 01-1.04-1.082l3.75-3.5a.75.75 0 011.04 0l3.75 3.5a.75.75 0 01-1.04 1.082l-1.798-1.5zM10 4.5a.75.75 0 000 1.5A.75.75 0 0010 4.5z" /></svg>
+                  <span>Connected via USB-C</span>
+                }
+                @case ('bluetooth') {
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M10.205 3.184a.75.75 0 01.9 1.125l-2.09 2.613 2.09 2.612a.75.75 0 11-.9 1.125L8.5 8.351v4.298l1.705 2.132a.75.75 0 11-.9 1.125l-2.5-3.125a.75.75 0 010-1.125l2.5-3.125a.75.75 0 01.9 1.125L8.5 7.649l1.705-2.131zM11.5 7.649l1.705 2.132-1.705 2.13a.75.75 0 10.9 1.125l2.5-3.125a.75.75 0 000-1.125l-2.5-3.125a.75.75 0 00-.9 1.125L11.5 7.65z" /></svg>
+                  <span>Connected via Bluetooth</span>
+                }
+              }
+            </div>
+
+            <a routerLink="/artist/account" class="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-semibold hover:border-teal-500 transition-colors">
+              {{ userInitials() }}
+            </a>
+            
+            <a routerLink="/login" class="text-xs text-slate-500 hover:text-white" title="Logout / Switch Portal">
+               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </a>
+          </div>
         </div>
       </div>
-    </div>
-  </nav>
+    </nav>
+  }
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div [class.max-w-7xl]="!hideArtistNav()" [class.mx-auto]="!hideArtistNav()" [class.px-4]="!hideArtistNav()" [class.sm:px-6]="!hideArtistNav()" [class.lg:px-8]="!hideArtistNav()" [class.py-8]="!hideArtistNav()">
     <router-outlet></router-outlet>
-  </main>
+  </div>
 </div>

@@ -1,7 +1,11 @@
+
 import { Component, inject, computed } from '@angular/core';
-import { RouterOutlet, RouterLink } from '@angular/router';
+import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
 import { DeviceConnectionService } from './services/device-connection.service';
 import { UserService } from './services/user.service';
+import { filter } from 'rxjs/operators';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs';
 
 @Component({
   selector: 'app-root',
@@ -12,6 +16,17 @@ import { UserService } from './services/user.service';
 export class AppComponent {
   connectionService = inject(DeviceConnectionService);
   userService = inject(UserService);
+  private router = inject(Router);
+
+  // Check if current route is NOT Artist portal
+  // We hide the global nav on Login and Fan Portal routes
+  hideArtistNav = toSignal(
+    this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd),
+      map((e: any) => e.url.startsWith('/fan') || e.url.startsWith('/login') || e.url === '/')
+    ),
+    { initialValue: true } // Default to hidden (Login screen)
+  );
 
   userInitials = computed(() => {
     const name = this.userService.userProfile().name;

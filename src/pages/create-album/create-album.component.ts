@@ -1,3 +1,4 @@
+
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
@@ -24,7 +25,7 @@ import { DataService } from '../../services/data.service';
         </div>
 
         <div class="pt-4 flex items-center justify-end gap-3">
-          <a routerLink="/" class="px-4 py-2 text-sm text-slate-400 hover:text-slate-200">Cancel</a>
+          <a routerLink="/artist" class="px-4 py-2 text-sm text-slate-400 hover:text-slate-200">Cancel</a>
           <button type="submit" [disabled]="!form.valid"
             class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed">
             Create Project
@@ -47,7 +48,7 @@ export class CreateAlbumComponent {
     if (this.form.valid) {
       const { title } = this.form.value;
       this.dataService.createAlbum(title!);
-      this.router.navigate(['/']);
+      this.router.navigate(['/artist']);
     }
   }
 }

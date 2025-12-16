@@ -1,10 +1,11 @@
+
 <div class="space-y-6">
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-2xl font-bold text-slate-50">Dashboard</h1>
       <p class="text-sm text-slate-400 mt-1">Manage your DPA projects and releases.</p>
     </div>
-    <a routerLink="/albums/new" class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 transition-colors">
+    <a routerLink="/artist/albums/new" class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 transition-colors">
       + New Album
     </a>
   </div>
@@ -43,7 +44,7 @@
         
         <div class="mt-4 relative z-10">
           <h3 class="text-base font-semibold text-slate-100 group-hover:text-teal-400 transition-colors">
-            <a [routerLink]="['/albums', album.albumId]">
+            <a [routerLink]="['/artist/albums', album.albumId]">
               <span class="absolute inset-0"></span>
               {{ album.title }}
             </a>

@@ -10,22 +10,45 @@ import { PerksConsoleComponent } from './pages/perks-console/perks-console.compo
 import { DevicesDashboardComponent } from './pages/devices-dashboard/devices-dashboard.component';
 import { UserAdminComponent } from './pages/user-admin/user-admin.component';
 import { AlbumMetadataComponent } from './pages/album-metadata/album-metadata.component';
+import { LoginComponent } from './pages/login/login.component';
+import { FanLayoutComponent } from './pages/fan-portal/fan-layout.component';
+import { FanHomeComponent } from './pages/fan-portal/fan-home.component';
 
 export const routes: Routes = [
-  { path: '', component: DashboardComponent },
-  { path: 'albums/new', component: CreateAlbumComponent },
-  { path: 'account', component: UserAdminComponent },
-  {
-    path: 'albums/:id',
-    component: AlbumLayoutComponent,
+  { path: '', redirectTo: 'login', pathMatch: 'full' },
+  { path: 'login', component: LoginComponent },
+  
+  // Artist Portal
+  { 
+    path: 'artist',
     children: [
-      { path: '', redirectTo: 'overview', pathMatch: 'full' },
-      { path: 'overview', component: AlbumOverviewComponent },
-      { path: 'metadata', component: AlbumMetadataComponent },
-      { path: 'tracks', component: TrackListComponent },
-      { path: 'theme', component: ThemeEditorComponent },
-      { path: 'perks', component: PerksConsoleComponent },
-      { path: 'devices', component: DevicesDashboardComponent }
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+      { path: 'dashboard', component: DashboardComponent },
+      { path: 'albums/new', component: CreateAlbumComponent },
+      { path: 'account', component: UserAdminComponent },
+      {
+        path: 'albums/:id',
+        component: AlbumLayoutComponent,
+        children: [
+          { path: '', redirectTo: 'overview', pathMatch: 'full' },
+          { path: 'overview', component: AlbumOverviewComponent },
+          { path: 'metadata', component: AlbumMetadataComponent },
+          { path: 'tracks', component: TrackListComponent },
+          { path: 'theme', component: ThemeEditorComponent },
+          { path: 'perks', component: PerksConsoleComponent },
+          { path: 'devices', component: DevicesDashboardComponent }
+        ]
+      }
+    ]
+  },
+
+  // Fan Portal
+  {
+    path: 'fan',
+    component: FanLayoutComponent,
+    children: [
+      { path: '', redirectTo: 'home', pathMatch: 'full' },
+      { path: 'home', component: FanHomeComponent }
     ]
   }
 ];
