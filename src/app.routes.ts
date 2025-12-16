@@ -7,10 +7,12 @@ import { TrackListComponent } from './pages/track-list/track-list.component';
 import { ThemeEditorComponent } from './pages/theme-editor/theme-editor.component';
 import { PerksConsoleComponent } from './pages/perks-console/perks-console.component';
 import { DevicesDashboardComponent } from './pages/devices-dashboard/devices-dashboard.component';
+import { UserAdminComponent } from './pages/user-admin/user-admin.component';
 
 export const routes: Routes = [
   { path: '', component: DashboardComponent },
   { path: 'albums/new', component: CreateAlbumComponent },
+  { path: 'account', component: UserAdminComponent },
   {
     path: 'albums/:id',
     component: AlbumLayoutComponent,

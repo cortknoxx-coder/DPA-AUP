@@ -1,5 +1,71 @@
-<div class="max-w-4xl">
-  <!-- List -->
+<div class="max-w-4xl space-y-8">
+
+  <!-- Upload Area -->
+  <div 
+    (dragover)="onDragOver($event)" 
+    (dragleave)="onDragLeave($event)" 
+    (drop)="onDrop($event)"
+    class="relative rounded-xl border-2 border-dashed transition-all duration-200 p-10 flex flex-col items-center justify-center text-center group cursor-pointer"
+    [class.border-teal-500]="isDragging()"
+    [class.bg-teal-500-10]="isDragging()"
+    [class.border-slate-700]="!isDragging()"
+    [class.bg-slate-900-30]="!isDragging()"
+    [class.hover:border-slate-500]="!isDragging()"
+    (click)="fileInput.click()">
+    
+    <input #fileInput type="file" multiple accept="audio/*,.wav,.flac" class="hidden" (change)="onFileSelected($event)">
+    
+    <div class="h-16 w-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+      </svg>
+    </div>
+    
+    <h3 class="text-lg font-semibold text-slate-200">Upload Masters</h3>
+    <p class="text-sm text-slate-400 mt-2 max-w-md mx-auto">
+      Drag and drop your high-fidelity WAV or FLAC files here, or click to browse.
+      <br><span class="text-xs text-slate-500">Supported: 24-bit/96kHz WAV, FLAC, AIFF</span>
+    </p>
+  </div>
+
+  <!-- Active Upload Queue -->
+  @if (uploads().length > 0) {
+    <div class="space-y-3">
+      <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Processing Queue</h4>
+      @for (upload of uploads(); track upload.id) {
+        <div class="rounded-lg border border-slate-800 bg-slate-900 p-4 flex items-center gap-4">
+          <!-- Icon -->
+          <div class="h-10 w-10 rounded bg-slate-800 flex items-center justify-center shrink-0">
+            @if (upload.status === 'done') {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            } @else {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+            }
+          </div>
+          
+          <!-- Info -->
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between mb-1">
+              <div class="text-sm font-medium text-slate-200 truncate">{{ upload.filename }}</div>
+              <div class="text-xs text-slate-500">{{ upload.status === 'done' ? 'Complete' : upload.progress + '%' }}</div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+              <div class="h-full bg-teal-500 transition-all duration-300 ease-out" [style.width.%]="upload.progress"></div>
+            </div>
+            
+            <div class="flex justify-between mt-1">
+              <div class="text-[10px] text-slate-500">{{ upload.size }}</div>
+              <div class="text-[10px] text-teal-400 font-mono" *ngIf="upload.status === 'processing'">Processing Audio...</div>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Track List Table -->
   <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
     <table class="min-w-full text-sm">
       <thead class="bg-slate-900 border-b border-slate-800">
@@ -27,8 +93,8 @@
         }
         @empty {
           <tr>
-            <td colspan="5" class="px-4 py-8 text-center text-slate-500 text-xs">
-              No tracks yet. Add one below.
+            <td colspan="5" class="px-4 py-12 text-center text-slate-500 text-xs">
+              No tracks yet. Drag audio files above or add manually below.
             </td>
           </tr>
         }
@@ -36,21 +102,28 @@
     </table>
   </div>
 
-  <!-- Add Form -->
-  <div class="mt-8 p-6 rounded-xl border border-slate-800 bg-slate-900/30">
-    <h3 class="text-sm font-semibold text-slate-100 mb-4">Add Track</h3>
-    <div class="flex gap-4 items-end">
-      <div class="flex-1">
-        <label class="block text-xs text-slate-400 mb-1">Track Title</label>
-        <input [(ngModel)]="newTitle" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none" placeholder="e.g. Intro">
+  <!-- Manual Add Form (Collapsed/Secondary) -->
+  <details class="group rounded-xl border border-slate-800 bg-slate-900/30">
+    <summary class="flex cursor-pointer items-center justify-between p-4 text-xs font-medium text-slate-400 hover:text-slate-200">
+      <span>Or Add Track Metadata Manually</span>
+      <span class="transition-transform group-open:rotate-180">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+      </span>
+    </summary>
+    <div class="p-6 pt-0 border-t border-slate-800/50 mt-4">
+      <div class="flex gap-4 items-end">
+        <div class="flex-1">
+          <label class="block text-xs text-slate-400 mb-1">Track Title</label>
+          <input [(ngModel)]="newTitle" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none" placeholder="e.g. Intro">
+        </div>
+        <div class="w-32">
+          <label class="block text-xs text-slate-400 mb-1">Duration (s)</label>
+          <input type="number" [(ngModel)]="newDuration" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none">
+        </div>
+        <button (click)="addTrack()" [disabled]="!newTitle()" class="rounded bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed">
+          Add Row
+        </button>
       </div>
-      <div class="w-32">
-        <label class="block text-xs text-slate-400 mb-1">Duration (s)</label>
-        <input type="number" [(ngModel)]="newDuration" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none">
-      </div>
-      <button (click)="addTrack()" [disabled]="!newTitle()" class="rounded bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed">
-        Add
-      </button>
     </div>
-  </div>
+  </details>
 </div>

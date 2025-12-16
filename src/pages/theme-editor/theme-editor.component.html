@@ -3,10 +3,80 @@
   <!-- Left Column: Form -->
   <form [formGroup]="form" (ngSubmit)="save()" class="flex-1 space-y-8 order-2 lg:order-1">
     
+    <!-- Skin Builder -->
+    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-slate-100">Device Skin Builder</h2>
+        <button type="button" (click)="downloadTemplate()" class="text-[10px] text-teal-400 hover:text-teal-300 flex items-center gap-1 transition-colors border border-teal-500/30 rounded px-2 py-1 bg-teal-500/5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Download DPA Spec PSD
+        </button>
+      </div>
+      
+      <!-- Tech Specs Box -->
+      <div class="mb-6 p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Form Factor</div>
+          <div class="text-sm text-slate-200 font-mono">DPA Silver (Landscape)</div>
+        </div>
+        <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
+        <div class="space-y-1">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Dimensions</div>
+          <div class="text-sm text-slate-200 font-mono">85.6mm x 54.0mm</div>
+        </div>
+        <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
+        <div class="space-y-1">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Asset Req (300DPI)</div>
+          <div class="text-sm text-teal-400 font-mono">1050 x 510 px (Partial Wrap)</div>
+        </div>
+      </div>
+
+      <div class="flex items-start gap-6">
+        <!-- Preview Thumbnail (Landscape) -->
+        <div class="h-[75px] w-40 flex-shrink-0 rounded-t-lg border border-slate-800 bg-slate-950 flex items-center justify-center overflow-hidden relative group shadow-inner">
+           <!-- Transparency Grid -->
+           <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#334155 1px, transparent 1px); background-size: 8px 8px;"></div>
+           
+          @if (form.value.skinImage) {
+            <img [src]="form.value.skinImage" class="h-full w-full object-cover z-10 relative">
+          } @else {
+            <div class="text-center z-10 relative">
+              <span class="block text-[10px] text-slate-600 mb-2">No Skin</span>
+              <div class="h-6 w-10 rounded border border-dashed border-slate-700 mx-auto opacity-50"></div>
+            </div>
+          }
+        </div>
+
+        <div class="flex-1 space-y-4 pt-2">
+          <input type="file" #fileInput (change)="onFileSelected($event)" accept="image/png, image/jpeg" class="hidden">
+          
+          <div class="flex flex-wrap gap-3">
+            <button type="button" (click)="fileInput.click()" class="rounded bg-slate-800 px-4 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 border border-slate-700 transition-colors flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              Select Artwork
+            </button>
+            
+            @if (form.value.skinImage) {
+              <button type="button" (click)="removeSkin()" class="rounded px-4 py-2 text-xs font-medium text-rose-400 hover:bg-rose-950/30 border border-transparent hover:border-rose-900 transition-colors flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Remove
+              </button>
+            }
+          </div>
+          <p class="text-[10px] text-slate-500 leading-relaxed">
+            Wrap covers top ~75% of front face. <br>
+            Asset dimensions updated: <strong>1050 x 510 px</strong> to account for the metal chin.
+          </p>
+        </div>
+      </div>
+    </section>
+
     <!-- Colors -->
     <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6" formGroupName="albumColor">
-      <h2 class="text-sm font-semibold text-slate-100 mb-1">Album Palette</h2>
-      <p class="text-xs text-slate-500 mb-4">Defines the companion app UI and primary LED bias.</p>
+      <h2 class="text-sm font-semibold text-slate-100 mb-1">Companion App Palette</h2>
+      <p class="text-xs text-slate-500 mb-4">Defines the mobile app UI colors.</p>
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
@@ -36,7 +106,7 @@
     <!-- LED Behavior -->
     <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6" formGroupName="led">
       <h2 class="text-sm font-semibold text-slate-100 mb-1">LED Behavior</h2>
-      <p class="text-xs text-slate-500 mb-4">Hardware light patterns for different device states.</p>
+      <p class="text-xs text-slate-500 mb-4">Side-firing LED strip patterns.</p>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div formGroupName="idle" class="space-y-3 p-3 rounded hover:bg-slate-800/30 transition-colors cursor-pointer" 
@@ -122,7 +192,7 @@
     </section>
 
     <div class="flex justify-end pt-4">
-      <button type="submit" class="rounded bg-teal-600 px-6 py-2 text-sm font-semibold text-white hover:bg-teal-500 shadow-lg shadow-teal-900/20">
+      <button type="submit" class="rounded bg-teal-600 px-6 py-2 text-sm font-semibold text-white hover:bg-teal-500 shadow-lg shadow-teal-900/20 transition-all">
         Save Theme & Queue Rebuild
       </button>
     </div>
@@ -130,40 +200,111 @@
 
   <!-- Right Column: Visualizer (Sticky) -->
   <div class="w-full lg:w-80 order-1 lg:order-2">
-    <div class="sticky top-24 rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl">
-      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-6 text-center">Device Simulator</h3>
-      
-      <!-- The Physical Device -->
-      <div class="relative mx-auto h-48 w-48 rounded-3xl bg-slate-900 shadow-inner flex items-center justify-center border-4 border-slate-800">
-        <!-- LED Ring / Element -->
-        <div class="h-32 w-32 rounded-full bg-slate-950 flex items-center justify-center relative transition-all duration-300"
-             [style.--glow-color]="form.value.led?.[previewMode()]?.color"
-             [style.background-color]="form.value.led?.[previewMode()]?.pattern === 'off' ? '#1e293b' : form.value.led?.[previewMode()]?.color"
-             [class.animate-breathe]="form.value.led?.[previewMode()]?.pattern === 'breathing'"
-             [class.animate-pulse-fast]="form.value.led?.[previewMode()]?.pattern === 'pulse'"
-             [style.box-shadow]="form.value.led?.[previewMode()]?.pattern === 'solid' ? '0 0 30px var(--glow-color)' : ''">
-             
-           <!-- Inner details to make it look hardware-ish -->
-           <div class="h-24 w-24 rounded-full bg-slate-900 border border-slate-800 opacity-90 flex items-center justify-center">
-             <div class="text-[10px] font-mono text-slate-600">DPA</div>
-           </div>
-        </div>
-      </div>
+    <div class="sticky top-24 rounded-2xl border border-slate-800 bg-slate-950/90 backdrop-blur-sm p-6 shadow-2xl">
+      @if (connectionService.connectionStatus() !== 'disconnected') {
+        <div class="flex flex-col items-center">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-8 text-center">DPA Silver Edition</h3>
+          
+          <!-- Perspective Wrapper -->
+          <div class="perspective-[1000px] group">
+            
+            <!-- The Physical Device Chassis -->
+            <!-- 340px width to match approx screen size relative to real 85mm width -->
+            <!-- Brushed Metal Texture Body -->
+            <div class="relative w-[340px] h-[214px] rounded-xl shadow-2xl transform transition-transform duration-500 ease-out group-hover:rotate-y-6 group-hover:rotate-x-6 bg-gradient-to-br from-slate-200 via-slate-50 to-slate-400 overflow-hidden border border-slate-400">
+              
+              <!-- Subtle Brushed Metal Texture Overlay -->
+              <div class="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] pointer-events-none mix-blend-multiply"></div>
 
-      <div class="mt-6 text-center space-y-1">
-        <div class="text-sm font-medium text-slate-200 capitalize">
-          {{ previewMode() }} Mode
-        </div>
-        <div class="text-xs text-slate-500 font-mono">
-          {{ form.value.led?.[previewMode()]?.color }} • {{ form.value.led?.[previewMode()]?.pattern }}
-        </div>
-      </div>
+              <!-- Side LED Glow (Left Edge) -->
+              <!-- We simulate the glow spilling onto the face from the left edge -->
+              <div class="absolute inset-y-0 left-0 w-2 blur-md transition-all duration-300 z-50 mix-blend-screen opacity-80"
+                   [style.background-color]="form.value.led?.[previewMode()]?.pattern === 'off' ? 'transparent' : form.value.led?.[previewMode()]?.color"
+                   [class.animate-breathe]="form.value.led?.[previewMode()]?.pattern === 'breathing'"
+                   [class.animate-pulse-fast]="form.value.led?.[previewMode()]?.pattern === 'pulse'">
+              </div>
+              <div class="absolute inset-y-0 left-0 w-[1px] bg-white/50 z-50"></div>
 
-      <div class="mt-6 pt-6 border-t border-slate-800 text-center">
-        <p class="text-[10px] text-slate-500 leading-tight">
-          Click the sections on the left (Idle, Playback, Charging) to switch the simulator preview.
-        </p>
-      </div>
+              <!-- Upper 75%: Skin Area -->
+              <div class="absolute top-0 left-0 right-0 h-[75%] bg-slate-300 overflow-hidden border-b border-slate-400/30">
+                 @if (form.value.skinImage) {
+                   <img [src]="form.value.skinImage" class="h-full w-full object-cover">
+                   <div class="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent pointer-events-none"></div>
+                 } @else {
+                   <div class="h-full w-full flex items-center justify-center text-slate-400 text-xs uppercase tracking-widest font-semibold bg-slate-200/50">
+                     No Skin
+                   </div>
+                 }
+              </div>
+
+              <!-- Lower 25%: Control Chin (Titanium Finish) -->
+              <div class="absolute bottom-0 left-0 right-0 h-[25%] bg-gradient-to-b from-slate-100 to-slate-300 flex items-center justify-between px-6 shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]">
+                  
+                 <!-- Buttons: [Prev] [Next] [Stop] [BT] -->
+                 <div class="flex gap-4 items-center">
+                    <!-- Prev -->
+                    <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z" /></svg>
+                    </div>
+                    <!-- Next -->
+                    <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798l-5.445-3.63z" /></svg>
+                    </div>
+                    <!-- Stop (Square) -->
+                    <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                      <div class="h-3 w-3 bg-slate-400 rounded-sm"></div>
+                    </div>
+                    <!-- Bluetooth -->
+                    <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 010 1.414l-3 3A1 1 0 0110 10.414V8.414l1.293-1.293-1.293-1.293V3zm0 10.414l1.293-1.293 1.293 1.293-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414l1.414 1.414v-1.414z" clip-rule="evenodd" /></svg>
+                    </div>
+                 </div>
+
+                 <!-- Logo -->
+                 <div class="text-right">
+                    <div class="text-xs font-bold text-slate-500 tracking-tighter">DPA<span class="align-top text-[8px] font-normal">TM</span></div>
+                    <div class="text-[8px] font-semibold text-slate-400 uppercase tracking-widest -mt-1">Audio</div>
+                 </div>
+
+              </div>
+            </div>
+
+            <!-- Side Edge View (Left Side) - Simulated via 3D transform -->
+            <!-- This div represents the thickness on the left side when rotated -->
+            <div class="absolute top-0 bottom-0 left-0 w-[6px] bg-white origin-right transform -translate-x-full transition-all duration-300"
+                 [style.background-color]="form.value.led?.[previewMode()]?.color"
+                 [style.box-shadow]="form.value.led?.[previewMode()]?.pattern === 'off' ? 'none' : '0 0 20px ' + form.value.led?.[previewMode()]?.color"
+                 style="transform: rotateY(-90deg);">
+            </div>
+
+          </div>
+  
+          <div class="mt-6 text-center space-y-1">
+            <div class="text-sm font-medium text-slate-200 capitalize">
+              {{ previewMode() }} Mode
+            </div>
+            <div class="text-xs text-slate-500 font-mono">
+              {{ form.value.led?.[previewMode()]?.color }} • {{ form.value.led?.[previewMode()]?.pattern }}
+            </div>
+          </div>
+  
+          <div class="mt-6 pt-6 border-t border-slate-800 text-center w-full">
+            <p class="text-[10px] text-slate-500 leading-tight">
+              Hover over device to inspect metallic finish and light reflection.
+            </p>
+          </div>
+        </div>
+      } @else {
+        <div class="text-center h-full flex flex-col items-center justify-center aspect-square">
+          <div class="h-16 w-16 rounded-full bg-slate-800/50 flex items-center justify-center border border-slate-700 mb-4">
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+               <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+             </svg>
+          </div>
+          <h4 class="text-sm font-semibold text-slate-200">Simulator Offline</h4>
+          <p class="text-xs text-slate-500 mt-1">Connect a device to preview themes and LED patterns in real-time.</p>
+        </div>
+      }
     </div>
   </div>
 </div>
