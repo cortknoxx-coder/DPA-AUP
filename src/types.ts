@@ -175,3 +175,48 @@ export interface Album {
   economics?: UnitEconomics;
   resales?: ResaleTransaction[];
 }
+
+// --- DPA Hardware & Architecture Types ---
+
+export interface DpaDeviceInfo {
+  serial: string;
+  model: string;
+  firmwareVersion: string;
+  capabilities: string[];
+  pubkeyB64: string;
+}
+
+export interface AupDecision {
+  decision: 'ALLOW' | 'DENY' | 'CHALLENGE';
+  reasonCode: string;
+  message: string;
+  policyHash: string;
+  retryAfterSec: number;
+  requiredAction: 'NONE' | 'REAUTH' | 'UPDATE_APP' | 'UPDATE_FW';
+}
+
+export interface DecryptionKeyResponse {
+  sessionKeyB64?: string;
+  expiresAtIso?: string;
+  aup: AupDecision;
+}
+
+export interface DeviceRpcRequest {
+  id: string;
+  method:
+    | 'GET_DEVICE_INFO'
+    | 'GET_ATTESTATION'
+    | 'GET_AUP_HASH'
+    | 'LIST_LIBRARY'
+    | 'GET_MANIFEST'
+    | 'READ_BLOB'
+    | 'REQUEST_DECRYPTION_KEY';
+  params?: any;
+}
+
+export interface DeviceRpcResponse {
+  id: string;
+  ok: boolean;
+  result?: any;
+  error?: { code: string; message: string };
+}

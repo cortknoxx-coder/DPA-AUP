@@ -1,6 +1,8 @@
 
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { DeviceConnectionService } from './device-connection.service';
+import { DeviceBridgeService } from './device-bridge.service';
+import { CryptoService } from './crypto.service';
 
 export interface PlayerTrack {
   id: string;
@@ -16,6 +18,8 @@ export interface PlayerTrack {
 })
 export class PlayerService {
   private deviceService = inject(DeviceConnectionService);
+  private bridge = inject(DeviceBridgeService);
+  private crypto = inject(CryptoService);
 
   // State
   isPlaying = signal(false);
@@ -23,6 +27,9 @@ export class PlayerService {
   progress = signal(0); // 0 to 100
   currentTime = signal(0);
   volume = signal(0.8);
+  
+  // Playback Context
+  sessionKey = signal<string | null>(null);
 
   // Mock Queue
   queue = signal<PlayerTrack[]>([
@@ -43,7 +50,8 @@ export class PlayerService {
 
   constructor() {}
 
-  play(track?: PlayerTrack) {
+  async play(track?: PlayerTrack) {
+    // 1. Set Track Info
     if (track) {
       this.currentTrack.set(track);
       this.progress.set(0);
@@ -53,7 +61,41 @@ export class PlayerService {
     if (!this.currentTrack() && this.queue().length > 0) {
       this.currentTrack.set(this.queue()[0]);
     }
+    
+    const current = this.currentTrack();
+    if (!current) return;
 
+    // 2. AUP Check & Decryption Request (Real Hardware Path)
+    if (!this.deviceService.isSimulationMode() && this.bridge.isConnected()) {
+        try {
+            console.log(`[Player] Requesting Key for ${current.id}...`);
+            const response = await this.bridge.requestDecryptionKey(current.id);
+            
+            // Check AUP Decision
+            if (response.aup.decision === 'DENY') {
+                alert(`Playback Denied by Device AUP: ${response.aup.message} (${response.aup.reasonCode})`);
+                this.pause();
+                return;
+            } else if (response.aup.decision === 'CHALLENGE') {
+                alert(`Security Challenge: ${response.aup.message}`);
+                this.pause();
+                return;
+            }
+
+            if (response.sessionKeyB64) {
+                this.sessionKey.set(response.sessionKeyB64);
+                console.log('[Player] Session Key Acquired. Starting Stream.');
+                // In a real implementation, we would now fetch readBlob() chunks and 
+                // pipe them through this.crypto.aesGcmDecrypt() to an AudioContext.
+            }
+        } catch (e) {
+            console.error('Key Request Failed', e);
+            alert('Device Communication Error. Check Bridge.');
+            return;
+        }
+    }
+
+    // 3. Start Timer (Simulated Playback for UI)
     this.isPlaying.set(true);
     this.startTimer();
   }

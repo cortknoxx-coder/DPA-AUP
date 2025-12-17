@@ -1,5 +1,6 @@
 
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
+import { DeviceBridgeService } from './device-bridge.service';
 
 export type ConnectionStatus = 'disconnected' | 'usb' | 'bluetooth';
 export type RegistrationStatus = 'unregistered' | 'analyzing' | 'registered' | 'lost';
@@ -8,6 +9,8 @@ export type RegistrationStatus = 'unregistered' | 'analyzing' | 'registered' | '
   providedIn: 'root'
 })
 export class DeviceConnectionService {
+  private bridge = inject(DeviceBridgeService);
+
   connectionStatus = signal<ConnectionStatus>('disconnected');
   
   // Registration State
@@ -17,14 +20,52 @@ export class DeviceConnectionService {
   // Derived state for the UI
   isSnippetMode = computed(() => this.registrationStatus() !== 'registered');
 
+  // Simulator Flag
+  private isSimulated = false;
+
   constructor() {}
 
-  cycleConnection() {
-    this.connectionStatus.update(current => {
-      if (current === 'disconnected') return 'usb';
-      if (current === 'usb') return 'bluetooth';
-      return 'disconnected';
-    });
+  async cycleConnection() {
+    // Current Logic: Toggle connection states
+    // New Logic: Try to connect to Bridge first. If fail, toggle simulation modes.
+    
+    if (this.connectionStatus() === 'disconnected') {
+      // Attempt Bridge Connection
+      const connected = await this.bridge.connect();
+      if (connected) {
+        this.connectionStatus.set('usb'); // Assume USB for bridge
+        this.isSimulated = false;
+        // Auto-check device info
+        this.checkDevice();
+      } else {
+        // Fallback to Simulator
+        this.isSimulated = true;
+        this.connectionStatus.set('usb');
+        console.warn('DPA Bridge unavailable. Entering Simulator Mode.');
+      }
+    } else if (this.connectionStatus() === 'usb') {
+      this.connectionStatus.set('bluetooth');
+    } else {
+      this.connectionStatus.set('disconnected');
+      this.isSimulated = false;
+      this.registeredDeviceId.set(null);
+      this.registrationStatus.set('unregistered');
+    }
+  }
+
+  private async checkDevice() {
+    if (!this.isSimulated && this.bridge.isConnected()) {
+      try {
+        const info = await this.bridge.getDeviceInfo();
+        if (info.serial) {
+          // Auto-register for demo purposes if bridge is live
+          this.registrationStatus.set('registered');
+          this.registeredDeviceId.set(info.serial);
+        }
+      } catch (e) {
+        console.error('Failed to get device info', e);
+      }
+    }
   }
 
   // Simulate Device Licensing Process
@@ -32,9 +73,24 @@ export class DeviceConnectionService {
     this.registrationStatus.set('analyzing');
     
     return new Promise((resolve) => {
-      setTimeout(() => {
-        // Simulate check: Valid IDs start with "DPA-"
-        if (deviceId.toUpperCase().startsWith('DPA-')) {
+      // If connected to real bridge, we would verify here.
+      // For now, we simulate the logic or use the bridge data.
+      
+      setTimeout(async () => {
+        let valid = false;
+
+        if (!this.isSimulated && this.bridge.isConnected()) {
+           // Real verification against device attest
+           try {
+             const info = await this.bridge.getDeviceInfo();
+             valid = info.serial === deviceId;
+           } catch { valid = false; }
+        } else {
+           // Sim verification
+           valid = deviceId.toUpperCase().startsWith('DPA-');
+        }
+
+        if (valid) {
           this.registrationStatus.set('registered');
           this.registeredDeviceId.set(deviceId.toUpperCase());
           resolve(true);
@@ -70,5 +126,10 @@ export class DeviceConnectionService {
     return new Promise(resolve => {
       setTimeout(() => resolve(), 2000);
     });
+  }
+
+  // Helper for other services to know if we are in sim mode
+  isSimulationMode() {
+    return this.isSimulated;
   }
 }
