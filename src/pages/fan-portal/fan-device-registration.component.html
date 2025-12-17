@@ -126,7 +126,14 @@
       <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6 text-center">Membership Tiers</h3>
       <div class="grid grid-cols-2 gap-4">
         <!-- Snippet Mode -->
-        <div class="rounded-xl border border-slate-800 bg-slate-900/30 p-6 opacity-60">
+        <div class="rounded-xl p-6 transition-all border"
+             [class.opacity-60]="deviceService.registrationStatus() === 'registered'"
+             [class.border-slate-800]="deviceService.registrationStatus() === 'registered'"
+             [class.bg-slate-900/30]="deviceService.registrationStatus() === 'registered'"
+             [class.border-amber-500/20]="deviceService.registrationStatus() !== 'registered'"
+             [class.bg-amber-900/10]="deviceService.registrationStatus() !== 'registered'"
+             [class.ring-1]="deviceService.registrationStatus() !== 'registered'"
+             [class.ring-amber-500/20]="deviceService.registrationStatus() !== 'registered'">
           <div class="text-sm font-bold text-slate-300 mb-4">Snippet Mode (Unregistered)</div>
           <ul class="space-y-3 text-xs text-slate-500">
              <li class="flex items-center gap-2"><span class="text-amber-500">⚠</span> 30-Second Playback Limit</li>
@@ -135,7 +142,14 @@
           </ul>
         </div>
         <!-- Owner Mode -->
-        <div class="rounded-xl border border-emerald-900/30 bg-emerald-900/5 p-6 ring-1 ring-emerald-500/20">
+        <div class="rounded-xl p-6 transition-all border"
+             [class.opacity-60]="deviceService.registrationStatus() !== 'registered'"
+             [class.border-slate-800]="deviceService.registrationStatus() !== 'registered'"
+             [class.bg-slate-900/30]="deviceService.registrationStatus() !== 'registered'"
+             [class.border-emerald-900/30]="deviceService.registrationStatus() === 'registered'"
+             [class.bg-emerald-900/5]="deviceService.registrationStatus() === 'registered'"
+             [class.ring-1]="deviceService.registrationStatus() === 'registered'"
+             [class.ring-emerald-500/20]="deviceService.registrationStatus() === 'registered'">
           <div class="text-sm font-bold text-white mb-4">Owner Mode (Registered)</div>
           <ul class="space-y-3 text-xs text-slate-300">
              <li class="flex items-center gap-2"><span class="text-emerald-400">✓</span> Unlimited Hi-Fi Playback</li>

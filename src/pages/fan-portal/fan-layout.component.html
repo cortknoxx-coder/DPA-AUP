@@ -32,6 +32,10 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
             Capsules
           </a>
+          <a routerLink="/fan/marketplace" routerLinkActive="bg-white/10 text-white" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+            Marketplace
+          </a>
           <a routerLink="/fan/devices" routerLinkActive="bg-white/10 text-white" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
             My Devices
@@ -84,6 +88,10 @@
             <a routerLink="/fan/capsules" routerLinkActive="bg-white/10 text-white" (click)="sidebarOpen.set(false)" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
               Capsules
+            </a>
+            <a routerLink="/fan/marketplace" routerLinkActive="bg-white/10 text-white" (click)="sidebarOpen.set(false)" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+              Marketplace
             </a>
             <a routerLink="/fan/devices" routerLinkActive="bg-white/10 text-white" (click)="sidebarOpen.set(false)" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
@@ -180,18 +188,25 @@
 
     <!-- Volume & Source -->
     <div class="flex items-center justify-end gap-2 sm:gap-3 col-span-1">
-       <div class="flex items-center gap-1 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] uppercase font-bold tracking-wider" 
-            [class.text-indigo-400]="connectionService.connectionStatus() === 'usb'"
-            [class.border-indigo-500/30]="connectionService.connectionStatus() === 'usb'"
-            [class.text-blue-400]="connectionService.connectionStatus() === 'bluetooth'">
-         @if (connectionService.connectionStatus() === 'disconnected') {
-           <span class="text-slate-500">Offline</span>
-         } @else if (connectionService.connectionStatus() === 'usb') {
-           <span>USB-C</span>
-         } @else {
-           <span>BT</span>
-         }
-       </div>
+       @if(connectionService.connectionStatus() !== 'disconnected') {
+         <button (click)="connectionService.disconnectDevice()" 
+                 class="flex items-center gap-1 px-2 py-1 rounded border text-[10px] uppercase font-bold tracking-wider transition-colors" 
+                 [class.text-indigo-400]="!connectionService.isSimulationMode()"
+                 [class.border-indigo-500/30]="!connectionService.isSimulationMode()"
+                 [class.bg-indigo-500/10]="!connectionService.isSimulationMode()"
+                 [class.hover:border-indigo-500/80]="!connectionService.isSimulationMode()"
+                 [class.text-amber-400]="connectionService.isSimulationMode()"
+                 [class.border-amber-500/30]="connectionService.isSimulationMode()"
+                 [class.bg-amber-500/10]="connectionService.isSimulationMode()"
+                 [class.hover:border-amber-500/80]="connectionService.isSimulationMode()"
+                 title="Disconnect Session">
+           @if (connectionService.isSimulationMode()) {
+             <span>SIM</span>
+           } @else {
+             <span>LIVE</span>
+           }
+         </button>
+       }
        
        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
        <div class="w-20 h-1 bg-slate-800 rounded-full overflow-hidden hidden md:block">

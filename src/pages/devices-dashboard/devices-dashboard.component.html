@@ -108,6 +108,12 @@
              <div class="text-3xl font-bold text-rose-400">{{ resaleVolume | currency }}</div>
              <div class="text-xs text-slate-500 mt-2">Total value of peer-to-peer trades</div>
           </div>
+
+          <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+             <div class="text-sm text-slate-400 mb-1">Total Resale Transactions</div>
+             <div class="text-3xl font-bold text-slate-100">{{ totalResaleTransactions | number }}</div>
+             <div class="text-xs text-slate-500 mt-2">Peer-to-peer ownership transfers</div>
+          </div>
           
           <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
              <div class="text-sm text-slate-400 mb-1">Avg Resale Price</div>
@@ -121,7 +127,7 @@
           </div>
 
           <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-             <div class="text-sm text-slate-400 mb-1">Royalty Revenue (10%)</div>
+             <div class="text-sm text-slate-400 mb-1">Total Royalty Revenue</div>
              <div class="text-3xl font-bold text-emerald-400">{{ a.economics?.secondaryRevenue | currency }}</div>
              <div class="text-xs text-slate-500 mt-2">Paid automatically via Smart Contract</div>
           </div>
@@ -143,25 +149,30 @@
               <thead class="bg-slate-950/50 border-b border-slate-800 text-xs text-slate-500 uppercase">
                  <tr>
                    <th class="px-4 py-3 text-left">Date</th>
+                   <th class="px-4 py-3 text-left">Device ID</th>
                    <th class="px-4 py-3 text-left">Seller</th>
                    <th class="px-4 py-3 text-left">Buyer</th>
                    <th class="px-4 py-3 text-right">Price</th>
-                   <th class="px-4 py-3 text-right">Royalty (10%)</th>
+                   <th class="px-4 py-3 text-right">Royalty</th>
                    <th class="px-4 py-3 text-right">Region</th>
                  </tr>
               </thead>
               <tbody class="divide-y divide-slate-800/30">
                 @for (tx of a.resales; track tx.id) {
                   <tr class="hover:bg-slate-800/20 group">
-                    <td class="px-4 py-3 text-slate-400 text-xs font-mono">{{ tx.date | date:'MMM d, y, HH:mm' }}</td>
+                    <td class="px-4 py-3 text-slate-400 text-xs font-mono whitespace-nowrap">{{ tx.date | date:'MMM d, y, HH:mm' }}</td>
+                    <td class="px-4 py-3 text-slate-400 font-mono text-xs">{{ tx.deviceId }}</td>
                     <td class="px-4 py-3 text-slate-500 font-mono text-xs">{{ tx.sellerHash }}</td>
                     <td class="px-4 py-3 text-slate-200 font-mono text-xs group-hover:text-teal-400 transition-colors">{{ tx.buyerHash }}</td>
                     <td class="px-4 py-3 text-right text-slate-100 font-medium">{{ tx.priceUsd | currency }}</td>
-                    <td class="px-4 py-3 text-right text-emerald-400 font-medium">+{{ tx.artistEarnings | currency }}</td>
+                    <td class="px-4 py-3 text-right text-emerald-400 font-medium whitespace-nowrap">
+                      +{{ tx.artistEarnings | currency }}
+                      <span class="text-slate-500 text-[10px] ml-1">({{ tx.royaltyPercentage }}%)</span>
+                    </td>
                     <td class="px-4 py-3 text-right text-slate-500 text-xs">{{ tx.marketRegion }}</td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="6" class="p-8 text-center text-slate-500">No secondary market activity yet.</td></tr>
+                  <tr><td colspan="7" class="p-8 text-center text-slate-500">No secondary market activity yet.</td></tr>
                 }
               </tbody>
             </table>

@@ -1,5 +1,5 @@
 
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
 import { DeviceConnectionService } from './services/device-connection.service';
 import { UserService } from './services/user.service';
@@ -17,6 +17,8 @@ export class AppComponent {
   connectionService = inject(DeviceConnectionService);
   userService = inject(UserService);
   private router = inject(Router);
+
+  showConnectionMenu = signal(false);
 
   // Check if current route is NOT Artist portal
   // We hide the global nav on Login and Fan Portal routes
@@ -37,4 +39,8 @@ export class AppComponent {
     }
     return name.substring(0, 2).toUpperCase();
   });
+
+  toggleConnectionMenu() {
+    this.showConnectionMenu.update(v => !v);
+  }
 }

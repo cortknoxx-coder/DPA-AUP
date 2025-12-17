@@ -1,5 +1,4 @@
 
-
 export interface Track {
   id: string;
   albumId: string;
@@ -86,6 +85,17 @@ export interface ResaleTransaction {
   royaltyPercentage: number;
   artistEarnings: number;
   marketRegion: string;
+}
+
+export interface MarketplaceListing {
+  id: string;
+  deviceId: string;
+  albumId: string;
+  albumTitle: string;
+  albumArtist: string;
+  sellerHash: string;
+  priceUsd: number;
+  artworkUrl: string;
 }
 
 export interface UnitEconomics {
@@ -219,4 +229,36 @@ export interface DeviceRpcResponse {
   ok: boolean;
   result?: any;
   error?: { code: string; message: string };
+}
+
+export interface AlbumRef { 
+  id: string; 
+  title: string; 
+  artworkUrl?: string; 
+}
+
+export interface TrackRef { 
+  id: string; 
+  albumId: string; 
+  title: string; 
+  durationSec: number; 
+  trackNo: number; 
+  codec: string; 
+}
+
+export interface LibraryIndex {
+  albums: AlbumRef[];
+  tracks: TrackRef[];
+}
+
+export interface Manifest {
+  version: 1;
+  albumId: string;
+  policyHash: string;
+  blobs: Array<{ blobId: string; sha256: string; size: number; mime: string; kind: 'audio' | 'art' | 'capsule' }>;
+  tracks: Array<{ trackId: string; blobId: string; codec: string; title: string; trackNo: number; durationSec: number }>;
+  signatures: {
+    manifestSigEd25519B64: string;
+    publisherPubkeyEd25519B64: string;
+  };
 }

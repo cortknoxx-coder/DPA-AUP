@@ -14,34 +14,89 @@
           </div>
           <div class="flex items-center gap-4">
             
-            <!-- Device Connection Status -->
-            <div (click)="connectionService.cycleConnection()" 
-                class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs cursor-pointer transition-colors"
-                [class.border-slate-800]="connectionService.connectionStatus() === 'disconnected'"
-                [class.hover:bg-slate-800]="connectionService.connectionStatus() === 'disconnected'"
-                [class.text-slate-500]="connectionService.connectionStatus() === 'disconnected'"
+            <!-- Device Connection Status Dropdown -->
+            <div class="relative">
+              <button (click)="toggleConnectionMenu()" 
+                      class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950"
+                      [class.border-slate-700]="connectionService.connectionStatus() === 'disconnected'"
+                      [class.hover:bg-slate-800]="connectionService.connectionStatus() === 'disconnected'"
+                      [class.text-slate-400]="connectionService.connectionStatus() === 'disconnected'"
+                      [class.focus:ring-slate-500]="connectionService.connectionStatus() === 'disconnected'"
 
-                [class.border-teal-500/50]="connectionService.connectionStatus() === 'usb'"
-                [class.bg-teal-500/10]="connectionService.connectionStatus() === 'usb'"
-                [class.text-teal-400]="connectionService.connectionStatus() === 'usb'"
+                      [class.border-teal-500/50]="connectionService.connectionStatus() !== 'disconnected' && !connectionService.isSimulationMode()"
+                      [class.bg-teal-500/10]="connectionService.connectionStatus() !== 'disconnected' && !connectionService.isSimulationMode()"
+                      [class.text-teal-400]="connectionService.connectionStatus() !== 'disconnected' && !connectionService.isSimulationMode()"
+                      [class.hover:border-teal-500]="connectionService.connectionStatus() !== 'disconnected' && !connectionService.isSimulationMode()"
+                      [class.focus:ring-teal-500]="connectionService.connectionStatus() !== 'disconnected' && !connectionService.isSimulationMode()"
+                      
+                      [class.border-amber-500/50]="connectionService.isSimulationMode()"
+                      [class.bg-amber-500/10]="connectionService.isSimulationMode()"
+                      [class.text-amber-400]="connectionService.isSimulationMode()"
+                      [class.hover:border-amber-500]="connectionService.isSimulationMode()"
+                      [class.focus:ring-amber-500]="connectionService.isSimulationMode()">
                 
-                [class.border-blue-500/50]="connectionService.connectionStatus() === 'bluetooth'"
-                [class.bg-blue-500/10]="connectionService.connectionStatus() === 'bluetooth'"
-                [class.text-blue-400]="connectionService.connectionStatus() === 'bluetooth'">
+                @if (connectionService.connectionStatus() === 'disconnected') {
+                  <span class="h-2 w-2 rounded-full bg-slate-600"></span>
+                  <span class="hidden sm:inline">Disconnected</span>
+                } @else {
+                  <span class="h-2 w-2 rounded-full animate-pulse"
+                        [class.bg-teal-500]="!connectionService.isSimulationMode()"
+                        [class.bg-amber-500]="connectionService.isSimulationMode()"></span>
+                  @if (connectionService.isSimulationMode()) {
+                    <span class="hidden sm:inline">SIMULATOR</span>
+                  } @else {
+                    <span class="hidden sm:inline">LIVE</span>
+                  }
+                }
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              
+              @if (showConnectionMenu()) {
+                <!-- Backdrop -->
+                <div (click)="showConnectionMenu.set(false)" class="fixed inset-0 z-40"></div>
 
-              @switch (connectionService.connectionStatus()) {
-                @case ('disconnected') {
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
-                  <span class="hidden sm:inline">No Device Connected</span>
-                }
-                @case ('usb') {
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 10.512V15.5a.75.75 0 01-1.5 0v-4.988L7.452 12.01a.75.75 0 01-1.04-1.082l3.75-3.5a.75.75 0 011.04 0l3.75 3.5a.75.75 0 01-1.04 1.082l-1.798-1.5zM10 4.5a.75.75 0 000 1.5A.75.75 0 0010 4.5z" /></svg>
-                  <span class="hidden sm:inline">Connected via USB-C</span>
-                }
-                @case ('bluetooth') {
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M10.205 3.184a.75.75 0 01.9 1.125l-2.09 2.613 2.09 2.612a.75.75 0 11-.9 1.125L8.5 8.351v4.298l1.705 2.132a.75.75 0 11-.9 1.125l-2.5-3.125a.75.75 0 010-1.125l2.5-3.125a.75.75 0 01.9 1.125L8.5 7.649l1.705-2.131zM11.5 7.649l1.705 2.132-1.705 2.13a.75.75 0 10.9 1.125l2.5-3.125a.75.75 0 000-1.125l-2.5-3.125a.75.75 0 00-.9 1.125L11.5 7.65z" /></svg>
-                  <span class="hidden sm:inline">Connected via Bluetooth</span>
-                }
+                <!-- Dropdown -->
+                <div class="absolute right-0 top-full mt-2 w-64 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl z-50 animate-fade-in-up p-2" style="animation-duration: 0.15s;">
+                  @if (connectionService.connectionStatus() === 'disconnected') {
+                    <div class="p-2">
+                      <h3 class="text-sm font-semibold text-slate-200">Connect Device</h3>
+                      <p class="text-xs text-slate-500 mt-1">Select a method to test the theme editor and device interactions.</p>
+                    </div>
+                    <div class="mt-2 space-y-1">
+                      <button (click)="connectionService.connectToBridge(); showConnectionMenu.set(false)" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        Connect to Bridge (Live)
+                      </button>
+                      <button (click)="connectionService.toggleSimulator(); showConnectionMenu.set(false)" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547a2 2 0 00-.547 1.806l.477 2.387a6 6 0 00.517 3.86l.158.318a6 6 0 00.517 3.86l2.387.477a2 2 0 001.806.547a2 2 0 00.547-1.806l-.477-2.387a6 6 0 00-.517-3.86l-.158-.318a6 6 0 00-.517-3.86l-2.387-.477a2 2 0 00-.547-1.806zM15.428 19.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L.05 19.21a2 2 0 00-1.806.547a2 2 0 00-.547 1.806l.477 2.387a6 6 0 00.517 3.86l.158.318a6 6 0 00.517 3.86l2.387.477a2 2 0 001.806.547a2 2 0 00.547-1.806l-.477-2.387a6 6 0 00-.517-3.86l-.158-.318a6 6 0 00-.517-3.86l-2.387-.477a2 2 0 00-.547-1.806z" /></svg>
+                        Use Simulator
+                      </button>
+                    </div>
+                  } @else {
+                    <div class="p-3">
+                      <div class="text-xs text-slate-500 uppercase font-semibold">
+                        @if (connectionService.isSimulationMode()) {
+                          Simulator Active
+                        } @else {
+                          Device Connected
+                        }
+                      </div>
+                      <div class="mt-2 flex items-center gap-3">
+                        <div class="h-10 w-10 rounded-lg bg-slate-800 flex items-center justify-center shrink-0">
+                          <span class="text-xs font-bold">{{ connectionService.deviceInfo()?.model?.substring(0,3) }}</span>
+                        </div>
+                        <div class="min-w-0">
+                           <div class="text-sm font-medium text-slate-200 truncate">{{ connectionService.deviceInfo()?.model }}</div>
+                           <div class="text-xs text-slate-500 font-mono truncate">{{ connectionService.deviceInfo()?.serial }}</div>
+                        </div>
+                      </div>
+                      <button (click)="connectionService.disconnectDevice(); showConnectionMenu.set(false)" class="mt-3 w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm text-rose-400 hover:bg-rose-500/10 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        Disconnect
+                      </button>
+                    </div>
+                  }
+                </div>
               }
             </div>
 

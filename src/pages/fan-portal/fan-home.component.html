@@ -19,40 +19,31 @@
 
       <!-- Device Quick Start / Status -->
       <section class="rounded-2xl bg-gradient-to-r from-indigo-900/50 to-slate-900 border border-slate-800 p-8 relative overflow-hidden group">
-         
          <div class="absolute right-0 top-0 bottom-0 w-1/3 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-
          <div class="relative z-10 flex flex-col md:flex-row items-center gap-8">
-            <!-- Simulated Device Visual -->
             <div class="w-40 h-24 rounded-lg bg-gradient-to-br from-slate-200 to-slate-400 shadow-2xl border border-slate-500/50 flex items-center justify-center relative transform group-hover:scale-105 transition-transform duration-500">
                <div class="absolute inset-y-0 left-0 w-1.5 bg-indigo-500 blur-md opacity-80" [class.hidden]="connectionService.connectionStatus() === 'disconnected'"></div>
-               <div class="text-[8px] font-bold text-slate-500 tracking-tight">DPA SILVER</div>
+               <div class="text-[8px] font-bold text-slate-500 tracking-tight">{{ connectionService.deviceInfo()?.model || 'DPA SILVER' }}</div>
             </div>
-
             <div class="flex-1 text-center md:text-left">
               @if (connectionService.connectionStatus() === 'disconnected') {
                 <h2 class="text-xl font-bold text-white">Connect Your DPA™</h2>
-                <p class="text-slate-400 text-sm mt-2 max-w-md">
-                  To access your high-fidelity library and verify ownership, connect your device via USB-C or pair via Bluetooth.
-                </p>
+                <p class="text-slate-400 text-sm mt-2 max-w-md">Connect your device via USB-C to launch the Desktop Bridge, or use the simulator for a demo.</p>
                 <div class="mt-6 flex flex-wrap gap-4 justify-center md:justify-start">
-                   <button (click)="connectionService.cycleConnection()" class="px-5 py-2.5 bg-white text-black font-semibold rounded-full text-sm hover:bg-slate-200 transition-colors shadow-lg shadow-white/10">
-                     Start Pairing Flow
+                   <button (click)="connectionService.connectToBridge()" class="px-5 py-2.5 bg-white text-black font-semibold rounded-full text-sm hover:bg-slate-200 transition-colors shadow-lg shadow-white/10">
+                     Connect to Bridge
                    </button>
-                   <button class="px-5 py-2.5 bg-slate-800 text-white font-semibold rounded-full text-sm border border-slate-700 hover:bg-slate-700 transition-colors">
-                     Tap with NFC
+                   <button (click)="connectionService.toggleSimulator()" class="px-5 py-2.5 bg-slate-800 text-slate-300 font-semibold rounded-full text-sm hover:bg-slate-700 transition-colors border border-slate-700">
+                     Use Simulator
                    </button>
                 </div>
               } @else {
                 <div class="flex items-center gap-3 mb-2 justify-center md:justify-start">
                    <span class="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                   <span class="text-emerald-400 text-xs font-bold uppercase tracking-wider">Verified Owner • {{ connectionService.connectionStatus() | uppercase }}</span>
+                   <span class="text-emerald-400 text-xs font-bold uppercase tracking-wider">Verified Owner • {{ connectionService.deviceInfo()?.serial }}</span>
                 </div>
                 <h2 class="text-xl font-bold text-white">Ready to Play</h2>
-                <p class="text-slate-400 text-sm mt-2 max-w-md">
-                  Release <strong>"Midnight Horizons"</strong> detected on device. <br>
-                  Secure handshake complete.
-                </p>
+                <p class="text-slate-400 text-sm mt-2 max-w-md">Secure handshake complete. {{ library()?.albums?.length }} release(s) detected on device.</p>
               }
             </div>
          </div>
@@ -62,32 +53,32 @@
       <section>
         <div class="flex items-center justify-between mb-4">
            <h2 class="text-xl font-bold text-white">Your Device Library</h2>
-           <span class="text-xs text-slate-500 font-mono">SOURCE: LOCAL HARDWARE</span>
+           <span class="text-xs text-slate-500 font-mono">
+             SOURCE: 
+             @if(connectionService.isSimulationMode()) {
+               <span class="text-amber-400">SIMULATOR</span>
+             } @else {
+               <span class="text-indigo-400">LOCAL HARDWARE</span>
+             }
+           </span>
         </div>
         
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-           @if (connectionService.connectionStatus() !== 'disconnected') {
-             <a [routerLink]="['/fan/album', 'ALB-8A8-2025-0001']" class="group">
-               <div class="aspect-square rounded-md bg-slate-800 mb-3 overflow-hidden relative shadow-lg group-hover:shadow-indigo-500/20 transition-all">
-                 <img src="https://picsum.photos/seed/neon/400/400" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <div class="h-12 w-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xl transform scale-0 group-hover:scale-100 transition-transform duration-300 delay-75">
-                       <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+           @if (library(); as lib) {
+             @for (album of lib.albums; track album.id) {
+                <a [routerLink]="['/fan/album', album.id]" class="group">
+                  <div class="aspect-square rounded-md bg-slate-800 mb-3 overflow-hidden relative shadow-lg group-hover:shadow-indigo-500/20 transition-all">
+                    <img [src]="'https://picsum.photos/seed/' + album.id + '/400/400'" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div class="h-12 w-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xl transform scale-0 group-hover:scale-100 transition-transform duration-300 delay-75">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+                        </div>
                     </div>
-                 </div>
-               </div>
-               <div class="text-sm font-semibold text-slate-200 group-hover:text-white truncate">Midnight Horizons</div>
-               <div class="text-xs text-slate-500 truncate">808 Dreams</div>
-             </a>
-
-             <!-- Locked Item -->
-             <div class="group cursor-not-allowed opacity-50 grayscale">
-               <div class="aspect-square rounded-md bg-slate-800 mb-3 flex items-center justify-center border border-slate-700">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-               </div>
-               <div class="text-sm font-semibold text-slate-500">Empty Slot</div>
-               <div class="text-xs text-slate-600">Available</div>
-             </div>
+                  </div>
+                  <div class="text-sm font-semibold text-slate-200 group-hover:text-white truncate">{{ album.title }}</div>
+                  <div class="text-xs text-slate-500 truncate">808 Dreams</div>
+                </a>
+             }
            } @else {
              <div class="col-span-full py-12 text-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30">
                <p class="text-slate-500">Connect a DPA device to view installed releases.</p>
@@ -127,5 +118,4 @@
            }
         </div>
       </section>
-
     </div>

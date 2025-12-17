@@ -1,9 +1,12 @@
 
-import { Component, inject, computed, signal, Input } from '@angular/core';
+import { Component, inject, computed, signal, Input, effect } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { DataService } from '../../services/data.service';
-import { PlayerService } from '../../services/player.service';
+import { PlayerService, PlayerTrack } from '../../services/player.service';
+import { DeviceBridgeService } from '../../services/device-bridge.service';
+import { Manifest } from '../../types';
+import { DeviceConnectionService } from '../../services/device-connection.service';
 
 @Component({
   selector: 'app-fan-album-detail',
@@ -13,41 +16,107 @@ import { PlayerService } from '../../services/player.service';
 })
 export class FanAlbumDetailComponent {
   private dataService = inject(DataService);
+  private bridge = inject(DeviceBridgeService);
+  private connectionService = inject(DeviceConnectionService);
   playerService = inject(PlayerService);
 
   @Input() id!: string;
 
-  album = computed(() => this.dataService.getAlbum(this.id)());
-  
+  // Use dataService for metadata fallback
+  albumMetadata = computed(() => this.dataService.getAlbum(this.id)());
+  manifest = signal<Manifest | null>(null);
+  isLoading = signal(true);
+
   activeSection = signal('tracks');
 
-  totalDuration = computed(() => {
-    const tracks = this.album()?.tracks || [];
-    return tracks.reduce((acc, t) => acc + t.durationSec, 0);
-  });
+  constructor() {
+    effect(() => {
+      this.loadManifest(this.id);
+    }, { allowSignalWrites: true });
+  }
 
-  scrollToSection(id: string) {
-    this.activeSection.set(id);
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  async loadManifest(albumId: string) {
+    this.isLoading.set(true);
+    try {
+      let manifestData: Manifest;
+
+      if (this.connectionService.isSimulationMode()) {
+        manifestData = this.createMockManifest(albumId);
+      } else {
+        manifestData = await this.bridge.getManifest(albumId);
+      }
+      
+      this.manifest.set(manifestData);
+      
+      const artistName = this.albumMetadata()?.artistName || 'Unknown Artist';
+      const albumTitle = this.albumMetadata()?.title || 'Unknown Album';
+      this.playerService.setQueueFromManifest(manifestData, { artist: artistName, title: albumTitle });
+
+    } catch (e) {
+      console.error('Failed to load manifest', e);
+      this.manifest.set(null);
+    } finally {
+      this.isLoading.set(false);
     }
   }
 
+  private createMockManifest(albumId: string): Manifest {
+    const album = this.dataService.getAlbum(albumId)();
+    if (!album) {
+      throw new Error(`Mock album ${albumId} not found`);
+    }
+
+    return {
+      version: 1,
+      albumId: album.albumId,
+      policyHash: 'sha256:demo-policy-hash',
+      blobs: album.tracks.map(t => ({
+        blobId: `blob_${t.trackId}`,
+        sha256: 'mock-sha256-hash',
+        size: t.durationSec * 1024 * 15,
+        mime: 'application/octet-stream',
+        kind: 'audio'
+      })),
+      tracks: album.tracks.map(t => ({
+        trackId: t.trackId,
+        blobId: `blob_${t.trackId}`,
+        codec: 'audio/wav',
+        title: t.title,
+        trackNo: t.trackIndex + 1,
+        durationSec: t.durationSec,
+      })),
+      signatures: {
+        manifestSigEd25519B64: 'mock-signature-base64',
+        publisherPubkeyEd25519B64: 'mock-pubkey-base64',
+      }
+    };
+  }
+
+  totalDuration = computed(() => {
+    const tracks = this.manifest()?.tracks || [];
+    return tracks.reduce((acc, t) => acc + t.durationSec, 0);
+  });
+
+  playTrack(track: Manifest['tracks'][0]) {
+    const m = this.manifest();
+    if (!m) return;
+    
+    const playerTrack: PlayerTrack = {
+      id: track.trackId,
+      title: track.title,
+      artist: this.albumMetadata()?.artistName || 'Artist',
+      album: this.albumMetadata()?.title || 'Album',
+      duration: track.durationSec,
+      coverUrl: `https://picsum.photos/seed/${m.albumId}/300/300`,
+      blobId: track.blobId
+    };
+    this.playerService.play(playerTrack);
+  }
+
   playAlbum() {
-    const a = this.album();
-    if (a && a.tracks.length > 0) {
-      const first = a.tracks[0];
-      // Reset queue logic in player service would go here in a real app
-      // For now we just play first track
-      this.playerService.play({
-        id: first.trackId,
-        title: first.title,
-        artist: a.artistName || 'Artist',
-        album: a.title,
-        duration: first.durationSec,
-        coverUrl: 'https://picsum.photos/seed/' + a.albumId + '/300/300'
-      });
+    const firstTrack = this.manifest()?.tracks?.[0];
+    if (firstTrack) {
+      this.playTrack(firstTrack);
     }
   }
 

@@ -54,6 +54,10 @@ export class DevicesDashboardComponent {
     return this.album()?.economics?.secondaryVolume || 0;
   }
 
+  get totalResaleTransactions() {
+    return this.album()?.resales?.length || 0;
+  }
+
   private renderResaleChart(container: HTMLElement, data: any[]) {
     d3.select(container).selectAll('*').remove();
 

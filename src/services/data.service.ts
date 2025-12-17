@@ -1,6 +1,6 @@
 
 import { Injectable, signal, computed } from '@angular/core';
-import { Album, Track, DcnpEvent, Theme, ResaleTransaction, UnitEconomics } from '../types';
+import { Album, Track, DcnpEvent, Theme, ResaleTransaction, UnitEconomics, MarketplaceListing } from '../types';
 
 @Injectable({
   providedIn: 'root'
@@ -55,6 +55,39 @@ export class DataService {
       secondaryRevenue: 1240
     };
   }
+  
+  private initialMarketplaceListings: MarketplaceListing[] = [
+    {
+      id: 'LST-1',
+      deviceId: 'DPA-MOCK-BEEF',
+      albumId: 'ALB-8A8-2025-0001',
+      albumTitle: 'Midnight Horizons',
+      albumArtist: '808 Dreams',
+      sellerHash: '0x1A2b...C4d5',
+      priceUsd: 125.00,
+      artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+    },
+    {
+      id: 'LST-2',
+      deviceId: 'DPA-MOCK-C0DE',
+      albumId: 'ALB-8A8-2025-0001',
+      albumTitle: 'Midnight Horizons',
+      albumArtist: '808 Dreams',
+      sellerHash: '0x9F8E...B6A7',
+      priceUsd: 110.50,
+      artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+    },
+    {
+      id: 'LST-3',
+      deviceId: 'DPA-MOCK-F00D',
+      albumId: 'ALB-8A8-2025-0001',
+      albumTitle: 'Midnight Horizons',
+      albumArtist: '808 Dreams',
+      sellerHash: '0x5D6C...E3B4',
+      priceUsd: 140.00,
+      artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+    }
+  ];
 
   // Initial Data
   private initialAlbums: Album[] = [
@@ -194,8 +227,10 @@ export class DataService {
 
   // State Signals
   private albumsSignal = signal<Album[]>(this.initialAlbums);
+  private marketplaceListingsSignal = signal<MarketplaceListing[]>(this.initialMarketplaceListings);
 
   public readonly albums = this.albumsSignal.asReadonly();
+  public readonly marketplaceListings = this.marketplaceListingsSignal.asReadonly();
 
   constructor() {}
 
@@ -317,5 +352,19 @@ export class DataService {
         } : a
       ));
     }, 3000);
+  }
+
+  // --- Marketplace Methods ---
+
+  listDeviceForSale(listing: MarketplaceListing) {
+    this.marketplaceListingsSignal.update(list => [listing, ...list]);
+  }
+
+  delistDevice(deviceId: string) {
+    this.marketplaceListingsSignal.update(list => list.filter(l => l.deviceId !== deviceId));
+  }
+
+  buyDevice(listingId: string) {
+    this.marketplaceListingsSignal.update(list => list.filter(l => l.id !== listingId));
   }
 }
