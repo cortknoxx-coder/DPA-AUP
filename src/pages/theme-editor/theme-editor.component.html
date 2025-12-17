@@ -209,74 +209,72 @@
           <!-- Perspective Wrapper -->
           <div class="perspective-[1000px] group">
             
-            <!-- The Physical Device Chassis -->
-            <!-- Brushed Metal Texture Body -->
-            <div class="relative w-[290px] h-[183px] sm:w-[340px] sm:h-[214px] rounded-xl shadow-2xl transform transition-transform duration-500 ease-out group-hover:rotate-y-6 group-hover:rotate-x-6 bg-gradient-to-br from-slate-200 via-slate-50 to-slate-400 overflow-hidden border border-slate-400">
+            <!-- Wrapper for device and its animated glow -->
+            <div class="relative"
+                 [style.--glow-color]="form.value.led?.[previewMode()]?.pattern === 'off' ? 'transparent' : form.value.led?.[previewMode()]?.color">
               
-              <!-- Subtle Brushed Metal Texture Overlay -->
-              <div class="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] pointer-events-none mix-blend-multiply"></div>
-
-              <!-- Side LED Glow (Left Edge) -->
-              <!-- We simulate the glow spilling onto the face from the left edge -->
-              <div class="absolute inset-y-0 left-0 w-2 blur-md transition-all duration-300 z-50 mix-blend-screen opacity-80"
-                   [style.background-color]="form.value.led?.[previewMode()]?.pattern === 'off' ? 'transparent' : form.value.led?.[previewMode()]?.color"
+              <!-- The Glow Element (animated) -->
+              <div class="absolute -inset-2 rounded-2xl transition-opacity duration-300"
+                   [class.opacity-0]="form.value.led?.[previewMode()]?.pattern === 'off'"
                    [class.animate-breathe]="form.value.led?.[previewMode()]?.pattern === 'breathing'"
-                   [class.animate-pulse-fast]="form.value.led?.[previewMode()]?.pattern === 'pulse'">
+                   [class.animate-pulse-fast]="form.value.led?.[previewMode()]?.pattern === 'pulse'"
+                   [style.box-shadow]="form.value.led?.[previewMode()]?.pattern === 'solid' ? '0 0 30px 4px var(--glow-color)' : 'none'">
               </div>
-              <div class="absolute inset-y-0 left-0 w-[1px] bg-white/50 z-50"></div>
+              
+              <!-- The Physical Device Chassis -->
+              <div class="relative w-[290px] h-[183px] sm:w-[340px] sm:h-[214px] rounded-xl shadow-2xl transform transition-transform duration-500 ease-out group-hover:rotate-y-12 group-hover:-rotate-x-8 bg-gradient-to-br from-slate-200 via-slate-50 to-slate-400 overflow-hidden border border-slate-400">
+                
+                <!-- Metallic Sheen / Glare on hover -->
+                <div class="absolute inset-0 rounded-xl overflow-hidden pointer-events-none z-20">
+                  <div class="absolute -top-1/4 -left-full w-1/2 h-[150%] bg-white/10 -skew-x-12 transform transition-transform duration-700 ease-in-out group-hover:translate-x-[550px] blur-md"></div>
+                </div>
 
-              <!-- Upper 75%: Skin Area -->
-              <div class="absolute top-0 left-0 right-0 h-[75%] bg-slate-300 overflow-hidden border-b border-slate-400/30">
-                 @if (form.value.skinImage) {
-                   <img [src]="form.value.skinImage" class="h-full w-full object-cover">
-                   <div class="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent pointer-events-none"></div>
-                 } @else {
-                   <div class="h-full w-full flex items-center justify-center text-slate-400 text-xs uppercase tracking-widest font-semibold bg-slate-200/50">
-                     No Skin
+                <!-- Subtle Brushed Metal Texture Overlay -->
+                <div class="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] pointer-events-none mix-blend-multiply"></div>
+
+                <!-- Upper 75%: Skin Area -->
+                <div class="absolute top-0 left-0 right-0 h-[75%] bg-slate-300 overflow-hidden border-b border-slate-400/30">
+                   @if (form.value.skinImage) {
+                     <img [src]="form.value.skinImage" class="h-full w-full object-cover">
+                     <div class="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent pointer-events-none"></div>
+                   } @else {
+                     <div class="h-full w-full flex items-center justify-center text-slate-400 text-xs uppercase tracking-widest font-semibold bg-slate-200/50">
+                       No Skin
+                     </div>
+                   }
+                </div>
+
+                <!-- Lower 25%: Control Chin (Titanium Finish) -->
+                <div class="absolute bottom-0 left-0 right-0 h-[25%] bg-gradient-to-b from-slate-100 to-slate-300 flex items-center justify-between px-6 shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]">
+                    
+                   <!-- Buttons: [Prev] [Next] [Stop] [BT] -->
+                   <div class="flex gap-4 items-center">
+                      <!-- Prev -->
+                      <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z" /></svg>
+                      </div>
+                      <!-- Next -->
+                      <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798l-5.445-3.63z" /></svg>
+                      </div>
+                      <!-- Stop (Square) -->
+                      <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                        <div class="h-3 w-3 bg-slate-400 rounded-sm"></div>
+                      </div>
+                      <!-- Bluetooth -->
+                      <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 010 1.414l-3 3A1 1 0 0110 10.414V8.414l1.293-1.293-1.293-1.293V3zm0 10.414l1.293-1.293 1.293 1.293-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414l1.414 1.414v-1.414z" clip-rule="evenodd" /></svg>
+                      </div>
                    </div>
-                 }
-              </div>
 
-              <!-- Lower 25%: Control Chin (Titanium Finish) -->
-              <div class="absolute bottom-0 left-0 right-0 h-[25%] bg-gradient-to-b from-slate-100 to-slate-300 flex items-center justify-between px-6 shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]">
-                  
-                 <!-- Buttons: [Prev] [Next] [Stop] [BT] -->
-                 <div class="flex gap-4 items-center">
-                    <!-- Prev -->
-                    <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z" /></svg>
-                    </div>
-                    <!-- Next -->
-                    <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798l-5.445-3.63z" /></svg>
-                    </div>
-                    <!-- Stop (Square) -->
-                    <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
-                      <div class="h-3 w-3 bg-slate-400 rounded-sm"></div>
-                    </div>
-                    <!-- Bluetooth -->
-                    <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 010 1.414l-3 3A1 1 0 0110 10.414V8.414l1.293-1.293-1.293-1.293V3zm0 10.414l1.293-1.293 1.293 1.293-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414l1.414 1.414v-1.414z" clip-rule="evenodd" /></svg>
-                    </div>
-                 </div>
-
-                 <!-- Logo -->
-                 <div class="text-right">
-                    <div class="text-xs font-bold text-slate-500 tracking-tighter">DPA<span class="align-top text-[8px] font-normal">TM</span></div>
-                    <div class="text-[8px] font-semibold text-slate-400 uppercase tracking-widest -mt-1">Audio</div>
-                 </div>
-
+                   <!-- Logo -->
+                   <div class="text-right">
+                      <div class="text-xs font-bold text-slate-500 tracking-tighter">DPA<span class="align-top text-[8px] font-normal">TM</span></div>
+                      <div class="text-[8px] font-semibold text-slate-400 uppercase tracking-widest -mt-1">Audio</div>
+                   </div>
+                </div>
               </div>
             </div>
-
-            <!-- Side Edge View (Left Side) - Simulated via 3D transform -->
-            <!-- This div represents the thickness on the left side when rotated -->
-            <div class="absolute top-0 bottom-0 left-0 w-[6px] bg-white origin-right transform -translate-x-full transition-all duration-300"
-                 [style.background-color]="form.value.led?.[previewMode()]?.color"
-                 [style.box-shadow]="form.value.led?.[previewMode()]?.pattern === 'off' ? 'none' : '0 0 20px ' + form.value.led?.[previewMode()]?.color"
-                 style="transform: rotateY(-90deg);">
-            </div>
-
           </div>
   
           <div class="mt-6 text-center space-y-1">
