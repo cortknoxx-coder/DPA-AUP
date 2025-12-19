@@ -12,26 +12,29 @@
 
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     @for (album of albums(); track album.id) {
-      <div class="group relative rounded-xl border border-slate-800 bg-slate-900/50 p-6 hover:border-slate-700 hover:bg-slate-900 transition-all overflow-hidden">
-        
-        <!-- Vinyl Background Decoration -->
-        <div class="absolute -right-8 -bottom-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
-          <div class="h-32 w-32 rounded-full border-8 border-slate-600 animate-spin-slow"></div>
-        </div>
-
-        <div class="flex items-start justify-between relative z-10">
-          <!-- Animated Vinyl Icon -->
-          <div class="h-14 w-14 rounded-full bg-slate-950 border-2 border-slate-800 flex items-center justify-center shadow-lg group-hover:border-teal-500/50 transition-colors">
-            <div class="h-12 w-12 rounded-full bg-slate-900 flex items-center justify-center relative overflow-hidden group-hover:animate-spin-slow">
-               <!-- Grooves -->
-               <div class="absolute inset-0 rounded-full border border-slate-800 opacity-50 scale-75"></div>
-               <div class="absolute inset-0 rounded-full border border-slate-800 opacity-50 scale-50"></div>
-               <!-- Label -->
-               <div class="h-4 w-4 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400"></div>
+      <a [routerLink]="['/artist/albums', album.albumId]" class="group block rounded-xl border border-slate-800 bg-slate-900/50 hover:border-slate-700 hover:bg-slate-900 transition-all overflow-hidden">
+        <div class="relative">
+          <!-- DPA Device Mockup -->
+          <div class="relative w-full aspect-[16/10] bg-gradient-to-br from-slate-200 via-slate-50 to-slate-400 overflow-hidden">
+            <!-- Skin -->
+            <div class="absolute inset-0 h-[75%] bg-slate-300 overflow-hidden border-b border-slate-400/30">
+              <img [src]="'https://picsum.photos/seed/' + album.albumId + '/400/400'" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300">
+            </div>
+            <!-- Chin -->
+            <div class="absolute bottom-0 left-0 right-0 h-[25%] px-4 flex items-center justify-end">
+              <div class="text-right">
+                <div class="text-[10px] font-bold text-slate-500 tracking-tighter">DPA<span class="align-top text-[6px] font-normal">TM</span></div>
+                <div class="text-[6px] font-semibold text-slate-400 uppercase tracking-widest -mt-1">Audio</div>
+              </div>
             </div>
           </div>
-
-          <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset"
+          <!-- Authenticity Badge -->
+          <div class="absolute top-3 left-3 z-10 flex items-center gap-1 bg-emerald-950/60 border border-emerald-500/30 rounded-full px-2 py-1 text-emerald-400 text-[9px] font-bold backdrop-blur-sm">
+            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+            AUTHENTIC
+          </div>
+          <!-- Status Badge -->
+          <span class="absolute top-3 right-3 z-10 inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset"
             [class.bg-teal-900/30]="album.status === 'ready'"
             [class.text-teal-400]="album.status === 'ready'"
             [class.ring-teal-400/30]="album.status === 'ready'"
@@ -42,21 +45,18 @@
           </span>
         </div>
         
-        <div class="mt-4 relative z-10">
-          <h3 class="text-base font-semibold text-slate-100 group-hover:text-teal-400 transition-colors">
-            <a [routerLink]="['/artist/albums', album.albumId]">
-              <span class="absolute inset-0"></span>
-              {{ album.title }}
-            </a>
+        <!-- Info section below the mockup -->
+        <div class="p-4">
+          <h3 class="text-base font-semibold text-slate-100 group-hover:text-teal-400 transition-colors truncate">
+            {{ album.title }}
           </h3>
           <p class="mt-1 text-xs text-slate-500 font-mono">{{ album.albumId }}</p>
+          <div class="mt-4 flex items-center justify-between border-t border-slate-800/50 pt-3 text-xs text-slate-400">
+            <span>{{ album.skuType | titlecase }} SKU</span>
+            <span>v{{ album.dpacVersion }}</span>
+          </div>
         </div>
-
-        <div class="mt-6 flex items-center justify-between border-t border-slate-800/50 pt-4 text-xs text-slate-400 relative z-10">
-          <span>{{ album.skuType | titlecase }} SKU</span>
-          <span>v{{ album.dpacVersion }}</span>
-        </div>
-      </div>
+      </a>
     }
     @empty {
       <div class="col-span-full rounded-xl border border-dashed border-slate-800 p-12 text-center text-slate-500">

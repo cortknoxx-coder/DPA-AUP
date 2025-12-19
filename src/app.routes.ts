@@ -18,6 +18,7 @@ import { FanCapsulesComponent } from './pages/fan-portal/fan-capsules.component'
 import { FanDeviceRegistrationComponent } from './pages/fan-portal/fan-device-registration.component';
 import { FanMarketplaceComponent } from './pages/fan-portal/fan-marketplace.component';
 import { FanCheckoutComponent } from './pages/fan-portal/fan-checkout.component';
+import { FanSettingsComponent } from './pages/fan-portal/fan-settings.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -60,7 +61,8 @@ export const routes: Routes = [
       { path: 'capsules', component: FanCapsulesComponent },
       { path: 'marketplace', component: FanMarketplaceComponent },
       { path: 'devices', component: FanDeviceRegistrationComponent },
-      { path: 'checkout', component: FanCheckoutComponent }
+      { path: 'checkout', component: FanCheckoutComponent },
+      { path: 'settings', component: FanSettingsComponent }
     ]
   }
 ];

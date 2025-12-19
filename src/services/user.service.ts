@@ -1,12 +1,7 @@
 
 import { Injectable, signal } from '@angular/core';
-import { PaymentMethod, RegionStat, TopAsset } from '../types';
-
-export interface UserProfile {
-  name: string;
-  artistName: string;
-  email: string;
-}
+// FIX: Import UserProfile from the shared types file.
+import { PaymentMethod, RegionStat, TopAsset, UserProfile } from '../types';
 
 export interface Financials {
   totalEarnings: number;
@@ -89,11 +84,32 @@ export class UserService {
     };
     
     this.paymentMethods.update(current => {
-      if (newMethod.isDefault) {
-        return [...current.map(m => ({...m, isDefault: false})), newMethod];
+      if (newMethod.isDefault || current.length === 0) {
+        return [...current.map(m => ({...m, isDefault: false})), {...newMethod, isDefault: true}];
       }
       return [...current, newMethod];
     });
+  }
+
+  deletePaymentMethod(methodId: string) {
+    this.paymentMethods.update(current => {
+      const toDelete = current.find(m => m.id === methodId);
+      const remaining = current.filter(m => m.id !== methodId);
+      // If we delete the default method, make the first remaining one the new default
+      if (toDelete?.isDefault && remaining.length > 0) {
+        remaining[0].isDefault = true;
+      }
+      return remaining;
+    });
+  }
+
+  setDefaultPaymentMethod(methodId: string) {
+    this.paymentMethods.update(current => 
+      current.map(m => ({
+        ...m,
+        isDefault: m.id === methodId
+      }))
+    );
   }
 
   withdraw(amount: number) {

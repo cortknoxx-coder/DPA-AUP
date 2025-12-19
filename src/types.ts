@@ -118,6 +118,13 @@ export interface PaymentMethod {
   isDefault: boolean;
 }
 
+// FIX: Moved UserProfile here from user.service.ts to make it a shared type.
+export interface UserProfile {
+  name: string;
+  artistName: string;
+  email: string;
+}
+
 // Analytics Interfaces
 export interface RegionStat {
   regionCode: string; // US, UK, JP, etc.
