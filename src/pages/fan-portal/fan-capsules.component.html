@@ -70,7 +70,14 @@
                 <!-- Action Button -->
                 <button (click)="onInteraction(capsule)" 
                   class="inline-flex items-center gap-2 font-semibold text-sm px-6 py-2.5 rounded-full transition-all transform hover:scale-105 active:scale-95 shadow-lg"
-                  [ngClass]="capsule.payload.cta.action === 'download' ? 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-indigo-900/20' : 'bg-slate-100 text-slate-900 hover:bg-white shadow-white/10'">
+                  [class.bg-indigo-600]="capsule.payload.cta.action === 'download'"
+                  [class.text-white]="capsule.payload.cta.action === 'download'"
+                  [class.hover:bg-indigo-500]="capsule.payload.cta.action === 'download'"
+                  [class.shadow-indigo-900/20]="capsule.payload.cta.action === 'download'"
+                  [class.bg-slate-100]="capsule.payload.cta.action !== 'download'"
+                  [class.text-slate-900]="capsule.payload.cta.action !== 'download'"
+                  [class.hover:bg-white]="capsule.payload.cta.action !== 'download'"
+                  [class.shadow-white/10]="capsule.payload.cta.action !== 'download'">
                   
                   @if (capsule.payload.cta.action === 'download') {
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>

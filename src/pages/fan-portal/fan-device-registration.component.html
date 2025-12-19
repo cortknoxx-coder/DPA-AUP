@@ -37,7 +37,7 @@
                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 17h.01M16 3h5m-1 0v5m0 0h4m-1 0v-4m-9 0h-5m0 0v5m0 0h-4m-1 0v-4" /></svg>
                </div>
-               <input type="text" [(ngModel)]="deviceIdInput" 
+               <input type="text" [ngModel]="deviceIdInput()" (ngModelChange)="deviceIdInput.set($event)" 
                  class="block w-full rounded-lg bg-slate-950 border border-slate-700 pl-10 pr-3 py-3 text-slate-100 placeholder:text-slate-600 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 font-mono uppercase tracking-wider" 
                  placeholder="DPA-XXXX-XXXX">
              </div>
@@ -174,7 +174,7 @@
       <div class="space-y-4">
         <div>
           <label class="block text-xs text-slate-400 mb-1">Account Email Address</label>
-          <input type="email" [(ngModel)]="authEmail" class="w-full rounded-lg bg-slate-950 border border-slate-700 px-4 py-3 text-slate-100 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none" placeholder="name@example.com">
+          <input type="email" [ngModel]="authEmail()" (ngModelChange)="authEmail.set($event)" class="w-full rounded-lg bg-slate-950 border border-slate-700 px-4 py-3 text-slate-100 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none" placeholder="name@example.com">
         </div>
         
         @if (authError()) {
@@ -216,7 +216,7 @@
       <div class="space-y-4">
         <div>
           <label class="block text-xs text-slate-400 mb-1">Device ID</label>
-          <input type="text" [(ngModel)]="confirmDeviceIdInput" class="w-full rounded-lg bg-slate-950 border border-slate-700 px-4 py-3 text-slate-100 font-mono uppercase tracking-wider focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none" placeholder="DPA-XXXX-XXXX">
+          <input type="text" [ngModel]="confirmDeviceIdInput()" (ngModelChange)="confirmDeviceIdInput.set($event)" class="w-full rounded-lg bg-slate-950 border border-slate-700 px-4 py-3 text-slate-100 font-mono uppercase tracking-wider focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none" placeholder="DPA-XXXX-XXXX">
         </div>
 
         @if (confirmError()) {

@@ -7,11 +7,12 @@ import * as d3 from 'd3';
 
 @Component({
   selector: 'app-user-admin',
+  standalone: true,
   imports: [CommonModule, ReactiveFormsModule, CurrencyPipe, DecimalPipe, PercentPipe],
   templateUrl: './user-admin.component.html',
 })
 export class UserAdminComponent {
-  private fb = inject(FormBuilder);
+  private fb: FormBuilder = inject(FormBuilder);
   userService = inject(UserService);
 
   chartContainer = viewChild<ElementRef>('chartContainer');
@@ -140,7 +141,7 @@ export class UserAdminComponent {
     svg.append("path").datum(data).attr("d", line).style("fill", "none").style("stroke", "#14b8a6").style("stroke-width", 2);
 
     svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(5).tickSize(0).tickPadding(10)).select(".domain").remove();
-    svg.append("g").call(d3.axisLeft(y).ticks(5).tickSize(0).tickPadding(10).tickFormat(d => `$${d}`)).select(".domain").remove();
+    svg.append("g").call(d3.axisLeft(y).ticks(5).tickSize(0).tickPadding(10).tickFormat(d => `$${(d as number)/1000}k`)).select(".domain").remove();
     svg.selectAll("g.y-axis g.tick").append("line").attr("x1", 0).attr("x2", width).style("stroke", "#1e293b").style("stroke-dasharray", "4").style("stroke-opacity", 0.5);
   }
 

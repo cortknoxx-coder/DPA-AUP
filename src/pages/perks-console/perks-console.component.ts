@@ -16,7 +16,7 @@ import { DcnpPayload } from '../../types';
 export class PerksConsoleComponent {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
-  private fb = inject(FormBuilder);
+  private fb: FormBuilder = inject(FormBuilder);
 
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
@@ -67,7 +67,7 @@ export class PerksConsoleComponent {
     const val = this.form.value;
     const type = val.eventType;
 
-    if (a) {
+    if (a && type) {
       let payload: DcnpPayload = {
         title: val.title!,
         description: val.description || undefined,

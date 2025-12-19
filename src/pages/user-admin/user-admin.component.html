@@ -146,12 +146,12 @@
               <td class="px-6 py-4 font-medium text-slate-200">{{ asset.title }}</td>
               <td class="px-6 py-4">
                 <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset"
-                  [class.bg-purple-400-10]="asset.type === 'album'"
+                  [class.bg-purple-400/10]="asset.type === 'album'"
                   [class.text-purple-400]="asset.type === 'album'"
-                  [class.ring-purple-400-30]="asset.type === 'album'"
-                  [class.bg-blue-400-10]="asset.type === 'track'"
+                  [class.ring-purple-400/30]="asset.type === 'album'"
+                  [class.bg-blue-400/10]="asset.type === 'track'"
                   [class.text-blue-400]="asset.type === 'track'"
-                  [class.ring-blue-400-30]="asset.type === 'track'">
+                  [class.ring-blue-400/30]="asset.type === 'track'">
                   {{ asset.type | uppercase }}
                 </span>
               </td>

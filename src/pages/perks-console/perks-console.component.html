@@ -189,9 +189,9 @@
             <tr>
               <td class="px-4 py-3">
                 <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium"
-                  [class.bg-teal-900-30]="ev.status === 'delivered'"
+                  [class.bg-teal-900/30]="ev.status === 'delivered'"
                   [class.text-teal-400]="ev.status === 'delivered'"
-                  [class.bg-amber-900-30]="ev.status === 'pending'"
+                  [class.bg-amber-900/30]="ev.status === 'pending'"
                   [class.text-amber-400]="ev.status === 'pending'">
                   {{ ev.status | uppercase }}
                 </span>

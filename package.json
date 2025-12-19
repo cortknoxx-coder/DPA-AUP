@@ -1,5 +1,5 @@
 {
-  "name": "dpa-artist/fan-portal",
+  "name": "dpa-creator/fan-portal",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,9 +13,9 @@
     "rxjs": "^7.8.2",
     "@angular/compiler": "^21.0.0",
     "@angular/core": "^21.0.0",
-    "@angular/router": "^21.0.5",
+    "@angular/router": "^21.0.6",
     "@angular/platform-browser": "^21.0.0",
-    "@angular/forms": "^21.0.5",
+    "@angular/forms": "^21.0.6",
     "@angular/common": "^21.0.0",
     "@angular/build": "^21.0.0",
     "@angular/cli": "^21.0.0",

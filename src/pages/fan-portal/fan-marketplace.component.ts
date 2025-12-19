@@ -119,7 +119,7 @@ import { MarketplaceListing } from '../../types';
             <label class="block text-xs text-slate-400 mb-1">Asking Price (USD)</label>
             <div class="relative">
               <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-              <input type="number" [(ngModel)]="askingPrice" min="1" class="w-full rounded-lg bg-slate-900 border border-slate-700 pl-8 pr-3 py-3 text-2xl text-white font-bold focus:border-indigo-500 outline-none">
+              <input type="number" [ngModel]="askingPrice()" (ngModelChange)="askingPrice.set($event)" min="1" class="w-full rounded-lg bg-slate-900 border border-slate-700 pl-8 pr-3 py-3 text-2xl text-white font-bold focus:border-indigo-500 outline-none">
             </div>
           </div>
 

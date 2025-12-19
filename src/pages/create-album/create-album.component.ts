@@ -36,7 +36,7 @@ import { DataService } from '../../services/data.service';
   `
 })
 export class CreateAlbumComponent {
-  private fb = inject(FormBuilder);
+  private fb: FormBuilder = inject(FormBuilder);
   private dataService = inject(DataService);
   private router = inject(Router);
 
@@ -47,8 +47,10 @@ export class CreateAlbumComponent {
   onSubmit() {
     if (this.form.valid) {
       const { title } = this.form.value;
-      this.dataService.createAlbum(title!);
-      this.router.navigate(['/artist']);
+      if (title) {
+        this.dataService.createAlbum(title);
+        this.router.navigate(['/artist']);
+      }
     }
   }
 }

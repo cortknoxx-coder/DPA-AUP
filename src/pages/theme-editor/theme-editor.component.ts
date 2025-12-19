@@ -1,3 +1,4 @@
+
 import { Component, inject, computed, effect, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
@@ -15,7 +16,7 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
 export class ThemeEditorComponent {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
-  private fb = inject(FormBuilder);
+  private fb: FormBuilder = inject(FormBuilder);
   
   connectionService = inject(DeviceConnectionService);
 

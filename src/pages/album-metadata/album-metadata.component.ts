@@ -91,7 +91,7 @@ export type PricingTier = 'entry' | 'premium' | 'collector';
 export class AlbumMetadataComponent {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
-  private fb = inject(FormBuilder);
+  private fb: FormBuilder = inject(FormBuilder);
 
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
@@ -296,7 +296,7 @@ export class AlbumMetadataComponent {
 export class AlbumBookletComponent {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
-  private fb = inject(FormBuilder);
+  private fb: FormBuilder = inject(FormBuilder);
 
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
@@ -313,8 +313,8 @@ export class AlbumBookletComponent {
     description: [''],
     lyrics: [''],
     bookletCredits: [''],
-    bookletVideos: this.fb.array([]),
-    bookletGallery: this.fb.array([])
+    bookletVideos: this.fb.array([] as any[]),
+    bookletGallery: this.fb.array([] as any[])
   });
 
   formValues = toSignal(this.form.valueChanges);
@@ -404,8 +404,8 @@ export class AlbumBookletComponent {
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div (click)="selectTier('entry')" class="relative cursor-pointer rounded-xl border p-6 transition-all hover:scale-[1.02]" [class.bg-slate-900]="selectedTier() !== 'entry'" [class.border-slate-800]="selectedTier() !== 'entry'" [class.bg-slate-800]="selectedTier() === 'entry'" [class.border-slate-600]="selectedTier() === 'entry'" [class.ring-1]="selectedTier() === 'entry'" [class.ring-slate-500]="selectedTier() === 'entry'"><div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{{ TIER_CONFIG['entry'].label }}</div><div class="text-2xl font-bold text-slate-100">{{ TIER_CONFIG['entry'].min | currency }} - {{ TIER_CONFIG['entry'].max | currency }}</div><p class="text-xs text-slate-500 mt-2">{{ TIER_CONFIG['entry'].desc }}</p></div>
-          <div (click)="selectTier('premium')" class="relative cursor-pointer rounded-xl border p-6 transition-all transform hover:scale-[1.02]" [class.bg-slate-900]="selectedTier() !== 'premium'" [class.border-slate-800]="selectedTier() !== 'premium'" [class.bg-teal-900-10]="selectedTier() === 'premium'" [class.border-teal-500]="selectedTier() === 'premium'" [class.shadow-lg]="selectedTier() === 'premium'" [class.shadow-teal-900-20]="selectedTier() === 'premium'"><div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-teal-600 text-white text-[10px] font-bold uppercase px-3 py-1 rounded-full shadow-md">Recommended</div><div class="text-xs font-bold text-teal-400 uppercase tracking-widest mb-2">{{ TIER_CONFIG['premium'].label }}</div><div class="text-2xl font-bold text-white">{{ TIER_CONFIG['premium'].min | currency }} - {{ TIER_CONFIG['premium'].max | currency }}</div><p class="text-xs text-slate-400 mt-2">{{ TIER_CONFIG['premium'].desc }}</p></div>
-          <div (click)="selectTier('collector')" class="relative cursor-pointer rounded-xl border p-6 transition-all hover:scale-[1.02]" [class.bg-slate-900]="selectedTier() !== 'collector'" [class.border-slate-800]="selectedTier() !== 'collector'" [class.bg-indigo-900-10]="selectedTier() === 'collector'" [class.border-indigo-500]="selectedTier() === 'collector'" [class.ring-1]="selectedTier() === 'collector'" [class.ring-indigo-500]="selectedTier() === 'collector'"><div class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-2">{{ TIER_CONFIG['collector'].label }}</div><div class="text-2xl font-bold text-slate-100">{{ TIER_CONFIG['collector'].min | currency }} - {{ TIER_CONFIG['collector'].max | currency }}</div><p class="text-xs text-slate-500 mt-2">{{ TIER_CONFIG['collector'].desc }}</p></div>
+          <div (click)="selectTier('premium')" class="relative cursor-pointer rounded-xl border p-6 transition-all transform hover:scale-[1.02]" [class.bg-slate-900]="selectedTier() !== 'premium'" [class.border-slate-800]="selectedTier() !== 'premium'" [class.bg-teal-900/10]="selectedTier() === 'premium'" [class.border-teal-500]="selectedTier() === 'premium'" [class.shadow-lg]="selectedTier() === 'premium'" [class.shadow-teal-900/20]="selectedTier() === 'premium'"><div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-teal-600 text-white text-[10px] font-bold uppercase px-3 py-1 rounded-full shadow-md">Recommended</div><div class="text-xs font-bold text-teal-400 uppercase tracking-widest mb-2">{{ TIER_CONFIG['premium'].label }}</div><div class="text-2xl font-bold text-white">{{ TIER_CONFIG['premium'].min | currency }} - {{ TIER_CONFIG['premium'].max | currency }}</div><p class="text-xs text-slate-400 mt-2">{{ TIER_CONFIG['premium'].desc }}</p></div>
+          <div (click)="selectTier('collector')" class="relative cursor-pointer rounded-xl border p-6 transition-all hover:scale-[1.02]" [class.bg-slate-900]="selectedTier() !== 'collector'" [class.border-slate-800]="selectedTier() !== 'collector'" [class.bg-indigo-900/10]="selectedTier() === 'collector'" [class.border-indigo-500]="selectedTier() === 'collector'" [class.ring-1]="selectedTier() === 'collector'" [class.ring-indigo-500]="selectedTier() === 'collector'"><div class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-2">{{ TIER_CONFIG['collector'].label }}</div><div class="text-2xl font-bold text-slate-100">{{ TIER_CONFIG['collector'].min | currency }} - {{ TIER_CONFIG['collector'].max | currency }}</div><p class="text-xs text-slate-500 mt-2">{{ TIER_CONFIG['collector'].desc }}</p></div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 bg-slate-900/30 rounded-2xl border border-slate-800 p-8">
@@ -556,7 +556,7 @@ export class AlbumBookletComponent {
 export class AlbumPricingComponent {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
-  private fb = inject(FormBuilder);
+  private fb: FormBuilder = inject(FormBuilder);
   connectionService = inject(DeviceConnectionService);
   userService = inject(UserService);
 
@@ -579,8 +579,16 @@ export class AlbumPricingComponent {
   selectedTier = signal<PricingTier>('premium');
   
   productionVolume = signal<number>(50);
-  wholesalePrice = signal<number>(29.00);
   
+  wholesalePrice = computed(() => {
+    const vol = this.productionVolume();
+    if (vol > 50000) return 25.00;
+    if (vol > 25000) return 26.00;
+    if (vol > 10000) return 27.00;
+    if (vol > 2500) return 28.00;
+    return 29.00;
+  });
+
   retailPriceVal = toSignal(this.form.get('retailPrice')!.valueChanges, { initialValue: 79 });
   readonly priceSliderMin = this.TIER_CONFIG['entry'].min;
   readonly priceSliderMax = this.TIER_CONFIG['collector'].max;
@@ -607,7 +615,7 @@ export class AlbumPricingComponent {
   preventArrowKeyInput(event: KeyboardEvent) { if (event.key === 'ArrowUp' || event.key === 'ArrowDown') event.preventDefault(); }
   updatePriceFromInput(event: Event) { const valueAsNumber = Number((event.target as HTMLInputElement).value); if (!isNaN(valueAsNumber)) this.form.get('retailPrice')?.setValue(valueAsNumber); }
   selectTier(tier: PricingTier) { this.selectedTier.set(tier); let optimalPrice = this.TIER_CONFIG[tier].max; if (tier === 'entry') optimalPrice = 49; if (tier === 'premium') optimalPrice = 79; if (tier === 'collector') optimalPrice = 129; this.form.get('retailPrice')?.setValue(optimalPrice); }
-  updateVolume(event: Event) { const val = parseInt((event.target as HTMLInputElement).value, 10); if (!isNaN(val)) { this.productionVolume.set(val); let price = 29.00; if (val > 50000) price = 25.00; else if (val > 25000) price = 26.00; else if (val > 10000) price = 27.00; else if (val > 2500) price = 28.00; this.wholesalePrice.set(price); } }
+  updateVolume(event: Event) { const val = parseInt((event.target as HTMLInputElement).value, 10); if (!isNaN(val)) { this.productionVolume.set(val); } }
   
   checkout() {
     this.paymentOption.set('deposit');
@@ -633,7 +641,8 @@ export class AlbumPricingComponent {
       this.userService.addPaymentMethod({ type: val.type as 'bank' | 'card', name: val.name || 'Unknown', last4: val.number?.slice(-4) || '0000', isDefault: this.userService.paymentMethods().length === 0 });
       this.showAddMethodModal.set(false);
       this.addMethodForm.reset({ type: 'bank' });
-      const newMethod = this.userService.paymentMethods().at(-1);
+      const paymentMethods = this.userService.paymentMethods();
+      const newMethod = paymentMethods[paymentMethods.length - 1];
       if (newMethod) { this.checkoutForm.patchValue({ paymentMethodId: newMethod.id }); }
     }
   }
@@ -642,7 +651,7 @@ export class AlbumPricingComponent {
     const a = this.album();
     if (a && this.form.valid) {
       const metadata = { pricing: { retailPrice: this.form.value.retailPrice, manufacturingCost: this.manufacturingCost(), currency: 'USD' } };
-      this.dataService.updateAlbumMetadata(a.albumId, metadata);
+      this.dataService.updateAlbumMetadata(a.albumId, metadata as any);
       alert('Pricing saved!');
       this.form.markAsPristine();
     }

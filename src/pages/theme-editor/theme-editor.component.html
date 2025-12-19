@@ -116,7 +116,9 @@
              (click)="setPreviewMode('idle')">
           <div class="flex justify-between items-center">
             <span class="text-xs font-semibold text-slate-300 uppercase">Idle</span>
-            <span *ngIf="previewMode() === 'idle'" class="text-[10px] text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">PREVIEWING</span>
+            @if (previewMode() === 'idle') {
+              <span class="text-[10px] text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">PREVIEWING</span>
+            }
           </div>
           <div class="flex gap-2">
             <input type="color" formControlName="color" class="h-8 w-8 rounded bg-transparent">
@@ -135,7 +137,9 @@
              (click)="setPreviewMode('playback')">
           <div class="flex justify-between items-center">
             <span class="text-xs font-semibold text-slate-300 uppercase">Playback</span>
-            <span *ngIf="previewMode() === 'playback'" class="text-[10px] text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">PREVIEWING</span>
+            @if (previewMode() === 'playback') {
+              <span class="text-[10px] text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">PREVIEWING</span>
+            }
           </div>
           <div class="flex gap-2">
             <input type="color" formControlName="color" class="h-8 w-8 rounded bg-transparent">
@@ -153,7 +157,9 @@
              (click)="setPreviewMode('charging')">
           <div class="flex justify-between items-center">
             <span class="text-xs font-semibold text-slate-300 uppercase">Charging</span>
-            <span *ngIf="previewMode() === 'charging'" class="text-[10px] text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">PREVIEWING</span>
+            @if (previewMode() === 'charging') {
+              <span class="text-[10px] text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">PREVIEWING</span>
+            }
           </div>
           <div class="flex gap-2">
             <input type="color" formControlName="color" class="h-8 w-8 rounded bg-transparent">

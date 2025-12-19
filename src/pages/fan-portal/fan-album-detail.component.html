@@ -41,7 +41,7 @@
             @for (track of m.tracks; track track.trackId) {
               <div 
                 class="group flex items-center gap-4 p-4 rounded-xl hover:bg-white/5 cursor-pointer transition-colors border border-transparent hover:border-white/5"
-                [class.bg-white-5]="playerService.currentTrack()?.id === track.trackId"
+                [class.bg-white/5]="playerService.currentTrack()?.id === track.trackId"
                 (click)="playTrack(track)">
                 
                 <div class="w-8 text-center font-mono text-sm text-slate-500 group-hover:text-white">

@@ -43,214 +43,149 @@
         </div>
 
         <div class="mt-8">
-          <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">My Devices</h3>
-          <div class="space-y-1">
-             @if (connectionService.registrationStatus() === 'registered') {
-               <div class="flex items-center gap-2 px-3 py-2 text-sm text-emerald-400 bg-emerald-500/10 rounded-md border border-emerald-500/20">
-                 <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                 Full Access
-               </div>
-             } @else {
-               <div class="flex items-center gap-2 px-3 py-2 text-sm text-amber-400 bg-amber-500/10 rounded-md border border-amber-500/20" title="Limited Playback">
-                 <span class="h-2 w-2 rounded-full bg-amber-500"></span>
-                 Snippet Mode
-               </div>
-             }
+          <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">My Library</h3>
+          
+          <div class="mt-2 space-y-1">
+            @for (album of connectionService.deviceLibrary()?.albums; track album.id) {
+              <a [routerLink]="['/fan/album', album.id]" routerLinkActive="text-indigo-400" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
+                 <img [src]="album.artworkUrl" class="h-5 w-5 rounded object-cover">
+                 <span class="truncate">{{ album.title }}</span>
+              </a>
+            }
           </div>
+        </div>
+      </div>
+      <div class="mt-auto p-4">
+        @if (connectionService.connectionStatus() === 'disconnected') {
+           <button (click)="connectionService.connectToBridge()" class="w-full flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 border-slate-700 hover:bg-slate-800 text-slate-400 focus:ring-slate-500">
+             <span class="h-2.5 w-2.5 rounded-full bg-slate-600"></span>
+             <span>Connect Device...</span>
+           </button>
+        } @else {
+           <div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+             <div class="flex items-center gap-2">
+               <span class="h-2.5 w-2.5 rounded-full animate-pulse" [class.bg-teal-500]="!connectionService.isSimulationMode()" [class.bg-amber-500]="connectionService.isSimulationMode()"></span>
+               <span class="text-xs font-semibold" [class.text-teal-400]="!connectionService.isSimulationMode()" [class.text-amber-400]="connectionService.isSimulationMode()">
+                  @if (connectionService.isSimulationMode()) { SIMULATOR } @else { LIVE DEVICE }
+               </span>
+             </div>
+             <p class="text-[10px] text-slate-500 font-mono mt-1 truncate">{{ connectionService.deviceInfo()?.serial }}</p>
+           </div>
+        }
+      </div>
+    </nav>
+    
+    <!-- Mobile Sidebar -->
+    @if (sidebarOpen()) {
+      <div class="lg:hidden fixed inset-0 z-40" (click)="sidebarOpen.set(false)">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+      </div>
+      <div class="lg:hidden fixed inset-y-0 left-0 w-64 bg-slate-950 border-r border-slate-900 z-50 flex flex-col animate-fade-in-up" style="animation-duration: 0.2s">
+        <div class="p-4 border-b border-slate-900">
+          <div class="flex items-center gap-2">
+            <div class="h-6 w-6 rounded bg-indigo-600"></div>
+            <span class="font-bold text-lg text-white">DPA Player</span>
+          </div>
+        </div>
+        <div class="p-4 space-y-1">
+          <a (click)="sidebarOpen.set(false)" routerLink="/fan/home" routerLinkActive="bg-white/10 text-white" [routerLinkActiveOptions]="{ exact: true }" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
+            Home
+          </a>
+          <a (click)="sidebarOpen.set(false)" routerLink="/fan/capsules" routerLinkActive="bg-white/10 text-white" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
+            Capsules
+          </a>
+          <a (click)="sidebarOpen.set(false)" routerLink="/fan/marketplace" routerLinkActive="bg-white/10 text-white" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
+            Marketplace
+          </a>
+          <a (click)="sidebarOpen.set(false)" routerLink="/fan/devices" routerLinkActive="bg-white/10 text-white" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
+            My Devices
+          </a>
+        </div>
+        <div class="mt-auto p-4">
+          <button (click)="logout()" class="w-full text-left flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-rose-400 hover:bg-rose-500/10 transition-colors">
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+             Log Out
+          </button>
+        </div>
+      </div>
+    }
+    
+    <!-- Page Content -->
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 relative">
+      <div class="max-w-7xl mx-auto">
+        <router-outlet></router-outlet>
+      </div>
+    </main>
+  </div>
+  
+  <!-- Global Player Bar -->
+  @if (playerService.currentTrack(); as track) {
+    <div class="h-24 bg-slate-950 border-t border-slate-900 shrink-0 px-4 py-3 flex items-center gap-4 z-20">
+      
+      <!-- Track Info -->
+      <div class="flex items-center gap-3 w-64">
+        <img [src]="track.coverUrl" class="h-12 w-12 rounded object-cover shadow-lg">
+        <div>
+          <div class="text-sm font-semibold text-white truncate">{{ track.title }}</div>
+          <div class="text-xs text-slate-400 truncate">{{ track.artist }}</div>
         </div>
       </div>
       
-      <div class="mt-auto p-4 border-t border-slate-900">
-         <button (click)="logout()" class="w-full flex items-center gap-2 text-xs text-slate-500 hover:text-rose-400 transition-colors px-2 py-2 rounded hover:bg-rose-500/10">
-           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-           Log Out
-         </button>
+      <!-- Player Controls -->
+      <div class="flex-1 flex flex-col items-center justify-center">
+        <div class="flex items-center gap-4">
+          <button (click)="playerService.prev()" class="text-slate-500 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z" /></svg></button>
+          
+          <button (click)="playerService.togglePlay()" class="h-10 w-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform shadow-lg">
+            @if (playerService.isPlaying()) {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+            } @else {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+            }
+          </button>
+
+          <button (click)="playerService.next()" class="text-slate-500 hover:text-white transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798l-5.445-3.63z" /></svg></button>
+        </div>
+        
+        <!-- Scrubber -->
+        <div class="w-full max-w-lg flex items-center gap-2 mt-1">
+          <span class="text-[10px] text-slate-500 font-mono">{{ formatTime(playerService.currentTime()) }}</span>
+          <div class="flex-1 h-1 bg-slate-800 rounded-full">
+            <div class="h-full bg-indigo-500 rounded-full" [style.width.%]="playerService.progress()"></div>
+          </div>
+          <span class="text-[10px] text-slate-500 font-mono">{{ formatTime(playerService.effectiveDuration()) }}</span>
+        </div>
       </div>
-    </nav>
+      
+      <!-- Volume & Playlist -->
+      <div class="w-64 flex items-center justify-end gap-3">
+        <button (click)="togglePlaylistOverlay()" class="text-slate-400 hover:text-white transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" /></svg>
+        </button>
+      </div>
 
-    <!-- Mobile Sidebar -->
-    @if (sidebarOpen()) {
-      <div class="fixed inset-0 bg-black/60 z-40 lg:hidden" (click)="sidebarOpen.set(false)"></div>
-      <nav class="w-64 bg-slate-950 border-r border-slate-900 flex-shrink-0 fixed inset-y-0 left-0 z-50 flex flex-col transform transition-transform duration-300 ease-in-out lg:hidden" 
-           [class.translate-x-0]="sidebarOpen()" 
-           [class.-translate-x-full]="!sidebarOpen()">
-        <div class="p-6">
-          <div class="flex items-center gap-2 mb-8">
-            <div class="h-6 w-6 rounded bg-indigo-600 shadow-[0_0_12px_rgba(79,70,229,0.5)]"></div>
-            <span class="font-bold text-lg tracking-tight text-white">DPA <span class="text-slate-500 font-normal">Player</span></span>
-          </div>
-
-          <div class="space-y-1">
-            <a routerLink="/fan/home" routerLinkActive="bg-white/10 text-white" [routerLinkActiveOptions]="{ exact: true }" (click)="sidebarOpen.set(false)" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-              Home
-            </a>
-            <a routerLink="/fan/capsules" routerLinkActive="bg-white/10 text-white" (click)="sidebarOpen.set(false)" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
-              Capsules
-            </a>
-            <a routerLink="/fan/marketplace" routerLinkActive="bg-white/10 text-white" (click)="sidebarOpen.set(false)" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
-              Marketplace
-            </a>
-            <a routerLink="/fan/devices" routerLinkActive="bg-white/10 text-white" (click)="sidebarOpen.set(false)" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-              My Devices
-            </a>
-          </div>
-
-          <div class="mt-8">
-            <h3 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">My Devices</h3>
-            <div class="space-y-1">
-               @if (connectionService.registrationStatus() === 'registered') {
-                 <div class="flex items-center gap-2 px-3 py-2 text-sm text-emerald-400 bg-emerald-500/10 rounded-md border border-emerald-500/20">
-                   <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                   Full Access
-                 </div>
-               } @else {
-                 <div class="flex items-center gap-2 px-3 py-2 text-sm text-amber-400 bg-amber-500/10 rounded-md border border-amber-500/20" title="Limited Playback">
-                   <span class="h-2 w-2 rounded-full bg-amber-500"></span>
-                   Snippet Mode
-                 </div>
-               }
-            </div>
-          </div>
-        </div>
-        <div class="mt-auto p-4 border-t border-slate-900">
-           <button (click)="logout()" class="w-full flex items-center gap-2 text-xs text-slate-500 hover:text-rose-400 transition-colors px-2 py-2 rounded hover:bg-rose-500/10">
-             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-             Log Out
-           </button>
-        </div>
-      </nav>
-    }
-
-    <!-- Page Content -->
-    <main class="flex-1 overflow-y-auto bg-gradient-to-b from-slate-900 to-black p-4 sm:p-8">
-      <router-outlet></router-outlet>
-    </main>
-  </div>
-
-  <!-- Player Bar -->
-  <div class="h-24 bg-slate-950 border-t border-slate-900 grid grid-cols-3 items-center px-4 shrink-0 z-50">
-    
-    <!-- Track Info -->
-    <button (click)="togglePlaylistOverlay()" [disabled]="!playerService.currentTrack()" class="flex items-center gap-3 w-full min-w-0 col-span-1 text-left disabled:cursor-not-allowed group">
-      @if (playerService.currentTrack(); as track) {
-        <div class="relative">
-          <img [src]="track.coverUrl" class="h-10 w-10 sm:h-14 sm:w-14 rounded bg-slate-800 object-cover shadow-lg" [class.grayscale]="connectionService.registrationStatus() !== 'registered'">
-          <div class="absolute inset-0 bg-black/50 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </div>
-        </div>
-        <div class="min-w-0 hidden sm:block">
-          <div class="text-sm font-medium text-white truncate group-hover:text-indigo-400 transition-colors">{{ track.title }}</div>
-          <div class="text-xs text-slate-400 truncate">{{ track.artist }}</div>
-        </div>
-      } @else {
-        <div class="h-10 w-10 sm:h-14 sm:w-14 rounded bg-slate-900 flex items-center justify-center text-slate-700">
-           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
-        </div>
-        <div class="text-xs text-slate-600 hidden sm:block">DPA Ready</div>
-      }
-    </button>
-
-    <!-- Controls -->
-    <div class="flex flex-col items-center w-full col-span-1">
-       <div class="flex items-center gap-4 sm:gap-6 mb-2">
-         <button class="text-slate-400 hover:text-white" (click)="playerService.prev()">
-           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z" /></svg>
-         </button>
-         <button (click)="playerService.togglePlay()" class="h-10 w-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform relative">
-           @if (playerService.isPlaying()) {
-             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-           } @else {
-             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
-           }
-         </button>
-         <button class="text-slate-400 hover:text-white" (click)="playerService.next()">
-           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798l-5.445-3.63z" /></svg>
-         </button>
-       </div>
-       <!-- Scrubber -->
-       <div class="w-full flex items-center gap-2 text-[10px] text-slate-500 font-mono">
-         <span>{{ formatTime(playerService.currentTime()) }}</span>
-         <div class="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden group cursor-pointer relative">
-           @if (connectionService.registrationStatus() !== 'registered') {
-             <!-- Snippet Mode Limit Marker (approx 30s visual) -->
-             <div class="absolute top-0 bottom-0 right-0 w-[85%] bg-amber-900/30 z-10 border-l border-amber-500/50" title="Snippet Mode Limit"></div>
-           }
-           <div class="h-full bg-white/80 group-hover:bg-indigo-500 rounded-full relative z-20" [style.width.%]="playerService.progress()"></div>
-         </div>
-         <span>{{ playerService.currentTrack() ? formatTime(playerService.effectiveDuration()) : '0:00' }}</span>
-       </div>
     </div>
-
-    <!-- Volume & Source -->
-    <div class="flex items-center justify-end gap-2 sm:gap-3 col-span-1">
-       @if(connectionService.connectionStatus() !== 'disconnected') {
-         <button (click)="connectionService.disconnectDevice()" 
-                 class="flex items-center gap-1 px-2 py-1 rounded border text-[10px] uppercase font-bold tracking-wider transition-colors" 
-                 [class.text-indigo-400]="!connectionService.isSimulationMode()"
-                 [class.border-indigo-500/30]="!connectionService.isSimulationMode()"
-                 [class.bg-indigo-500/10]="!connectionService.isSimulationMode()"
-                 [class.hover:border-indigo-500/80]="!connectionService.isSimulationMode()"
-                 [class.text-amber-400]="connectionService.isSimulationMode()"
-                 [class.border-amber-500/30]="connectionService.isSimulationMode()"
-                 [class.bg-amber-500/10]="connectionService.isSimulationMode()"
-                 [class.hover:border-amber-500/80]="connectionService.isSimulationMode()"
-                 title="Disconnect Session">
-           @if (connectionService.isSimulationMode()) {
-             <span>SIM</span>
-           } @else {
-             <span>LIVE</span>
-           }
-         </button>
-       }
-       
-       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
-       <div class="w-20 h-1 bg-slate-800 rounded-full overflow-hidden hidden md:block">
-         <div class="h-full bg-slate-400 w-3/4"></div>
-       </div>
-    </div>
-
-  </div>
+  }
 </div>
 
 <!-- Playlist Overlay -->
-@if (playlistOverlayVisible() && playerService.currentTrack(); as current) {
-  <!-- Backdrop -->
-  <div (click)="togglePlaylistOverlay()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 animate-fade-in-up" style="animation-duration: 0.2s;"></div>
-
-  <!-- Playlist Panel -->
-  <div class="fixed bottom-24 left-0 right-0 z-50 animate-fade-in-up p-4">
-    <div class="max-w-md mx-auto bg-slate-900/80 backdrop-blur-xl border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-[50vh] flex flex-col">
-      <header class="p-4 border-b border-slate-700/50 flex items-center gap-3 shrink-0">
-        <img [src]="current.coverUrl" class="h-10 w-10 rounded">
-        <div>
-          <h3 class="font-semibold text-white">{{ current.album }}</h3>
-          <p class="text-xs text-slate-400">{{ current.artist }}</p>
-        </div>
-      </header>
-      <div class="overflow-y-auto">
-        @for (track of playerService.queue(); track track.id) {
-          <button (click)="selectTrack(track)" class="w-full text-left flex items-center gap-4 px-4 py-3 hover:bg-white/10 transition-colors">
-            @if (track.id === current.id) {
-              <div class="flex items-center justify-center w-5">
-                <div class="flex items-end h-4 gap-0.5">
-                  <span class="w-1 h-2 bg-indigo-400" style="animation: bounce 1.2s ease-in-out infinite alternate; animation-delay: -0.2s;"></span>
-                  <span class="w-1 h-4 bg-indigo-400" style="animation: bounce 1.2s ease-in-out infinite alternate;"></span>
-                  <span class="w-1 h-3 bg-indigo-400" style="animation: bounce 1.2s ease-in-out infinite alternate; animation-delay: -0.4s;"></span>
+@if (playlistOverlayVisible()) {
+  <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md" (click)="togglePlaylistOverlay()">
+    <div class="absolute right-0 top-0 bottom-24 w-full max-w-sm bg-slate-900/90 border-l border-slate-800 shadow-2xl p-6 overflow-y-auto animate-fade-in-up" (click)="$event.stopPropagation()">
+      <h3 class="text-lg font-bold text-white mb-6">Up Next</h3>
+      <div class="space-y-2">
+        @for (qTrack of playerService.queue(); track qTrack.id) {
+           <div (click)="selectTrack(qTrack)"
+                class="group flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-white/5 transition-colors"
+                [class.bg-white/10]="qTrack.id === playerService.currentTrack()?.id">
+              <img [src]="qTrack.coverUrl" class="w-10 h-10 rounded object-cover">
+              <div>
+                <div class="text-sm font-semibold text-white" [class.text-indigo-400]="qTrack.id === playerService.currentTrack()?.id">
+                  {{ qTrack.title }}
                 </div>
+                <div class="text-xs text-slate-400">{{ qTrack.artist }}</div>
               </div>
-            } @else {
-              <div class="w-5 text-center text-xs font-mono text-slate-500">{{ playerService.queue().indexOf(track) + 1 }}</div>
-            }
-            <div class="flex-1 min-w-0">
-              <div class="truncate" [class.text-indigo-400]="track.id === current.id">{{ track.title }}</div>
-            </div>
-            <div class="text-xs font-mono text-slate-500">{{ formatTime(track.duration) }}</div>
-          </button>
+           </div>
         }
       </div>
     </div>
