@@ -195,7 +195,11 @@ export class DataService {
           }
         ]
       },
-
+      pricing: {
+        retailPrice: 79,
+        manufacturingCost: 12.50,
+        currency: 'USD'
+      },
       // Analytics Data
       economics: this.generateEconomics(),
       resales: this.generateResales(45)

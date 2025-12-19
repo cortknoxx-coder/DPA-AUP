@@ -513,6 +513,7 @@ export class AlbumBookletComponent {
                     <div><span class="block text-[10px] text-slate-500">Mfg Cost (COGS)</span><span class="block text-sm font-mono text-white">{{ manufacturingCost() | currency }}</span></div>
                     <div><span class="block text-[10px] text-slate-500">Hardware Margin</span><span class="block text-sm font-mono text-emerald-400">{{ dpacHardwareMargin() | currency }}</span></div>
                     <div class="col-span-2 border-t border-slate-800 pt-2 flex justify-between items-center"><span class="text-[10px] text-indigo-400 font-bold">TOTAL DPAC PROFIT / UNIT</span><span class="text-sm font-bold text-indigo-400">{{ dpacTotalProfitPerUnit() | currency }}</span></div>
+                    <div class="col-span-2 border-t border-slate-800 pt-2 flex justify-between items-center"><span class="text-[10px] text-indigo-400 font-bold">TOTAL DPAC PROJECTED PROFIT</span><span class="text-sm font-bold text-indigo-400">{{ totalDpacProjectedProfit() | currency }}</span></div>
                   </div>
                 </div>
               }
@@ -653,6 +654,7 @@ export class AlbumPricingComponent {
   dpacTotalProfitPerUnit = computed(() => this.platformFee() + this.dpacHardwareMargin());
   totalManufacturingCost = computed(() => this.productionVolume() * this.wholesalePrice());
   totalProjectedProfit = computed(() => this.artistProfitPerUnit() * this.productionVolume());
+  totalDpacProjectedProfit = computed(() => this.dpacTotalProfitPerUnit() * this.productionVolume());
   
   amountDueToday = computed(() => this.paymentOption() === 'deposit' ? this.SCHEDULING_DEPOSIT : this.totalManufacturingCost());
 

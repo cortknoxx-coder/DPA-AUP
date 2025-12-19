@@ -4,6 +4,8 @@ import { CommonModule, CurrencyPipe, DecimalPipe, PercentPipe } from '@angular/c
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { UserService } from '../../services/user.service';
 import * as d3 from 'd3';
+import { DataService } from '../../services/data.service';
+import { DeviceConnectionService } from '../../services/device-connection.service';
 
 @Component({
   selector: 'app-user-admin',
@@ -14,6 +16,8 @@ import * as d3 from 'd3';
 export class UserAdminComponent {
   private fb: FormBuilder = inject(FormBuilder);
   userService = inject(UserService);
+  private dataService = inject(DataService);
+  connectionService = inject(DeviceConnectionService);
 
   chartContainer = viewChild<ElementRef>('chartContainer');
   regionChartContainer = viewChild<ElementRef>('regionChartContainer');
@@ -56,6 +60,38 @@ export class UserAdminComponent {
     const financials = this.userService.financials();
     if (financials.totalEarnings === 0) return 0;
     return (financials.perksSource / financials.totalEarnings) * 100;
+  });
+
+  // DPAC Operator profit calculation (simulator only)
+  totalDpacProfit = computed(() => {
+    return this.dataService.albums().reduce((total, album) => {
+      if (!album.economics || !album.pricing) return total;
+      
+      const { totalSold, manufacturingCost, wholesalePrice } = album.economics;
+      const { retailPrice } = album.pricing;
+      
+      if (totalSold > 0) {
+        const platformFeePerUnit = retailPrice * 0.15;
+        const hardwareMarginPerUnit = wholesalePrice - manufacturingCost;
+        const totalProfitPerUnit = platformFeePerUnit + hardwareMarginPerUnit;
+        return total + (totalProfitPerUnit * totalSold);
+      }
+      
+      return total;
+    }, 0);
+  });
+  
+  // Richer analytics
+  totalUnitsSold = computed(() => {
+    return this.dataService.albums().reduce((total, album) => total + (album.economics?.totalSold || 0), 0);
+  });
+
+  totalResaleTransactions = computed(() => {
+    return this.dataService.albums().reduce((total, album) => total + (album.resales?.length || 0), 0);
+  });
+  
+  totalSecondaryVolume = computed(() => {
+    return this.dataService.albums().reduce((total, album) => total + (album.economics?.secondaryVolume || 0), 0);
   });
 
   constructor() {

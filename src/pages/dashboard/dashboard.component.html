@@ -5,9 +5,14 @@
       <h1 class="text-2xl font-bold text-slate-50">Dashboard</h1>
       <p class="text-sm text-slate-400 mt-1">Manage your DPA projects and releases.</p>
     </div>
-    <a routerLink="/artist/albums/new" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 transition-colors">
-      + New Album
-    </a>
+    <div class="flex gap-2">
+      <a routerLink="/artist/fleet" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+        Fleet Tracker
+      </a>
+      <a routerLink="/artist/albums/new" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 transition-colors">
+        + New Album
+      </a>
+    </div>
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -17,6 +17,8 @@
     "@angular/platform-browser": "^21.0.0",
     "@angular/forms": "^21.0.6",
     "@angular/common": "^21.0.0",
+    "d3-geo": "^3.1.1",
+    "geojson": "^0.5.0",
     "@angular/build": "^21.0.0",
     "@angular/cli": "^21.0.0",
     "@angular/compiler-cli": "^21.0.0",

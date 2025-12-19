@@ -4,6 +4,7 @@ import { CommonModule, CurrencyPipe, DatePipe, PercentPipe } from '@angular/comm
 import { ActivatedRoute } from '@angular/router';
 import { DataService } from '../../services/data.service';
 import * as d3 from 'd3';
+import { DeviceConnectionService } from '../../services/device-connection.service';
 
 type Tab = 'overview' | 'resales' | 'economics';
 
@@ -16,6 +17,7 @@ type Tab = 'overview' | 'resales' | 'economics';
 export class DevicesDashboardComponent {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
+  connectionService = inject(DeviceConnectionService);
 
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
@@ -25,6 +27,28 @@ export class DevicesDashboardComponent {
   // Chart References
   priceHistoryChart = viewChild<ElementRef>('priceHistoryChart');
   
+  // DPAC Operator Economics (Simulator Only)
+  dpacHardwareMarginPerUnit = computed(() => {
+    const economics = this.album()?.economics;
+    if (!economics) return 0;
+    return economics.wholesalePrice - economics.manufacturingCost;
+  });
+
+  platformFeePerUnit = computed(() => {
+    const pricing = this.album()?.pricing;
+    if (!pricing) return 0;
+    return pricing.retailPrice * 0.15;
+  });
+
+  dpacTotalProfitPerUnit = computed(() => {
+    return this.dpacHardwareMarginPerUnit() + this.platformFeePerUnit();
+  });
+
+  totalDpacProfit = computed(() => {
+    const totalSold = this.album()?.economics?.totalSold || 0;
+    return this.dpacTotalProfitPerUnit() * totalSold;
+  });
+
   constructor() {
     effect(() => {
       const a = this.album();
