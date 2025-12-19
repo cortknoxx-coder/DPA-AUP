@@ -5,148 +5,36 @@ import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { UserService } from '../../services/user.service';
+import { CartService } from '../../services/cart.service';
 import { MarketplaceListing } from '../../types';
+
+interface TradeOffer {
+  id: string;
+  type: 'incoming' | 'outgoing';
+  status: 'pending' | 'accepted' | 'rejected' | 'countered';
+  offeredDevice: any;
+  requestedDevice: any;
+  fromUser?: string;
+  toUser?: string;
+  cashAdjustment: number;
+  rejectedAt?: Date;
+  // For UI
+  timeLeft?: string;
+}
 
 @Component({
   selector: 'app-fan-marketplace',
   standalone: true,
   imports: [CommonModule, CurrencyPipe, FormsModule],
-  template: `
-    <div class="space-y-8 pb-20">
-      <header>
-        <h1 class="text-4xl font-bold text-white tracking-tight">Marketplace</h1>
-        <p class="text-slate-400 mt-2">Trade verified DPA devices on the official secondary market.</p>
-      </header>
-
-      <!-- Tab Navigation -->
-      <div class="border-b border-slate-800">
-        <nav class="-mb-px flex space-x-8">
-          <button 
-            (click)="activeTab.set('my-listings')"
-            [class.border-indigo-500]="activeTab() === 'my-listings'"
-            [class.text-indigo-400]="activeTab() === 'my-listings'"
-            class="whitespace-nowrap border-b-2 border-transparent px-1 pb-4 text-sm font-medium text-slate-400 hover:text-slate-200">
-            My Listings
-          </button>
-          <button 
-            (click)="activeTab.set('buy-devices')"
-            [class.border-indigo-500]="activeTab() === 'buy-devices'"
-            [class.text-indigo-400]="activeTab() === 'buy-devices'"
-            class="whitespace-nowrap border-b-2 border-transparent px-1 pb-4 text-sm font-medium text-slate-400 hover:text-slate-200">
-            Buy Devices
-          </button>
-        </nav>
-      </div>
-
-      <!-- MY LISTINGS TAB -->
-      @if (activeTab() === 'my-listings') {
-        <div class="animate-fade-in-up">
-          @if(userDevice(); as device) {
-            <div class="rounded-xl bg-slate-900/50 border border-slate-800 p-6">
-              <div class="flex flex-col md:flex-row gap-6">
-                <div class="w-40 h-24 rounded-lg bg-gradient-to-br from-slate-200 to-slate-400 shadow-xl border border-slate-500/50 flex items-center justify-center relative shrink-0">
-                  <div class="absolute inset-y-0 left-0 w-1.5 bg-emerald-500 blur-sm"></div>
-                  <span class="text-[10px] font-bold text-slate-600">{{ device.model }}</span>
-                </div>
-                <div class="flex-1">
-                  <div class="text-xs text-slate-500 uppercase tracking-wider">Your Device</div>
-                  <div class="text-lg font-mono font-bold text-white tracking-wide mt-1">{{ device.serial }}</div>
-                  @if (userListing(); as listing) {
-                    <div class="mt-4 p-4 rounded-lg bg-slate-800/50 border border-slate-700">
-                       <div class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Listed for Sale</div>
-                       <div class="flex items-end justify-between mt-2">
-                          <span class="text-3xl font-bold text-white">{{ listing.priceUsd | currency }}</span>
-                          <button (click)="delist()" class="rounded bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-500">Delist</button>
-                       </div>
-                    </div>
-                  } @else {
-                    <p class="text-sm text-slate-400 mt-2">This device is currently in your possession. You can list it on the marketplace for other fans to purchase.</p>
-                    <button (click)="showSellModal.set(true)" class="mt-4 rounded bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-500 shadow-lg shadow-indigo-900/20">
-                      Sell Device
-                    </button>
-                  }
-                </div>
-              </div>
-            </div>
-          } @else {
-            <div class="text-center py-20 rounded-xl border border-dashed border-slate-800">
-              <h3 class="text-slate-200 font-semibold">No Device Connected</h3>
-              <p class="text-sm text-slate-500 mt-1">Please connect your DPA device to manage your listings.</p>
-            </div>
-          }
-        </div>
-      }
-
-      <!-- BUY DEVICES TAB -->
-      @if (activeTab() === 'buy-devices') {
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
-          @for(listing of listings(); track listing.id) {
-            <div class="group relative rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
-              <img [src]="listing.artworkUrl" class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300">
-              <div class="p-4 space-y-3">
-                <h3 class="font-bold text-white truncate">{{ listing.albumTitle }}</h3>
-                <div class="text-xs text-slate-400">
-                  <span class="font-semibold text-slate-300">{{ listing.albumArtist }}</span>
-                  <span class="text-slate-600 mx-1">•</span>
-                  <span>Device ID: <span class="font-mono">{{ listing.deviceId }}</span></span>
-                </div>
-                <div class="flex justify-between items-center pt-3 border-t border-slate-800">
-                  <span class="text-xl font-bold text-indigo-400">{{ listing.priceUsd | currency }}</span>
-                  <button (click)="buy(listing)" class="rounded-full bg-slate-800 text-slate-300 text-xs font-bold px-4 py-2 hover:bg-indigo-600 hover:text-white transition-colors">
-                    Buy Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          } @empty {
-            <div class="col-span-full text-center py-20 rounded-xl border border-dashed border-slate-800">
-              <h3 class="text-slate-200 font-semibold">Marketplace is Empty</h3>
-              <p class="text-sm text-slate-500 mt-1">No devices are currently listed for sale.</p>
-            </div>
-          }
-        </div>
-      }
-    </div>
-
-    <!-- Sell Modal -->
-    @if (showSellModal()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" (click)="showSellModal.set(false)">
-        <div class="w-full max-w-md rounded-xl border border-slate-800 bg-slate-950 shadow-2xl animate-fade-in-up p-6" (click)="$event.stopPropagation()">
-          <h3 class="text-lg font-bold text-white">List Your Device for Sale</h3>
-          <p class="text-sm text-slate-400 mt-1">Set your price and see the potential payout.</p>
-
-          <div class="my-6">
-            <label class="block text-xs text-slate-400 mb-1">Asking Price (USD)</label>
-            <div class="relative">
-              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-              <input type="number" [ngModel]="askingPrice()" (ngModelChange)="askingPrice.set($event)" min="1" class="w-full rounded-lg bg-slate-900 border border-slate-700 pl-8 pr-3 py-3 text-2xl text-white font-bold focus:border-indigo-500 outline-none">
-            </div>
-          </div>
-
-          <div class="space-y-3 rounded-lg bg-slate-900 border border-slate-800 p-4">
-            <div class="flex justify-between text-sm"><span class="text-slate-400">Marketplace Fee (5%)</span><span>-{{ marketplaceFee() | currency }}</span></div>
-            <div class="flex justify-between text-sm"><span class="text-slate-400">Artist Royalty (10%)</span><span>-{{ artistRoyalty() | currency }}</span></div>
-            <div class="border-t border-slate-700/50 pt-3 flex justify-between">
-              <span class="font-bold text-slate-300">Your Payout</span>
-              <span class="font-bold text-emerald-400">{{ yourPayout() | currency }}</span>
-            </div>
-          </div>
-
-          <div class="mt-6 flex justify-end gap-3">
-            <button (click)="showSellModal.set(false)" class="px-4 py-2 text-sm text-slate-400 hover:text-white">Cancel</button>
-            <button (click)="listDevice()" class="rounded bg-indigo-600 px-6 py-2 text-sm font-bold text-white hover:bg-indigo-500">List for Sale</button>
-          </div>
-        </div>
-      </div>
-    }
-  `
+  templateUrl: './fan-marketplace.component.html',
 })
 export class FanMarketplaceComponent {
   private dataService = inject(DataService);
   deviceService = inject(DeviceConnectionService);
   private userService = inject(UserService);
+  cartService = inject(CartService);
 
-  activeTab = signal<'my-listings' | 'buy-devices'>('my-listings');
+  activeTab = signal<'my-listings' | 'buy-devices' | 'trades'>('buy-devices');
 
   // "My Listings" state
   userDevice = computed(() => this.deviceService.deviceInfo());
@@ -165,6 +53,122 @@ export class FanMarketplaceComponent {
 
   // "Buy Devices" state
   listings = this.dataService.marketplaceListings;
+  showDeviceDetailModal = signal<MarketplaceListing | null>(null);
+  detailTab = signal<'tracks' | 'capsules'>('tracks');
+
+  selectedDeviceDetails = computed(() => {
+    const selectedListing = this.showDeviceDetailModal();
+    if (!selectedListing) return null;
+    
+    const album = this.dataService.getAlbum(selectedListing.albumId)();
+    return {
+      listing: selectedListing,
+      album: album
+    };
+  });
+
+  // "Make Offer" state
+  showOfferModal = signal<MarketplaceListing | null>(null);
+  offerPrice = signal(0);
+
+  // "Trades" state
+  showCounterModal = signal<any | null>(null);
+  counterOfferAmount = signal(0);
+  showFinalizeModal = signal<TradeOffer | null>(null);
+
+  tradeOffers = signal<TradeOffer[]>([
+    {
+      id: 'TRADE-1',
+      type: 'incoming',
+      status: 'pending',
+      offeredDevice: {
+        albumTitle: 'Cosmic Drift',
+        albumArtist: 'Stellar Phase',
+        deviceId: 'DPA-MOCK-NEW1',
+        artworkUrl: 'https://picsum.photos/seed/cosmicdrift/400/400'
+      },
+      requestedDevice: {
+        albumTitle: 'Midnight Horizons',
+        albumArtist: '808 Dreams',
+        deviceId: 'DPA-SIM-1234',
+        artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+      },
+      fromUser: '0xTR4D...3R',
+      cashAdjustment: 20
+    },
+    {
+      id: 'TRADE-2',
+      type: 'outgoing',
+      status: 'pending',
+      offeredDevice: {
+        albumTitle: 'Midnight Horizons',
+        albumArtist: '808 Dreams',
+        deviceId: 'DPA-SIM-1234',
+        artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+      },
+      requestedDevice: {
+        albumTitle: 'Midnight Horizons',
+        albumArtist: '808 Dreams',
+        deviceId: 'DPA-MOCK-C0DE',
+        artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+      },
+      toUser: '0x9F8E...B6A7',
+      cashAdjustment: -10
+    },
+    {
+      id: 'TRADE-3',
+      type: 'incoming',
+      status: 'rejected',
+      rejectedAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+      offeredDevice: {
+        albumTitle: 'Future Funk Vol. 2',
+        albumArtist: 'GrooveBot',
+        deviceId: 'DPA-MOCK-FUNK',
+        artworkUrl: 'https://picsum.photos/seed/futurefunk/400/400'
+      },
+      requestedDevice: {
+        albumTitle: 'Midnight Horizons',
+        albumArtist: '808 Dreams',
+        deviceId: 'DPA-SIM-1234',
+        artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+      },
+      fromUser: '0xGR00...V3',
+      cashAdjustment: 0
+    },
+    {
+      id: 'TRADE-4',
+      type: 'incoming',
+      status: 'accepted',
+      offeredDevice: {
+        albumTitle: 'Ocean Drive',
+        albumArtist: 'Synthwave Kid',
+        deviceId: 'DPA-MOCK-OCEAN',
+        artworkUrl: 'https://picsum.photos/seed/oceandrive/400/400'
+      },
+      requestedDevice: {
+        albumTitle: 'Midnight Horizons',
+        albumArtist: '808 Dreams',
+        deviceId: 'DPA-SIM-1234',
+        artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+      },
+      fromUser: '0x5YN7...H',
+      cashAdjustment: 0
+    }
+  ]);
+
+  pendingIncomingTrades = computed(() => this.tradeOffers().filter(t => t.type === 'incoming' && t.status === 'pending'));
+  pendingOutgoingTrades = computed(() => this.tradeOffers().filter(t => t.type === 'outgoing' && t.status === 'pending'));
+  acceptedTrades = computed(() => this.tradeOffers().filter(t => t.status === 'accepted'));
+  
+  rejectedTrades = computed(() => {
+    const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    return this.tradeOffers()
+      .filter(t => t.status === 'rejected' && t.rejectedAt && new Date(t.rejectedAt).getTime() > threeDaysAgo)
+      .map(t => ({
+        ...t,
+        timeLeft: this.getRejectedTimeLeft(t.rejectedAt!)
+      }));
+  });
 
   listDevice() {
     const device = this.userDevice();
@@ -196,10 +200,84 @@ export class FanMarketplaceComponent {
     }
   }
 
-  buy(listing: MarketplaceListing) {
-    if (confirm(`Are you sure you want to buy this device for ${listing.priceUsd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}?`)) {
-      this.dataService.buyDevice(listing.id);
-      alert("Purchase successful! Ownership transfer initiated.");
+  addToCart(listing: MarketplaceListing) {
+    this.cartService.addItem(listing);
+  }
+
+  makeOffer(listing: MarketplaceListing) {
+    this.offerPrice.set(Math.floor(listing.priceUsd * 0.9)); // Default offer to 90%
+    this.showOfferModal.set(listing);
+  }
+  
+  submitOffer() {
+    const listing = this.showOfferModal();
+    if(listing) {
+      alert(`Offer of $${this.offerPrice()} submitted for ${listing.albumTitle} (Device: ${listing.deviceId}). The seller has been notified.`);
+      this.showOfferModal.set(null);
     }
+  }
+
+  acceptTrade(tradeId: string) {
+    this.tradeOffers.update(offers => offers.map(o => o.id === tradeId ? { ...o, status: 'accepted' } : o));
+  }
+  
+  rejectTrade(tradeId: string) {
+    this.tradeOffers.update(offers => offers.map(o => o.id === tradeId ? { ...o, status: 'rejected', rejectedAt: new Date() } : o));
+  }
+  
+  restoreTrade(tradeId: string) {
+    this.tradeOffers.update(offers => offers.map(o => o.id === tradeId ? { ...o, status: 'pending', rejectedAt: undefined } : o));
+  }
+
+  openFinalizeModal(trade: TradeOffer) {
+    this.showFinalizeModal.set(trade);
+  }
+
+  openDeviceDetailModal(listing: MarketplaceListing) {
+    this.detailTab.set('tracks'); // Reset to first tab
+    this.showDeviceDetailModal.set(listing);
+  }
+
+  formatTime(sec: number): string {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  confirmFinalization() {
+    const trade = this.showFinalizeModal();
+    if (trade) {
+      alert(`Finalizing trade ${trade.id}... This would trigger the secure DPA ledger transfer and any cash payment.`);
+      this.tradeOffers.update(offers => offers.filter(o => o.id !== trade.id));
+      this.showFinalizeModal.set(null);
+    }
+  }
+
+  counterOffer(trade: any) {
+    this.counterOfferAmount.set(trade.cashAdjustment ? -trade.cashAdjustment : 10);
+    this.showCounterModal.set(trade);
+  }
+
+  submitCounterOffer() {
+    const trade = this.showCounterModal();
+    if (trade) {
+      const amount = this.counterOfferAmount();
+      const action = amount >= 0 ? `offer an additional $${amount}` : `request an additional $${-amount}`;
+      alert(`Counter offer for Trade ${trade.id} submitted. You now ${action}.`);
+      this.showCounterModal.set(null);
+    }
+  }
+
+  private getRejectedTimeLeft(rejectedAt: Date): string {
+    const expiryTime = new Date(rejectedAt).getTime() + 3 * 24 * 60 * 60 * 1000;
+    const timeLeftMs = expiryTime - Date.now();
+    
+    if (timeLeftMs <= 0) return 'Expired';
+    
+    const days = Math.floor(timeLeftMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((timeLeftMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) return `${days} day${days > 1 ? 's' : ''} left`;
+    return `${hours} hour${hours > 1 ? 's' : ''} left`;
   }
 }

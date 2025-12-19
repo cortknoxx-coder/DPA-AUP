@@ -160,15 +160,15 @@ export class AlbumMetadataComponent {
           <div class="space-y-8">
             <div class="space-y-6">
               <div>
-                <label class="block text-xs text-slate-400 mb-1">Album Description / Synopsis</label>
+                <label class="block text-xs text-slate-400 mb-1">Liner Notes / Shoutouts (For Booklet)</label>
                 <textarea formControlName="description" rows="4" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none resize-none"></textarea>
               </div>
               <div>
-                <label class="block text-xs text-slate-400 mb-1">Lyrics & Liner Notes</label>
+                <label class="block text-xs text-slate-400 mb-1">Full Lyrics (For Lyrics Tab)</label>
                 <textarea formControlName="lyrics" rows="6" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 font-mono focus:border-teal-500 outline-none" placeholder="Markdown supported..."></textarea>
               </div>
               <div>
-                <label class="block text-xs text-slate-400 mb-1">Album Credits</label>
+                <label class="block text-xs text-slate-400 mb-1">Album Credits (For Booklet)</label>
                 <textarea formControlName="bookletCredits" rows="4" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none font-mono placeholder:text-slate-600" placeholder="Produced by... Mixed by..."></textarea>
               </div>
             </div>
@@ -176,7 +176,7 @@ export class AlbumMetadataComponent {
             <!-- Gallery Images -->
             <div class="space-y-3">
               <div class="flex justify-between items-center">
-                <label class="block text-xs text-slate-400">Booklet Gallery Images</label>
+                <label class="block text-xs text-slate-400">Image Gallery (First image is booklet cover)</label>
                 <button type="button" (click)="galleryInput.click()" class="text-xs text-teal-400 hover:text-teal-300">+ Upload Image</button>
                 <input #galleryInput type="file" (change)="onGalleryFileSelected($event)" class="hidden" accept="image/*">
               </div>
@@ -195,7 +195,7 @@ export class AlbumMetadataComponent {
             <!-- Videos -->
             <div class="space-y-3" formArrayName="bookletVideos">
               <div class="flex justify-between items-center">
-                <label class="block text-xs text-slate-400">Attached Videos (On-Device or Stream)</label>
+                <label class="block text-xs text-slate-400">Attached Videos (For Videos Tab)</label>
                 <button type="button" (click)="addVideo()" class="text-xs text-teal-400 hover:text-teal-300">+ Add Video URL</button>
               </div>
               <div class="space-y-3">
@@ -234,31 +234,85 @@ export class AlbumMetadataComponent {
                       <img [src]="previewCover()" class="w-full h-full object-cover">
                       <div class="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent"></div>
                       <div class="absolute bottom-0 left-0 right-0 p-6">
-                        <div class="text-xs font-bold text-teal-400 uppercase tracking-wider mb-1">Digital Booklet</div>
-                        <h2 class="text-2xl font-bold leading-tight text-white mb-1">{{ form.value.title || 'Album Title' }}</h2>
-                        <p class="text-sm text-slate-300">{{ form.value.artistName || 'Artist Name' }}</p>
+                        <h2 class="text-2xl font-bold leading-tight text-white mb-1">{{ album()?.title || 'Album Title' }}</h2>
+                        <p class="text-sm text-slate-300">{{ album()?.artistName || 'Artist Name' }}</p>
                       </div>
                     </div>
                     <div class="p-6 pt-0 space-y-6 min-h-[300px]">
-                      @if (previewTab() === 'info') {
+                      @if (previewTab() === 'booklet') {
                         <div class="animate-fade-in-up">
-                          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">About The Album</h3>
-                          <p class="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{{ form.value.description || 'Add a description to see it appear here...' }}</p>
-                          <div class="mt-6 p-4 bg-slate-800/50 rounded-xl border border-white/5">
-                            <h4 class="text-xs font-bold text-white mb-2">Release Details</h4>
-                            <div class="space-y-2 text-xs text-slate-400">
-                              <div class="flex justify-between"><span>Label</span><span class="text-slate-200">{{ form.value.recordLabel || '-' }}</span></div>
-                              <div class="flex justify-between"><span>Date</span><span class="text-slate-200">{{ form.value.releaseDate || '-' }}</span></div>
-                              <div class="flex justify-between"><span>UPC</span><span class="text-slate-200 font-mono">{{ form.value.upcCode || '-' }}</span></div>
-                            </div>
+                          <div class="relative h-[400px]">
+                            @switch (bookletPage()) {
+                              @case(0) {
+                                <div class="animate-fade-in-up">
+                                  <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Album Cover</h3>
+                                  <img [src]="previewCover()" class="w-full aspect-square object-cover rounded-lg bg-slate-800 shadow-lg">
+                                </div>
+                              }
+                              @case(1) {
+                                <div class="animate-fade-in-up">
+                                  <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Tracklist</h3>
+                                  <div class="space-y-3">
+                                    @for (track of album()?.tracks; track track.id) {
+                                      <div class="flex items-baseline gap-3 text-sm">
+                                        <span class="text-slate-500 font-mono text-xs">{{ track.trackIndex + 1 }}.</span>
+                                        <span class="text-slate-200 flex-1">{{ track.title }}</span>
+                                      </div>
+                                    } @empty {
+                                      <div class="text-slate-500 text-xs italic">No tracks added.</div>
+                                    }
+                                  </div>
+                                </div>
+                              }
+                              @case(2) {
+                                <div class="animate-fade-in-up">
+                                  <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Credits</h3>
+                                  <div class="text-xs text-slate-400 font-mono leading-relaxed whitespace-pre-wrap">{{ form.value.bookletCredits || 'Add credits to see them here...' }}</div>
+                                </div>
+                              }
+                              @case(3) {
+                                <div class="animate-fade-in-up">
+                                  <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Liner Notes</h3>
+                                  <p class="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{{ form.value.description || 'Add liner notes or a synopsis to see it here...' }}</p>
+                                </div>
+                              }
+                            }
+                             <div class="absolute bottom-0 left-0 right-0 flex justify-between items-center bg-slate-900 pt-4">
+                               <button (click)="prevBookletPage()" class="px-3 py-1 rounded bg-slate-800 text-xs text-slate-300 hover:bg-slate-700">‹ Prev</button>
+                               <span class="text-xs font-mono text-slate-500">Page {{ bookletPage() + 1 }} / {{ totalBookletPages }}</span>
+                               <button (click)="nextBookletPage()" class="px-3 py-1 rounded bg-slate-800 text-xs text-slate-300 hover:bg-slate-700">Next ›</button>
+                             </div>
                           </div>
                         </div>
                       }
                       @if (previewTab() === 'lyrics') {
                         <div class="animate-fade-in-up"><h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Lyrics & Notes</h3><div class="prose prose-invert prose-sm"><p class="text-sm text-slate-300 font-serif leading-relaxed whitespace-pre-wrap">{{ form.value.lyrics || 'Lyrics will appear here...' }}</p></div></div>
                       }
-                      @if (previewTab() === 'credits') {
-                        <div class="animate-fade-in-up"><h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Full Credits</h3><div class="text-xs text-slate-400 font-mono leading-relaxed whitespace-pre-wrap text-center">{{ form.value.bookletCredits || 'Credits will appear here...' }}</div></div>
+                      @if (previewTab() === 'videos') {
+                        <div class="animate-fade-in-up">
+                          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Attached Videos</h3>
+                          <div class="space-y-4">
+                            @for (video of bookletVideos.controls; track $index) {
+                              <div class="flex items-center gap-4 bg-slate-800/50 p-2 rounded-lg border border-white/5 cursor-pointer hover:bg-slate-700/50 transition-colors">
+                                <div class="relative w-24 h-16 shrink-0">
+                                   <img [src]="video.value.poster" class="w-full h-full object-cover rounded">
+                                   <div class="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                      <div class="h-6 w-6 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-white ml-px" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+                                      </div>
+                                   </div>
+                                </div>
+                                <div class="flex-1">
+                                  <div class="text-sm font-bold text-white leading-tight">{{ video.value.title }}</div>
+                                </div>
+                              </div>
+                            } @empty {
+                              <div class="py-8 text-center text-xs text-slate-500 border border-dashed border-slate-700 rounded">
+                                No videos added.
+                              </div>
+                            }
+                          </div>
+                        </div>
                       }
                       @if (previewTab() === 'gallery') {
                         <div class="animate-fade-in-up grid grid-cols-2 gap-2">
@@ -272,10 +326,10 @@ export class AlbumMetadataComponent {
                     </div>
                   </div>
                   <div class="h-16 bg-slate-900 border-t border-slate-800 shrink-0 grid grid-cols-4 items-center">
-                    <button (click)="previewTab.set('info')" class="flex flex-col items-center gap-1 group"><div class="h-1 w-8 rounded-full transition-colors" [class.bg-teal-500]="previewTab() === 'info'" [class.bg-transparent]="previewTab() !== 'info'"></div><span class="text-[10px] font-bold uppercase transition-colors" [class.text-white]="previewTab() === 'info'" [class.text-slate-500]="previewTab() !== 'info'">Info</span></button>
+                    <button (click)="previewTab.set('booklet')" class="flex flex-col items-center gap-1 group"><div class="h-1 w-8 rounded-full transition-colors" [class.bg-teal-500]="previewTab() === 'booklet'" [class.bg-transparent]="previewTab() !== 'booklet'"></div><span class="text-[10px] font-bold uppercase transition-colors" [class.text-white]="previewTab() === 'booklet'" [class.text-slate-500]="previewTab() !== 'booklet'">Booklet</span></button>
                     <button (click)="previewTab.set('lyrics')" class="flex flex-col items-center gap-1 group"><div class="h-1 w-8 rounded-full transition-colors" [class.bg-teal-500]="previewTab() === 'lyrics'" [class.bg-transparent]="previewTab() !== 'lyrics'"></div><span class="text-[10px] font-bold uppercase transition-colors" [class.text-white]="previewTab() === 'lyrics'" [class.text-slate-500]="previewTab() !== 'lyrics'">Lyrics</span></button>
-                    <button (click)="previewTab.set('gallery')" class="flex flex-col items-center gap-1 group"><div class="h-1 w-8 rounded-full transition-colors" [class.bg-teal-500]="previewTab() === 'gallery'" [class.bg-transparent]="previewTab() !== 'gallery'"></div><span class="text-[10px] font-bold uppercase transition-colors" [class.text-white]="previewTab() === 'gallery'" [class.text-slate-500]="previewTab() !== 'gallery'">Photos</span></button>
-                    <button (click)="previewTab.set('credits')" class="flex flex-col items-center gap-1 group"><div class="h-1 w-8 rounded-full transition-colors" [class.bg-teal-500]="previewTab() === 'credits'" [class.bg-transparent]="previewTab() !== 'credits'"></div><span class="text-[10px] font-bold uppercase transition-colors" [class.text-white]="previewTab() === 'credits'" [class.text-slate-500]="previewTab() !== 'credits'">Credits</span></button>
+                    <button (click)="previewTab.set('gallery')" class="flex flex-col items-center gap-1 group"><div class="h-1 w-8 rounded-full transition-colors" [class.bg-teal-500]="previewTab() === 'gallery'" [class.bg-transparent]="previewTab() !== 'gallery'"></div><span class="text-[10px] font-bold uppercase transition-colors" [class.text-white]="previewTab() === 'gallery'" [class.text-slate-500]="previewTab() !== 'gallery'">Gallery</span></button>
+                    <button (click)="previewTab.set('videos')" class="flex flex-col items-center gap-1 group"><div class="h-1 w-8 rounded-full transition-colors" [class.bg-teal-500]="previewTab() === 'videos'" [class.bg-transparent]="previewTab() !== 'videos'"></div><span class="text-[10px] font-bold uppercase transition-colors" [class.text-white]="previewTab() === 'videos'" [class.text-slate-500]="previewTab() !== 'videos'">Videos</span></button>
                   </div>
                   <div class="h-6 bg-slate-900 flex justify-center items-start"><div class="w-32 h-1 bg-white/20 rounded-full mt-2"></div></div>
                 </div>
@@ -302,14 +356,6 @@ export class AlbumBookletComponent {
   album = computed(() => this.dataService.getAlbum(this.id())());
 
   form = this.fb.group({
-    // Fields for preview
-    title: [''],
-    artistName: [''],
-    recordLabel: [''],
-    releaseDate: [''],
-    upcCode: [''],
-
-    // Fields to save
     description: [''],
     lyrics: [''],
     bookletCredits: [''],
@@ -318,7 +364,11 @@ export class AlbumBookletComponent {
   });
 
   formValues = toSignal(this.form.valueChanges);
-  previewTab = signal<'info' | 'lyrics' | 'credits' | 'gallery'>('info');
+  previewTab = signal<'booklet' | 'lyrics' | 'gallery' | 'videos'>('booklet');
+
+  // Interactive Booklet State
+  bookletPage = signal(0);
+  readonly totalBookletPages = 4; // Cover, Tracks, Credits, Notes
 
   previewCover = computed(() => {
     const vals = this.formValues();
@@ -340,13 +390,6 @@ export class AlbumBookletComponent {
         a.booklet?.gallery?.forEach(img => this.bookletGallery.push(this.fb.control(img)));
 
         this.form.patchValue({
-          // Preview fields
-          title: a.title,
-          artistName: a.artistName || '',
-          recordLabel: a.recordLabel || '',
-          releaseDate: a.releaseDate || '',
-          upcCode: a.upcCode || '',
-          // Editable fields
           description: a.description || '',
           lyrics: a.lyrics || '',
           bookletCredits: a.booklet?.credits || ''
@@ -355,7 +398,14 @@ export class AlbumBookletComponent {
     });
   }
 
-  addVideo() { this.bookletVideos.push(this.fb.group({ id: [Math.random().toString(36).substr(2, 9)], title: ['New Video'], url: [''], poster: [''] })); }
+  nextBookletPage() {
+    this.bookletPage.update(p => (p + 1) % this.totalBookletPages);
+  }
+  prevBookletPage() {
+    this.bookletPage.update(p => (p - 1 + this.totalBookletPages) % this.totalBookletPages);
+  }
+
+  addVideo() { this.bookletVideos.push(this.fb.group({ id: [Math.random().toString(36).substr(2, 9)], title: ['New Video'], url: [''], poster: ['https://picsum.photos/seed/' + Math.random() + '/800/450'] })); }
   removeVideo(index: number) { this.bookletVideos.removeAt(index); }
 
   onGalleryFileSelected(event: Event) {

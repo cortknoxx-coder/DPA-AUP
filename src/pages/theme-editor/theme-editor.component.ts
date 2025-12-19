@@ -33,6 +33,7 @@ export class ThemeEditorComponent {
       background: ['']
     }),
     skinImage: [''], // Holds the base64 string for the skin
+    skinType: ['partial'],
     led: this.fb.group({
       idle: this.fb.group({ color: [''], pattern: [''] }),
       playback: this.fb.group({ color: [''], pattern: [''] }),
@@ -50,7 +51,11 @@ export class ThemeEditorComponent {
     effect(() => {
       const a = this.album();
       if (a && a.themeJson) {
-        this.form.patchValue(a.themeJson as any, { emitEvent: false });
+        const themeData = {
+          ...a.themeJson,
+          skinType: a.themeJson.skinType || 'partial'
+        };
+        this.form.patchValue(themeData as any, { emitEvent: false });
       }
     });
   }
@@ -60,9 +65,11 @@ export class ThemeEditorComponent {
   }
 
   downloadTemplate() {
-    // In a real app, this would trigger a download of the .PSD or .AI file
-    // We'll use a simple alert to simulate the action for the demo
-    alert('Downloading DPA_Pro_Landscape_Spec_85x54mm.psd ...');
+    const skinType = this.form.value.skinType;
+    const templateName = skinType === 'full' 
+      ? 'DPA_Pro_Landscape_FULL_WRAP_Spec_85x54mm.psd'
+      : 'DPA_Pro_Landscape_PARTIAL_WRAP_Spec_85x54mm.psd';
+    alert(`Downloading ${templateName} ...`);
   }
 
   onFileSelected(event: Event) {

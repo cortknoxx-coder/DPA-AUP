@@ -16,6 +16,26 @@
         </button>
       </div>
       
+      <!-- Skin Type Selector -->
+      <div class="grid grid-cols-2 gap-2 p-1 rounded-lg bg-slate-950 border border-slate-800 mb-6">
+        <button type="button" 
+                (click)="form.controls.skinType.setValue('partial')"
+                class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors"
+                [class.bg-slate-700]="form.value.skinType === 'partial'"
+                [class.text-white]="form.value.skinType === 'partial'"
+                [class.text-slate-400]="form.value.skinType !== 'partial'">
+          Partial Wrap
+        </button>
+        <button type="button"
+                (click)="form.controls.skinType.setValue('full')"
+                class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors"
+                [class.bg-slate-700]="form.value.skinType === 'full'"
+                [class.text-white]="form.value.skinType === 'full'"
+                [class.text-slate-400]="form.value.skinType !== 'full'">
+          Full Wrap
+        </button>
+      </div>
+
       <!-- Tech Specs Box -->
       <div class="mb-6 p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="space-y-1">
@@ -28,20 +48,31 @@
           <div class="text-sm text-slate-200 font-mono">85.6mm x 54.0mm</div>
         </div>
         <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
-        <div class="space-y-1">
-          <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Asset Req (300DPI)</div>
-          <div class="text-sm text-teal-400 font-mono">1050 x 510 px (Partial Wrap)</div>
-        </div>
+        @if (form.value.skinType === 'partial') {
+          <div class="space-y-1 animate-fade-in-up" style="animation-duration: 0.2s;">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Asset Req (300DPI)</div>
+            <div class="text-sm text-teal-400 font-mono">1050 x 510 px (Partial)</div>
+          </div>
+        } @else {
+          <div class="space-y-1 animate-fade-in-up" style="animation-duration: 0.2s;">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Asset Req (300DPI)</div>
+            <div class="text-sm text-teal-400 font-mono">1050 x 670 px (Full)</div>
+          </div>
+        }
       </div>
 
       <div class="flex items-start gap-6">
         <!-- Preview Thumbnail (Landscape) -->
-        <div class="h-[75px] w-40 flex-shrink-0 rounded-t-lg border border-slate-800 bg-slate-950 flex items-center justify-center overflow-hidden relative group shadow-inner">
+        <div class="h-[75px] w-40 flex-shrink-0 rounded-lg border border-slate-800 bg-slate-950 flex items-center justify-center overflow-hidden relative group shadow-inner">
            <!-- Transparency Grid -->
            <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#334155 1px, transparent 1px); background-size: 8px 8px;"></div>
            
           @if (form.value.skinImage) {
-            <img [src]="form.value.skinImage" class="h-full w-full object-cover z-10 relative">
+            <div class="absolute inset-0 transition-all duration-300" 
+                 [class.h-full]="form.value.skinType === 'full'"
+                 [class.h-[75%]]="form.value.skinType === 'partial'">
+              <img [src]="form.value.skinImage" class="h-full w-full object-cover z-10 relative">
+            </div>
           } @else {
             <div class="text-center z-10 relative">
               <span class="block text-[10px] text-slate-600 mb-2">No Skin</span>
@@ -66,10 +97,17 @@
               </button>
             }
           </div>
-          <p class="text-[10px] text-slate-500 leading-relaxed">
-            Wrap covers top ~75% of front face. <br>
-            Asset dimensions updated: <strong>1050 x 510 px</strong> to account for the metal chin.
-          </p>
+          @if (form.value.skinType === 'partial') {
+            <p class="text-[10px] text-slate-500 leading-relaxed">
+              Wrap covers top ~75% of front face. <br>
+              Asset dimensions: <strong>1050 x 510 px</strong> to account for the metal chin.
+            </p>
+          } @else {
+            <p class="text-[10px] text-slate-500 leading-relaxed">
+              Wrap covers 100% of the device face. <br>
+              Asset dimensions: <strong>1050 x 670 px</strong>.
+            </p>
+          }
         </div>
       </div>
     </section>
@@ -238,8 +276,12 @@
                 <!-- Subtle Brushed Metal Texture Overlay -->
                 <div class="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] pointer-events-none mix-blend-multiply"></div>
 
-                <!-- Upper 75%: Skin Area -->
-                <div class="absolute top-0 left-0 right-0 h-[75%] bg-slate-300 overflow-hidden border-b border-slate-400/30">
+                <!-- Skin Area -->
+                <div class="absolute top-0 left-0 right-0 bg-slate-300 overflow-hidden transition-all duration-300 z-10"
+                    [class.h-full]="form.value.skinType === 'full'"
+                    [class.h-[75%]]="form.value.skinType === 'partial'"
+                    [class.border-b]="form.value.skinType === 'partial'"
+                    [class.border-slate-400/30]="form.value.skinType === 'partial'">
                    @if (form.value.skinImage) {
                      <img [src]="form.value.skinImage" class="h-full w-full object-cover">
                      <div class="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent pointer-events-none"></div>
@@ -250,11 +292,14 @@
                    }
                 </div>
 
-                <!-- Lower 25%: Control Chin (Titanium Finish) -->
-                <div class="absolute bottom-0 left-0 right-0 h-[25%] bg-gradient-to-b from-slate-100 to-slate-300 flex items-center justify-between px-6 shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]">
-                    
-                   <!-- Buttons: [Prev] [Next] [Stop] [BT] -->
-                   <div class="flex gap-4 items-center">
+                <!-- Control Chin (Titanium Finish) -->
+                <div class="absolute bottom-0 left-0 right-0 h-[25%] flex items-center justify-between px-6 z-20"
+                     [class.bg-gradient-to-b]="form.value.skinType === 'partial'"
+                     [class.from-slate-100]="form.value.skinType === 'partial'"
+                     [class.to-slate-300]="form.value.skinType === 'partial'"
+                     [class.shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]]="form.value.skinType === 'partial'">
+                  <!-- Buttons: [Prev] [Next] [Stop] [BT] -->
+                  <div class="flex gap-4 items-center">
                       <!-- Prev -->
                       <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z" /></svg>
@@ -271,13 +316,13 @@
                       <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 010 1.414l-3 3A1 1 0 0110 10.414V8.414l1.293-1.293-1.293-1.293V3zm0 10.414l1.293-1.293 1.293 1.293-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414l1.414 1.414v-1.414z" clip-rule="evenodd" /></svg>
                       </div>
-                   </div>
+                  </div>
 
-                   <!-- Logo -->
-                   <div class="text-right">
+                  <!-- Logo -->
+                  <div class="text-right">
                       <div class="text-xs font-bold text-slate-500 tracking-tighter">DPA<span class="align-top text-[8px] font-normal">TM</span></div>
                       <div class="text-[8px] font-semibold text-slate-400 uppercase tracking-widest -mt-1">Audio</div>
-                   </div>
+                  </div>
                 </div>
               </div>
             </div>

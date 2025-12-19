@@ -61,6 +61,7 @@ export interface LedState {
 export interface Theme {
   albumColor: ThemeColors;
   skinImage?: string; // Base64 Data URL for the device wrap/skin
+  skinType?: 'partial' | 'full';
   led: {
     idle: LedState;
     playback: LedState;

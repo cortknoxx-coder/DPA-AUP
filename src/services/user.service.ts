@@ -11,8 +11,9 @@ export interface UserProfile {
 export interface Financials {
   totalEarnings: number;
   currentBalance: number;
-  royaltySource: number;
-  dpaSalesSource: number;
+  royaltySource: number;  // Secondary market
+  dpaSalesSource: number; // Primary hardware sales
+  perksSource: number;    // DCNP digital sales
 }
 
 export interface EarningPoint {
@@ -31,10 +32,11 @@ export class UserService {
   });
 
   financials = signal<Financials>({
-    totalEarnings: 124567.89,
-    currentBalance: 3210.45,
-    royaltySource: 98765.43,
-    dpaSalesSource: 25802.46
+    totalEarnings: 352840.21,
+    currentBalance: 9430.75,
+    royaltySource: 24260.19,
+    dpaSalesSource: 311588.02,
+    perksSource: 16992.00
   });
 
   paymentMethods = signal<PaymentMethod[]>([
@@ -107,7 +109,7 @@ export class UserService {
       ...f,
       currentBalance: f.currentBalance + amount,
       totalEarnings: f.totalEarnings + amount,
-      dpaSalesSource: f.dpaSalesSource + amount
+      perksSource: f.perksSource + amount
     }));
   }
 }

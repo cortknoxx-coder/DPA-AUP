@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { PlayerService, PlayerTrack } from '../../services/player.service';
 import { DeviceConnectionService } from '../../services/device-connection.service';
+import { CartService } from '../../services/cart.service';
 
 @Component({
   selector: 'app-fan-layout',
@@ -14,13 +15,19 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
 export class FanLayoutComponent {
   playerService = inject(PlayerService);
   connectionService = inject(DeviceConnectionService);
+  cartService = inject(CartService);
   private router = inject(Router);
   
   sidebarOpen = signal(false);
   playlistOverlayVisible = signal(false);
+  cartOverlayVisible = signal(false);
 
   togglePlaylistOverlay() {
     this.playlistOverlayVisible.update(v => !v);
+  }
+
+  toggleCartOverlay() {
+    this.cartOverlayVisible.update(v => !v);
   }
 
   selectTrack(track: PlayerTrack) {

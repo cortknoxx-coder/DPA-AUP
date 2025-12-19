@@ -32,7 +32,9 @@ export class DeviceConnectionService {
   private isSimulated = signal(false);
 
   constructor() {
-    this.disconnectDevice(); // Ensure a clean state on startup
+    // Start in simulator mode by default for a better demo experience,
+    // ensuring the device mockup is visible immediately.
+    this.toggleSimulator();
   }
 
   async connectToBridge() {

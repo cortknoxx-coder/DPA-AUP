@@ -30,19 +30,19 @@
       </div>
     </div>
     <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Device Sales</div>
-      <div class="text-2xl font-bold text-slate-100 mt-2">2,450</div>
-      <div class="text-[10px] text-slate-500 mt-1">Units Shipped</div>
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">DPA Primary Sales</div>
+      <div class="text-2xl font-bold text-slate-100 mt-2">{{ userService.financials().dpaSalesSource | currency:'USD':'symbol':'1.0-0' }}</div>
+      <div class="text-[10px] text-slate-500 mt-1">From initial hardware sales</div>
     </div>
     <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
       <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Smart Royalties</div>
       <div class="text-2xl font-bold text-indigo-400 mt-2">{{ userService.financials().royaltySource | currency:'USD':'symbol':'1.0-0' }}</div>
-      <div class="text-[10px] text-slate-500 mt-1">Secondary Market</div>
+      <div class="text-[10px] text-indigo-400/80 mt-1">10% of every secondary market sale</div>
     </div>
     <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg Rev / Device</div>
-      <div class="text-2xl font-bold text-slate-100 mt-2">$58.42</div>
-      <div class="text-[10px] text-emerald-400 mt-1">High LTV</div>
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Perk Earnings</div>
+      <div class="text-2xl font-bold text-rose-400 mt-2">{{ userService.financials().perksSource | currency:'USD':'symbol':'1.0-0' }}</div>
+      <div class="text-[10px] text-rose-400/80 mt-1">From digital content (DCNP) sales</div>
     </div>
   </div>
 
@@ -66,30 +66,30 @@
         <div>
           <div class="flex justify-between text-xs mb-2">
             <span class="text-slate-300">Primary Sales (Hardware)</span>
-            <span class="text-slate-100 font-medium">65%</span>
+            <span class="text-slate-100 font-medium">{{ dpaSalesPercent() | number:'1.0-0' }}%</span>
           </div>
           <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div class="h-full bg-teal-500 w-[65%]"></div>
+            <div class="h-full bg-teal-500" [style.width.%]="dpaSalesPercent()"></div>
           </div>
         </div>
         
         <div>
           <div class="flex justify-between text-xs mb-2">
             <span class="text-slate-300">Resale Royalties</span>
-            <span class="text-slate-100 font-medium">20%</span>
+            <span class="text-slate-100 font-medium">{{ royaltyPercent() | number:'1.0-0' }}%</span>
           </div>
           <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div class="h-full bg-indigo-500 w-[20%]"></div>
+            <div class="h-full bg-indigo-500" [style.width.%]="royaltyPercent()"></div>
           </div>
         </div>
 
         <div>
           <div class="flex justify-between text-xs mb-2">
             <span class="text-slate-300">DCNP Perks (Digital)</span>
-            <span class="text-slate-100 font-medium">15%</span>
+            <span class="text-slate-100 font-medium">{{ perksPercent() | number:'1.0-0' }}%</span>
           </div>
           <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div class="h-full bg-rose-500 w-[15%]"></div>
+            <div class="h-full bg-rose-500" [style.width.%]="perksPercent()"></div>
           </div>
         </div>
       </div>

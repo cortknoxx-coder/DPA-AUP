@@ -1,5 +1,5 @@
 
-import { Component, inject, effect, viewChild, ElementRef, signal } from '@angular/core';
+import { Component, inject, effect, viewChild, ElementRef, signal, computed } from '@angular/core';
 import { CommonModule, CurrencyPipe, DecimalPipe, PercentPipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { UserService } from '../../services/user.service';
@@ -40,6 +40,23 @@ export class UserAdminComponent {
   // UI State
   showWithdrawModal = signal(false);
   showAddMethodModal = signal(false);
+
+  // Revenue Mix Calculations
+  dpaSalesPercent = computed(() => {
+    const financials = this.userService.financials();
+    if (financials.totalEarnings === 0) return 0;
+    return (financials.dpaSalesSource / financials.totalEarnings) * 100;
+  });
+  royaltyPercent = computed(() => {
+    const financials = this.userService.financials();
+    if (financials.totalEarnings === 0) return 0;
+    return (financials.royaltySource / financials.totalEarnings) * 100;
+  });
+  perksPercent = computed(() => {
+    const financials = this.userService.financials();
+    if (financials.totalEarnings === 0) return 0;
+    return (financials.perksSource / financials.totalEarnings) * 100;
+  });
 
   constructor() {
     effect(() => {

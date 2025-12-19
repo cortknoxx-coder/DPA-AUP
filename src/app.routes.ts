@@ -17,6 +17,7 @@ import { FanAlbumDetailComponent } from './pages/fan-portal/fan-album-detail.com
 import { FanCapsulesComponent } from './pages/fan-portal/fan-capsules.component';
 import { FanDeviceRegistrationComponent } from './pages/fan-portal/fan-device-registration.component';
 import { FanMarketplaceComponent } from './pages/fan-portal/fan-marketplace.component';
+import { FanCheckoutComponent } from './pages/fan-portal/fan-checkout.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -58,7 +59,8 @@ export const routes: Routes = [
       { path: 'album/:id', component: FanAlbumDetailComponent },
       { path: 'capsules', component: FanCapsulesComponent },
       { path: 'marketplace', component: FanMarketplaceComponent },
-      { path: 'devices', component: FanDeviceRegistrationComponent }
+      { path: 'devices', component: FanDeviceRegistrationComponent },
+      { path: 'checkout', component: FanCheckoutComponent }
     ]
   }
 ];
