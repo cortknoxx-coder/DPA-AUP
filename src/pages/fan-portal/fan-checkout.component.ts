@@ -106,6 +106,6 @@ export class FanCheckoutComponent {
 
     alert('Order placed successfully! This is a simulation. A receipt has been sent to your email and the seller has been notified to ship your device.');
     this.cartService.clearCart();
-    this.router.navigate(['/fan/home']);
+    this.router.navigate(['/fan/app/home']);
   }
 }

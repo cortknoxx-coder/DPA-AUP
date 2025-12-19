@@ -7,7 +7,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { DataService } from '../../services/data.service';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { UserService } from '../../services/user.service';
-import { BookletVideo } from '../../types';
+import { BookletVideo, UnitEconomics } from '../../types';
 
 export type PricingTier = 'entry' | 'premium' | 'collector';
 
@@ -479,13 +479,26 @@ export class AlbumBookletComponent {
               <p class="text-[10px] text-slate-500 mt-3 flex items-center gap-2"><span class="bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 font-bold">ECONOMIES OF SCALE</span>Wholesale price improves with volume.</p>
             </div>
             <div class="rounded-xl border border-indigo-500/30 bg-gradient-to-br from-indigo-900/20 to-slate-900 p-6 flex flex-col gap-4">
-              <div class="flex items-center justify-between border-b border-white/5 pb-4">
-                <div><h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Manufacturing Order</h3><div class="text-[10px] text-slate-500 mt-1">Total Manufacturing Cost: <span class="text-slate-300">{{ totalManufacturingCost() | currency }}</span></div></div>
-                <div class="text-right"><div class="text-xs text-slate-400">Total Units</div><div class="text-lg font-bold text-white">{{ productionVolume() | number }}</div></div>
+              <div class="flex items-center justify-between border-b border-white/5 pb-3">
+                <div><h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Profit Projection</h3></div>
+                <div class="text-right"><div class="text-xs text-slate-400">For</div><div class="text-base font-bold text-white">{{ productionVolume() | number }} Units</div></div>
               </div>
-              <div class="py-2">
-                <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">What You'll Earn</div><div class="text-3xl font-black" [class.text-emerald-400]="totalProjectedProfit() > 0" [class.text-rose-500]="totalProjectedProfit() <= 0">{{ totalProjectedProfit() | currency }}</div><p class="text-[10px] text-slate-500 mt-1">Total projected profit after platform & hardware costs.</p>
+              
+              <div class="space-y-3 py-2">
+                <div class="flex justify-between items-center text-sm"><span class="text-slate-400">Projected Gross Revenue</span><span class="font-mono text-slate-200">{{ projectedGrossRevenue() | currency }}</span></div>
+                <div class="flex justify-between items-center text-sm"><span class="text-slate-400">(-) Hardware Costs</span><span class="font-mono text-slate-400">-{{ totalManufacturingCost() | currency }}</span></div>
+                <div class="flex justify-between items-center text-sm"><span class="text-slate-400">(-) Platform Fees (15%)</span><span class="font-mono text-slate-400">-{{ totalPlatformFees() | currency }}</span></div>
               </div>
+
+              <div class="border-t border-white/5 pt-4">
+                <div class="flex justify-between items-center">
+                  <div class="text-sm font-bold text-white uppercase tracking-wider">Projected Net Profit</div>
+                  <div class="text-3xl font-black" [class.text-emerald-400]="totalProjectedProfit() > 0" [class.text-rose-500]="totalProjectedProfit() <= 0">
+                    {{ totalProjectedProfit() | currency }}
+                  </div>
+                </div>
+              </div>
+
               <button type="button" (click)="checkout()" class="w-full rounded bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-900/40 hover:bg-indigo-500 transition-all flex items-center justify-center gap-2 mt-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 Schedule Production Run
@@ -495,25 +508,70 @@ export class AlbumBookletComponent {
           <div class="bg-slate-950 rounded-xl border border-slate-800 p-6 flex flex-col h-full">
             <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6 border-b border-slate-800 pb-2">Unit Economics Breakdown</h3>
             <div class="flex-1 flex flex-col justify-center space-y-6">
+              
+              <!-- Retail Price Breakdown -->
               <div class="relative">
-                <div class="flex justify-between text-sm mb-1"><span class="font-bold text-white">@if (artistProfitPerUnit() >= 0) { Artist Net Profit } @else { Artist Net Loss }</span><span class="font-bold" [class.text-teal-400]="artistProfitPerUnit() >= 0" [class.text-rose-500]="artistProfitPerUnit() < 0">{{ artistProfitPerUnit() | currency }}</span></div>
-                <div class="h-4 bg-slate-800 rounded-full overflow-hidden flex relative">
-                  @if (artistProfitPerUnit() > 0) { <div class="bg-teal-500 h-full transition-all duration-300" [style.width.%]="(artistProfitPerUnit() / (retailPriceVal() || 1)) * 100"></div> } @else { <div class="bg-rose-500/20 h-full w-full flex items-center justify-center text-[10px] text-rose-400 font-bold tracking-widest">NEGATIVE MARGIN</div> }
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="font-bold text-white">Retail Price Breakdown</span>
+                    <span class="font-bold text-white">{{ retailPriceVal() | currency }}</span>
                 </div>
-                <div class="text-[10px] mt-1 font-medium" [class.text-teal-500]="artistProfitPerUnit() >= 0" [class.text-rose-500]="artistProfitPerUnit() < 0">@if (artistProfitPerUnit() >= 0) { Artists keep {{ artistMarginPercent() | percent:'1.0-0' }} of retail } @else { Price is below cost basis. Increase retail price. }</div>
+                @if(artistProfitPerUnit() >= 0) {
+                    <div class="h-8 bg-slate-800 rounded-full overflow-hidden flex text-[10px] font-bold text-white items-center text-center shadow-inner">
+                        <div class="h-full flex items-center justify-center bg-slate-600" [style.width.%]="wholesalePricePercent()" title="Hardware Wholesale Cost (Your Cost)">
+                            <span class="mix-blend-luminosity">HW Cost</span>
+                        </div>
+                        <div class="h-full flex items-center justify-center bg-indigo-500" [style.width.%]="platformFeePercent()" title="DPAC Platform Fee (15% of Retail)">
+                            <span class="mix-blend-luminosity">Platform</span>
+                        </div>
+                        <div class="h-full flex items-center justify-center bg-teal-500" [style.width.%]="artistProfitPercent()" title="Your Net Profit">
+                            <span class="mix-blend-luminosity">Artist</span>
+                        </div>
+                    </div>
+                } @else {
+                    <div class="h-8 bg-rose-500/20 rounded-full flex items-center justify-center text-xs font-bold text-rose-400 tracking-wider">
+                        PRICE BELOW COST BASIS
+                    </div>
+                }
+                <div class="mt-3 grid grid-cols-3 gap-2 text-xs">
+                    <div class="text-slate-400">
+                        <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-slate-600"></div>Your Cost</div>
+                        <div class="font-mono text-slate-200">{{ wholesalePrice() | currency }}</div>
+                    </div>
+                    <div class="text-slate-400 text-center">
+                        <div class="flex items-center justify-center gap-2"><div class="w-2 h-2 rounded-full bg-indigo-500"></div>Platform Fee</div>
+                        <div class="font-mono text-slate-200">{{ platformFee() | currency }}</div>
+                    </div>
+                    <div class="text-slate-400 text-right">
+                        <div class="flex items-center justify-end gap-2"><div class="w-2 h-2 rounded-full" [class.bg-teal-500]="artistProfitPerUnit() >= 0" [class.bg-rose-500]="artistProfitPerUnit() < 0"></div>Your Profit</div>
+                        <div class="font-mono" [class.text-teal-400]="artistProfitPerUnit() >= 0" [class.text-rose-400]="artistProfitPerUnit() < 0">{{ artistProfitPerUnit() | currency }}</div>
+                    </div>
+                </div>
               </div>
+              
               <div class="space-y-2 pt-4 border-t border-slate-800/50">
-                <div class="flex items-center justify-between text-xs"><div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-indigo-500"></div><span class="text-slate-400">DPAC Platform Fee (15%)</span></div><span class="text-slate-200 font-mono">{{ platformFee() | currency }}</span></div>
                 <div class="flex items-center justify-between text-xs"><div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-slate-600"></div><span class="text-slate-400">Hardware Wholesale Cost</span></div><span class="text-slate-200 font-mono">{{ wholesalePrice() | currency }}</span></div>
+                <div class="pl-4 text-[10px] text-slate-500 font-mono">
+                  (= {{ manufacturingCost() | currency }} Mfg Cost + {{ dpacHardwareMargin() | currency }} DPAC Margin)
+                </div>
               </div>
               @if (connectionService.isSimulationMode()) {
-                <div class="mt-8 p-3 bg-slate-900 rounded border border-slate-800 border-l-4 border-l-amber-500">
-                  <div class="flex items-center gap-2 mb-2"><div class="text-[10px] font-bold text-amber-500 uppercase tracking-wider">DPAC™ Operator Metrics</div><span class="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[8px] font-bold text-amber-500 uppercase">Simulator Only</span></div>
-                  <div class="grid grid-cols-2 gap-4">
-                    <div><span class="block text-[10px] text-slate-500">Mfg Cost (COGS)</span><span class="block text-sm font-mono text-white">{{ manufacturingCost() | currency }}</span></div>
-                    <div><span class="block text-[10px] text-slate-500">Hardware Margin</span><span class="block text-sm font-mono text-emerald-400">{{ dpacHardwareMargin() | currency }}</span></div>
-                    <div class="col-span-2 border-t border-slate-800 pt-2 flex justify-between items-center"><span class="text-[10px] text-indigo-400 font-bold">TOTAL DPAC PROFIT / UNIT</span><span class="text-sm font-bold text-indigo-400">{{ dpacTotalProfitPerUnit() | currency }}</span></div>
-                    <div class="col-span-2 border-t border-slate-800 pt-2 flex justify-between items-center"><span class="text-[10px] text-indigo-400 font-bold">TOTAL DPAC PROJECTED PROFIT</span><span class="text-sm font-bold text-indigo-400">{{ totalDpacProjectedProfit() | currency }}</span></div>
+                <div class="mt-8 p-4 bg-slate-900 rounded-lg border border-amber-500/30">
+                  <div class="flex items-center justify-between mb-3"><div class="text-[10px] font-bold text-amber-500 uppercase tracking-wider">DPAC™ Operator P&L</div><span class="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[8px] font-bold text-amber-500 uppercase">Simulator Only</span></div>
+                  <div class="space-y-2 text-xs font-mono">
+                      <div class="flex justify-between items-center"><span class="text-slate-400">Revenue (HW Sale)</span><span class="text-white">{{ wholesalePrice() | currency }}</span></div>
+                      <div class="flex justify-between items-center"><span class="text-slate-400">(-) COGS (Mfg Cost)</span><span class="text-slate-400">- {{ manufacturingCost() | currency }}</span></div>
+                      <div class="flex justify-between items-center border-t border-slate-700/50 pt-1"><span class="text-slate-400">= Hardware Margin</span><span class="text-emerald-400">{{ dpacHardwareMargin() | currency }}</span></div>
+                      <div class="flex justify-between items-center mt-2"><span class="text-slate-400">(+) Revenue (Platform Fee)</span><span class="text-white">{{ platformFee() | currency }}</span></div>
+                  </div>
+                  <div class="border-t border-slate-700/50 pt-2 mt-2 space-y-2">
+                      <div class="flex justify-between items-center font-bold">
+                          <span class="text-xs uppercase text-slate-300">Total Profit / Unit</span>
+                          <span class="text-base text-indigo-400 font-mono">{{ dpacTotalProfitPerUnit() | currency }}</span>
+                      </div>
+                      <div class="flex justify-between items-center font-bold">
+                          <span class="text-xs uppercase text-slate-300">Total Projected Profit</span>
+                          <span class="text-lg text-indigo-400 font-mono">{{ totalDpacProjectedProfit() | currency }}</span>
+                      </div>
                   </div>
                 </div>
               }
@@ -649,13 +707,30 @@ export class AlbumPricingComponent {
   platformFee = computed(() => (this.retailPriceVal() || 0) * 0.15);
   artistCostsPerUnit = computed(() => this.wholesalePrice() + this.platformFee());
   artistProfitPerUnit = computed(() => (this.retailPriceVal() || 0) - this.artistCostsPerUnit());
-  artistMarginPercent = computed(() => (this.artistProfitPerUnit() / (this.retailPriceVal() || 1)));
+  
+  wholesalePricePercent = computed(() => {
+    const retail = this.retailPriceVal() || 1;
+    return Math.max(0, (this.wholesalePrice() / retail) * 100);
+  });
+  platformFeePercent = computed(() => {
+    const retail = this.retailPriceVal() || 1;
+    return Math.max(0, (this.platformFee() / retail) * 100);
+  });
+  artistProfitPercent = computed(() => {
+    const retail = this.retailPriceVal() || 1;
+    const profit = this.artistProfitPerUnit();
+    return Math.max(0, (profit / retail) * 100);
+  });
+
   dpacHardwareMargin = computed(() => this.wholesalePrice() - this.manufacturingCost());
   dpacTotalProfitPerUnit = computed(() => this.platformFee() + this.dpacHardwareMargin());
   totalManufacturingCost = computed(() => this.productionVolume() * this.wholesalePrice());
   totalProjectedProfit = computed(() => this.artistProfitPerUnit() * this.productionVolume());
   totalDpacProjectedProfit = computed(() => this.dpacTotalProfitPerUnit() * this.productionVolume());
   
+  projectedGrossRevenue = computed(() => (this.retailPriceVal() || 0) * this.productionVolume());
+  totalPlatformFees = computed(() => this.platformFee() * this.productionVolume());
+
   amountDueToday = computed(() => this.paymentOption() === 'deposit' ? this.SCHEDULING_DEPOSIT : this.totalManufacturingCost());
 
   constructor() {
@@ -702,8 +777,22 @@ export class AlbumPricingComponent {
   save() {
     const a = this.album();
     if (a && this.form.valid) {
-      const metadata = { pricing: { retailPrice: this.form.value.retailPrice, manufacturingCost: this.manufacturingCost(), currency: 'USD' } };
-      this.dataService.updateAlbumMetadata(a.albumId, metadata as any);
+      const newPricing = { 
+        retailPrice: this.form.value.retailPrice || 0, 
+        currency: 'USD'
+      };
+
+      const newEconomics: UnitEconomics = {
+        ...(a.economics!),
+        totalManufactured: this.productionVolume(),
+        manufacturingCost: this.manufacturingCost(),
+        wholesalePrice: this.wholesalePrice(),
+      };
+
+      this.dataService.updateAlbumMetadata(a.albumId, { 
+        pricing: newPricing,
+        economics: newEconomics
+      });
       alert('Pricing saved!');
       this.form.markAsPristine();
     }

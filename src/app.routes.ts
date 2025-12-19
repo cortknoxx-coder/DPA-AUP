@@ -20,6 +20,7 @@ import { FanMarketplaceComponent } from './pages/fan-portal/fan-marketplace.comp
 import { FanCheckoutComponent } from './pages/fan-portal/fan-checkout.component';
 import { FanSettingsComponent } from './pages/fan-portal/fan-settings.component';
 import { FleetTrackerComponent } from './pages/fleet-tracker/fleet-tracker.component';
+import { FanAuthComponent } from './pages/fan-portal/fan-auth.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -55,16 +56,23 @@ export const routes: Routes = [
   // Fan Portal
   {
     path: 'fan',
-    component: FanLayoutComponent,
     children: [
-      { path: '', redirectTo: 'home', pathMatch: 'full' },
-      { path: 'home', component: FanHomeComponent },
-      { path: 'album/:id', component: FanAlbumDetailComponent },
-      { path: 'capsules', component: FanCapsulesComponent },
-      { path: 'marketplace', component: FanMarketplaceComponent },
-      { path: 'devices', component: FanDeviceRegistrationComponent },
-      { path: 'checkout', component: FanCheckoutComponent },
-      { path: 'settings', component: FanSettingsComponent }
+      { path: '', redirectTo: 'auth', pathMatch: 'full' },
+      { path: 'auth', component: FanAuthComponent },
+      {
+        path: 'app',
+        component: FanLayoutComponent,
+        children: [
+          { path: '', redirectTo: 'home', pathMatch: 'full' },
+          { path: 'home', component: FanHomeComponent },
+          { path: 'album/:id', component: FanAlbumDetailComponent },
+          { path: 'capsules', component: FanCapsulesComponent },
+          { path: 'marketplace', component: FanMarketplaceComponent },
+          { path: 'devices', component: FanDeviceRegistrationComponent },
+          { path: 'checkout', component: FanCheckoutComponent },
+          { path: 'settings', component: FanSettingsComponent }
+        ]
+      }
     ]
   }
 ];

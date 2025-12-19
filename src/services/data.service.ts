@@ -1,4 +1,5 @@
 
+
 import { Injectable, signal, computed } from '@angular/core';
 import { Album, Track, DcnpEvent, Theme, ResaleTransaction, UnitEconomics, MarketplaceListing } from '../types';
 
@@ -195,9 +196,10 @@ export class DataService {
           }
         ]
       },
+      // FIX: manufacturingCost does not belong in the pricing object.
+      // It is correctly defined within the `economics` object via `generateEconomics()`.
       pricing: {
         retailPrice: 79,
-        manufacturingCost: 12.50,
         currency: 'USD'
       },
       // Analytics Data

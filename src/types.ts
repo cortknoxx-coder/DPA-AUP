@@ -185,7 +185,6 @@ export interface Album {
   // Pricing & Distribution
   pricing?: {
     retailPrice: number;
-    manufacturingCost: number;
     currency: string;
   };
 
