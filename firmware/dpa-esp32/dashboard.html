@@ -1,0 +1,1724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>DPA Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+:root{--bg:#000;--card:#0f172a;--card2:#1e293b;--border:#1e293b;--text:#e2e8f0;--muted:#94a3b8;--dim:#64748b;--indigo:#4f46e5;--teal:#14b8a6;--rose:#f43f5e;--amber:#f59e0b;--emerald:#10b981}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden;padding-bottom:160px}
+a{color:var(--indigo);text-decoration:none}
+
+/* Header */
+.hdr{position:sticky;top:0;z-index:50;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+.hdr-logo{font-size:18px;font-weight:800;letter-spacing:-0.5px;background:linear-gradient(135deg,#818cf8,#14b8a6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hdr-badge{font-size:10px;font-weight:700;color:var(--teal);background:rgba(20,184,166,.12);border:1px solid rgba(20,184,166,.25);padding:2px 8px;border-radius:999px;font-family:monospace}
+.hdr-status{display:flex;align-items:center;gap:6px}
+.hdr-dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);animation:pulse-dot 2s infinite}
+.hdr-back{background:none;border:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px;font-size:13px;font-weight:600;padding:4px 0}
+.hdr-back svg{width:18px;height:18px;stroke:currentColor;stroke-width:2;fill:none}
+
+/* Bottom Nav */
+.bnav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(0,0,0,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--border);display:flex;height:64px}
+.bnav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;color:var(--dim);font-size:10px;font-weight:600;cursor:pointer;transition:color .2s}
+.bnav button.active{color:var(--indigo)}
+.bnav button.active svg{stroke:var(--indigo)}
+.bnav svg{width:22px;height:22px;stroke:currentColor;stroke-width:1.8;fill:none}
+
+/* Tab Panels */
+.tab{display:none;max-width:480px;margin:0 auto}
+.tab.active{display:block}
+.tab-pad{padding:16px}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+.card-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px}
+
+/* Utility */
+.flex{display:flex}.flex-col{flex-direction:column}.items-center{align-items:center}.justify-between{justify-content:space-between}.gap-2{gap:8px}.gap-3{gap:12px}.gap-4{gap:16px}
+.text-xs{font-size:12px}.text-sm{font-size:14px}.text-lg{font-size:18px}.text-xl{font-size:20px}.text-2xl{font-size:24px}
+.font-bold{font-weight:700}.font-mono{font-family:monospace}
+.text-muted{color:var(--muted)}.text-dim{color:var(--dim)}.text-white{color:#fff}
+.mt-1{margin-top:4px}.mt-2{margin-top:8px}.mt-3{margin-top:12px}.mt-4{margin-top:16px}.mb-2{margin-bottom:8px}.mb-3{margin-bottom:12px}
+.w-full{width:100%}.rounded-lg{border-radius:12px}.rounded-full{border-radius:999px}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:700;border:none;cursor:pointer;transition:all .2s}
+.btn-primary{background:var(--indigo);color:#fff}
+.btn-primary:active{background:#4338ca;transform:scale(.97)}
+.btn-secondary{background:var(--card2);color:var(--text);border:1px solid var(--border)}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:8px}
+
+/* Progress Bar */
+.prog-wrap{height:6px;background:var(--card2);border-radius:999px;overflow:hidden}
+.prog-fill{height:100%;border-radius:999px;transition:width .3s}
+
+/* ── ALBUM HERO (HOME) ─────────────────────────────── */
+.album-hero{position:relative;overflow:hidden}
+.album-cover-wrap{position:relative;width:100%;aspect-ratio:1;overflow:hidden;background:var(--card)}
+.album-cover{width:100%;height:100%;object-fit:cover;transition:opacity .4s}
+.album-cover-gradient{position:absolute;bottom:0;left:0;right:0;height:60%;background:linear-gradient(transparent,rgba(0,0,0,.85),#000);pointer-events:none}
+.album-info{position:relative;padding:0 16px;margin-top:-60px;z-index:2}
+.album-title{font-size:32px;font-weight:900;letter-spacing:-1.5px;color:#fff;line-height:1.1}
+.album-artist{font-size:15px;color:var(--muted);margin-top:4px;font-weight:500}
+.album-meta{display:flex;align-items:center;gap:12px;margin-top:8px;font-size:11px;color:var(--dim)}
+.album-meta span{display:flex;align-items:center;gap:3px}
+
+/* Play controls row on hero */
+.hero-controls{display:flex;align-items:center;gap:12px;padding:12px 16px}
+.hero-play{width:48px;height:48px;border-radius:50%;background:var(--indigo);color:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s;flex-shrink:0}
+.hero-play:active{transform:scale(.9)}
+.hero-shuffle{padding:8px 16px;border-radius:999px;background:var(--card2);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px}
+
+/* ── NOW PLAYING BAR (sticky, above bottom nav) ───── */
+.np-bar{position:fixed;bottom:64px;left:0;right:0;z-index:49;background:rgba(15,23,42,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--border);padding:0;transition:transform .3s;transform:translateY(100%)}
+.np-bar.visible{transform:translateY(0)}
+.np-track{display:flex;align-items:center;gap:10px;padding:8px 12px 4px}
+.np-art{width:40px;height:40px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:rgba(255,255,255,.3)}
+.np-info{flex:1;min-width:0}
+.np-title{font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-meta{font-size:10px;color:var(--dim);margin-top:1px}
+.np-controls{display:flex;align-items:center;gap:2px;padding:4px 12px 8px;justify-content:center}
+.np-btn{width:52px;height:52px;border-radius:50%;background:none;border:none;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.np-btn:active{transform:scale(.85)}
+.np-btn svg{width:24px;height:24px;stroke:currentColor;stroke-width:2;fill:none}
+.np-play{width:56px;height:56px;background:var(--indigo);color:#fff;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s}
+.np-play:active{transform:scale(.85)}
+.np-heart{color:var(--dim)}
+.np-heart.liked{color:var(--rose)}
+.np-heart.liked svg{fill:var(--rose);stroke:var(--rose)}
+/* Scrub slider */
+#np-scrub::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--indigo);border:2px solid #fff;cursor:pointer;margin-top:0}
+#np-scrub::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--indigo);border:2px solid #fff;cursor:pointer}
+#np-scrub::-webkit-slider-runnable-track{height:4px;border-radius:999px}
+
+/* Home track list */
+.home-track{display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;transition:background .15s}
+.home-track:active{background:rgba(79,70,229,.06)}
+.home-track.selected{background:rgba(79,70,229,.05);border-left:3px solid var(--indigo)}
+.home-track.playing{background:rgba(79,70,229,.08);border-left:3px solid var(--teal)}
+.ht-num{width:20px;text-align:center;font-size:13px;color:var(--dim);font-weight:600;font-variant-numeric:tabular-nums}
+.ht-info{flex:1;min-width:0}
+.ht-title{font-size:14px;font-weight:600;color:#fff;display:flex;align-items:center;gap:6px}
+.ht-sub{font-size:11px;color:var(--dim);margin-top:1px;display:flex;align-items:center;gap:6px}
+.ht-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+
+/* ── Battery bar (compact) */
+.batt-bar{display:flex;align-items:center;gap:6px;padding:8px 16px;margin-top:4px}
+.batt-bar .batt-icon{width:22px;height:11px;border:1.5px solid var(--dim);border-radius:2px;position:relative;display:flex;align-items:center;padding:1px}
+.batt-bar .batt-icon::after{content:'';position:absolute;right:-4px;width:2px;height:5px;background:var(--dim);border-radius:0 1px 1px 0}
+.batt-bar .batt-fill{height:100%;border-radius:1px}
+
+/* EQ Bars */
+.eq-bars{display:flex;gap:2px;align-items:flex-end;height:14px}
+.eq-bars span{width:3px;background:var(--indigo);border-radius:1px;animation:eq-bounce .4s ease infinite alternate}
+.eq-bars span:nth-child(1){height:6px;animation-delay:0s}
+.eq-bars span:nth-child(2){height:12px;animation-delay:.15s}
+.eq-bars span:nth-child(3){height:8px;animation-delay:.3s}
+
+/* Heart */
+.heart-btn{width:44px;height:44px;border-radius:50%;border:none;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s;flex-shrink:0;-webkit-user-select:none;user-select:none}
+.heart-btn svg{width:18px;height:18px;stroke:var(--dim);stroke-width:2;fill:none;transition:all .15s}
+.heart-btn.liked svg{stroke:var(--rose);fill:var(--rose)}
+.heart-btn:active{transform:scale(1.3)}
+.e-badge{font-size:8px;font-weight:800;background:var(--card2);color:var(--dim);border:1px solid var(--border);padding:1px 4px;border-radius:3px;letter-spacing:.5px}
+
+/* ── TRACK DETAIL PAGE ─────────────────────────────── */
+.td-cover-wrap{position:relative;width:100%;aspect-ratio:1;overflow:hidden;background:var(--card)}
+.td-cover{width:100%;height:100%;object-fit:cover}
+.td-cover-grad{position:absolute;bottom:0;left:0;right:0;height:50%;background:linear-gradient(transparent,#000)}
+.td-header{padding:0 16px;margin-top:-48px;position:relative;z-index:2}
+.td-title{font-size:26px;font-weight:900;color:#fff;letter-spacing:-1px}
+.td-artist{font-size:14px;color:var(--muted);margin-top:2px}
+.td-badges{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.td-badge{font-size:10px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--dim);background:var(--card)}
+
+/* Track detail controls */
+.td-controls{display:flex;align-items:center;justify-content:center;gap:20px;padding:20px 16px}
+.td-ctrl-btn{width:52px;height:52px;border-radius:50%;background:var(--card2);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.td-ctrl-btn:active{transform:scale(.9)}
+.td-play-btn{width:56px;height:56px;background:var(--indigo);border:none;color:#fff}
+.td-progress{padding:0 16px}
+.td-time{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);font-family:monospace;margin-top:4px}
+.td-vol{display:flex;align-items:center;gap:8px;padding:8px 16px}
+.td-vol svg{width:14px;height:14px;stroke:var(--dim);stroke-width:2;fill:none}
+.td-vol input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--card2);border-radius:999px;outline:none}
+.td-vol input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--indigo);border:2px solid #fff;cursor:pointer}
+
+/* Credits section */
+.credits{padding:16px}
+.credit-section{margin-bottom:16px}
+.credit-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:6px}
+.credit-val{font-size:13px;color:var(--text);line-height:1.6}
+.credit-person{display:flex;align-items:center;gap:8px;padding:6px 0}
+.credit-person-icon{width:28px;height:28px;border-radius:50%;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);flex-shrink:0}
+.credit-person-info{flex:1}
+.credit-person-name{font-size:13px;font-weight:600;color:#fff}
+.credit-person-role{font-size:10px;color:var(--dim)}
+
+/* Lyrics */
+.lyrics-wrap{padding:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin:0 16px 16px}
+.lyrics-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.lyrics-toggle h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.lyrics-toggle svg{width:16px;height:16px;stroke:var(--dim);stroke-width:2;fill:none;transition:transform .2s}
+.lyrics-toggle.open svg{transform:rotate(180deg)}
+.lyrics-body{font-size:13px;color:var(--muted);line-height:1.8;white-space:pre-line;margin-top:12px;display:none}
+.lyrics-body.show{display:block}
+
+/* ── BOOKLET TAB ──────────────────────────────────── */
+.bklt-cover{position:relative;width:100%;aspect-ratio:1;overflow:hidden;background:var(--card);display:flex;align-items:center;justify-content:center;flex-direction:column}
+.bklt-cover-title{font-size:42px;font-weight:900;letter-spacing:-2px;color:#fff;line-height:1;text-align:center;z-index:2}
+.bklt-cover-artist{font-size:16px;color:var(--muted);margin-top:8px;font-weight:400;letter-spacing:2px;text-transform:uppercase;z-index:2}
+.bklt-cover-year{font-size:11px;color:var(--dim);margin-top:16px;letter-spacing:4px;z-index:2}
+.bklt-cover-grad{position:absolute;inset:0;background:radial-gradient(ellipse at 30% 80%,rgba(79,70,229,.15),transparent 60%),radial-gradient(ellipse at 70% 20%,rgba(20,184,166,.1),transparent 50%)}
+.bklt-divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:32px 24px}
+.bklt-section{padding:0 24px;margin-bottom:32px}
+.bklt-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:var(--dim);margin-bottom:16px}
+.bklt-track{margin-bottom:28px;cursor:pointer;transition:opacity .2s}
+.bklt-track:active{opacity:.7}
+.bklt-track-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.bklt-track-num{font-size:36px;font-weight:200;color:var(--dim);line-height:1;font-variant-numeric:tabular-nums;min-width:32px}
+.bklt-track-num.playing{color:var(--indigo)}
+.bklt-track-title{font-size:20px;font-weight:700;color:#fff;letter-spacing:-0.5px;line-height:1.2}
+.bklt-track-title.playing{color:var(--teal)}
+.bklt-track-dur{font-size:11px;color:var(--dim);font-family:monospace;margin-left:auto;align-self:center}
+.bklt-track-note{font-size:13px;color:var(--muted);line-height:1.7;margin-top:4px;padding-left:44px}
+.bklt-track-credits{font-size:11px;color:var(--dim);margin-top:6px;padding-left:44px;font-style:italic}
+.bklt-track-tags{display:flex;gap:6px;margin-top:8px;padding-left:44px;flex-wrap:wrap}
+.bklt-tag{font-size:9px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--dim)}
+.bklt-heart{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--dim);cursor:pointer;transition:color .2s;padding:8px;margin:-8px;-webkit-user-select:none;user-select:none}
+.bklt-heart.liked{color:var(--rose)}
+.bklt-heart svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;transition:all .15s}
+.bklt-heart.liked svg{fill:var(--rose);stroke:var(--rose)}
+.bklt-credits-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.bklt-credit{padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px}
+.bklt-credit-role{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:4px}
+.bklt-credit-name{font-size:14px;font-weight:600;color:#fff}
+.bklt-colophon{text-align:center;padding:24px;font-size:11px;color:var(--dim);line-height:1.8}
+.bklt-colophon strong{color:var(--muted);font-weight:600}
+.bklt-eq-playing{display:inline-flex;gap:2px;align-items:flex-end;height:12px;margin-left:8px;vertical-align:middle}
+.bklt-eq-playing span{width:2px;background:var(--teal);border-radius:1px;animation:eq-bounce .4s ease infinite alternate}
+.bklt-eq-playing span:nth-child(1){height:4px;animation-delay:0s}
+.bklt-eq-playing span:nth-child(2){height:10px;animation-delay:.15s}
+.bklt-eq-playing span:nth-child(3){height:6px;animation-delay:.3s}
+
+/* ── CAPSULES TAB ───────────────────────────────────── */
+.filter-bar{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.filter-bar::-webkit-scrollbar{display:none}
+.filter-pill{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;border:1px solid var(--border);background:var(--card);color:var(--dim);cursor:pointer;transition:all .2s}
+.filter-pill.active{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.15)}
+.filter-dot{width:6px;height:6px;border-radius:50%}
+.filter-count{font-size:10px;opacity:.6}
+.timeline{position:relative;padding-left:28px}
+.timeline::before{content:'';position:absolute;left:10px;top:8px;bottom:0;width:2px;background:linear-gradient(to bottom,var(--border),transparent)}
+.cap-card{position:relative;margin-bottom:12px}
+.cap-dot{position:absolute;left:-22px;top:14px;width:10px;height:10px;border-radius:50%;border:3px solid var(--bg)}
+.cap-inner{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:all .2s}
+.cap-inner:active{border-color:rgba(79,70,229,.3)}
+.cap-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.cap-type{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1px;padding:2px 8px;border-radius:4px}
+.cap-title{font-size:14px;font-weight:600;color:#fff;margin-top:6px}
+.cap-date{font-size:10px;color:var(--dim);margin-top:2px;font-family:monospace}
+.cap-desc{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px;display:none}
+.cap-card.expanded .cap-desc{display:block}
+.cap-chevron{width:16px;height:16px;stroke:var(--dim);stroke-width:2;fill:none;transition:transform .2s;flex-shrink:0;margin-top:4px}
+.cap-card.expanded .cap-chevron{transform:rotate(180deg)}
+.cap-status{font-size:10px;font-weight:600;display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;margin-top:8px}
+.cap-delivered{background:rgba(16,185,129,.1);color:var(--emerald);border:1px solid rgba(16,185,129,.2)}
+.cap-pending{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.2)}
+.cap-ondevice{font-size:10px;font-weight:600;color:var(--teal);margin-top:6px;display:flex;align-items:center;gap:4px}
+.cap-ondevice svg{width:12px;height:12px;stroke:currentColor;stroke-width:2;fill:none}
+.new-badge{font-size:8px;font-weight:800;background:var(--rose);color:#fff;padding:2px 6px;border-radius:4px;letter-spacing:.5px;animation:pulse-dot 2s infinite}
+
+/* ── DEVICE TAB ─────────────────────────────────────── */
+.orb-wrap{display:flex;justify-content:center;padding:20px 0}
+.orb{width:80px;height:80px;border-radius:50%;position:relative}
+.orb-inner{width:100%;height:100%;border-radius:50%;position:relative;z-index:1}
+.orb-glow{position:absolute;inset:-12px;border-radius:50%;z-index:0;opacity:.6}
+.orb-breathe .orb-glow{animation:orb-breathe 4s ease-in-out infinite}
+.orb-pulse .orb-glow{animation:orb-pulse 1.2s ease-out infinite}
+.orb-solid .orb-glow{opacity:.5}
+.orb-comet .orb-glow{animation:orb-comet 2s linear infinite}
+.orb-rainbow .orb-glow{animation:orb-rainbow 5s linear infinite}
+.orb-rainbow .orb-inner{animation:orb-rainbow 5s linear infinite}
+.orb-fire .orb-glow{animation:orb-fire .3s ease infinite alternate}
+.orb-sparkle .orb-glow{animation:orb-sparkle .5s ease infinite alternate}
+.orb-wave .orb-glow{animation:orb-wave 3s ease-in-out infinite}
+.orb-dual_comet .orb-glow{animation:orb-comet 1s linear infinite}
+.orb-meteor .orb-glow{animation:orb-pulse 1.2s ease-out infinite}
+.orb-theater .orb-glow{animation:orb-theater .45s steps(3) infinite}
+.orb-bounce .orb-glow{animation:orb-bounce 1.5s ease-in-out infinite}
+.orb-off .orb-glow{opacity:0}
+.orb-audio_pulse .orb-glow{animation:orb-breathe 2s ease-in-out infinite}
+.orb-audio_bass .orb-glow{animation:orb-pulse 0.8s ease-out infinite}
+.orb-audio_beat .orb-glow{animation:orb-sparkle .3s ease infinite alternate}
+.orb-audio_vu .orb-glow{animation:orb-breathe 1.5s ease-in-out infinite}
+.orb-audio_comet .orb-glow{animation:orb-comet 1.5s linear infinite}
+.mode-tabs{display:flex;gap:6px;margin-bottom:12px}
+.mode-tab{flex:1;padding:8px;border-radius:8px;text-align:center;font-size:11px;font-weight:600;color:var(--dim);background:var(--card2);border:1px solid var(--border);cursor:pointer;transition:all .2s}
+.mode-tab.active{color:#fff;border-color:var(--indigo);background:rgba(79,70,229,.12)}
+.clr-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.clr-input{width:40px;height:40px;border-radius:10px;border:2px solid var(--border);cursor:pointer;background:none;padding:0;-webkit-appearance:none;appearance:none}
+.clr-input::-webkit-color-swatch-wrapper{padding:0}
+.clr-input::-webkit-color-swatch{border:none;border-radius:8px}
+.clr-hex{font-family:monospace;font-size:13px;color:var(--muted);background:var(--card2);padding:4px 10px;border-radius:6px;border:1px solid var(--border)}
+.pat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+.pat-btn{padding:8px 4px;border-radius:8px;font-size:11px;font-weight:600;text-align:center;color:var(--dim);background:var(--card2);border:1px solid var(--border);cursor:pointer;transition:all .15s}
+.pat-btn.active{color:#fff;border-color:var(--indigo);background:rgba(79,70,229,.15)}
+.pat-btn:active{transform:scale(.95)}
+.preset-row{display:flex;gap:6px;margin-bottom:16px}
+.preset{flex:1;padding:8px;border-radius:8px;font-size:10px;font-weight:700;text-align:center;text-transform:uppercase;letter-spacing:.5px;border:1px solid var(--border);cursor:pointer;transition:all .15s}
+.preset:active{transform:scale(.95)}
+.bright-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.bright-row input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:6px;background:var(--card2);border-radius:999px;outline:none}
+.bright-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--indigo);border:2px solid #fff;cursor:pointer}
+.bright-val{font-family:monospace;font-size:13px;color:var(--muted);width:36px;text-align:right}
+.dcnp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dcnp-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;background:var(--card2);border:1px solid var(--border);border-radius:8px}
+.dcnp-item input{width:32px;height:32px;border-radius:8px;border:2px solid var(--border);cursor:pointer;background:none;padding:0;-webkit-appearance:none}
+.dcnp-item input::-webkit-color-swatch-wrapper{padding:0}
+.dcnp-item input::-webkit-color-swatch{border:none;border-radius:6px}
+.dcnp-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--dim)}
+.push-btn{width:100%;padding:14px;border-radius:12px;font-size:14px;font-weight:800;color:#fff;border:none;cursor:pointer;background:linear-gradient(135deg,var(--indigo),var(--teal));transition:all .2s;margin-top:8px}
+.push-btn:active{transform:scale(.97);opacity:.9}
+.push-btn:disabled{opacity:.5;cursor:not-allowed}
+.wifi-net{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:4px;cursor:pointer;transition:background .15s}
+.wifi-net:hover,.wifi-net:active{background:rgba(79,70,229,.15)}
+.wifi-net-name{font-size:13px;font-weight:600;color:var(--text)}
+.wifi-net-info{font-size:11px;color:var(--dim);display:flex;gap:6px;align-items:center}
+.wifi-net-bars{display:flex;gap:1px;align-items:flex-end;height:12px}
+.wifi-net-bars span{width:3px;background:var(--dim);border-radius:1px}
+.wifi-net-bars.s4 span{background:var(--emerald)}
+.wifi-net-bars.s3 span:nth-child(-n+3){background:var(--emerald)}
+.wifi-net-bars.s2 span:nth-child(-n+2){background:var(--amber)}
+.wifi-net-bars.s1 span:first-child{background:var(--rose)}
+.storage-bar{height:8px;background:var(--card2);border-radius:999px;overflow:hidden;margin-top:6px}
+.storage-fill{height:100%;background:linear-gradient(90deg,var(--indigo),var(--teal));border-radius:999px}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(30,41,59,.5)}
+.info-row:last-child{border-bottom:none}
+.info-label{font-size:12px;color:var(--dim)}
+.info-val{font-size:12px;color:var(--text);font-weight:600;font-family:monospace}
+
+/* ── Cover art as CSS gradient placeholder ──────── */
+.art-1{background:linear-gradient(135deg,#1a1033 0%,#2d1b69 30%,#0c1445 60%,#0a0a2e 100%)}
+.art-2{background:linear-gradient(135deg,#0a2342 0%,#1b4d8e 35%,#0e294a 65%,#071a2e 100%)}
+.art-3{background:linear-gradient(135deg,#1a0a2e 0%,#4a1d8e 30%,#2d0e5a 60%,#120724 100%)}
+.art-album{background:linear-gradient(135deg,#0f0c29 0%,#302b63 40%,#24243e 70%,#0f0c29 100%)}
+.art-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,.15);font-size:48px;font-weight:900;letter-spacing:-2px;text-align:center;line-height:1}
+.art-overlay small{font-size:14px;letter-spacing:4px;font-weight:600;text-transform:uppercase;margin-top:8px}
+
+/* Keyframes */
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes eq-bounce{0%{height:4px}100%{height:14px}}
+@keyframes orb-breathe{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.15);opacity:.7}}
+@keyframes orb-pulse{0%{transform:scale(1);opacity:.8}15%{transform:scale(1.2);opacity:1}100%{transform:scale(1);opacity:.2}}
+@keyframes orb-comet{0%{transform:rotate(0deg) scale(1);opacity:.6}25%{transform:rotate(90deg) scale(1.1);opacity:.9}50%{transform:rotate(180deg) scale(1);opacity:.6}75%{transform:rotate(270deg) scale(1.1);opacity:.9}100%{transform:rotate(360deg) scale(1);opacity:.6}}
+@keyframes orb-rainbow{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(360deg)}}
+@keyframes orb-fire{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.08);opacity:.9}}
+@keyframes orb-sparkle{0%{opacity:.4;transform:scale(.95)}100%{opacity:1;transform:scale(1.05)}}
+@keyframes orb-wave{0%,100%{transform:scale(.9);opacity:.4}50%{transform:scale(1.1);opacity:.8}}
+@keyframes orb-theater{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
+@keyframes orb-bounce{0%,100%{transform:translateY(4px);opacity:.5}50%{transform:translateY(-4px);opacity:1}}
+@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+.spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+
+/* ── Admin Mode ─────────────────────────────────── */
+.admin-only{display:none !important}
+body.admin-mode .admin-only{display:block !important}
+body.admin-mode .admin-only-flex{display:flex !important}
+body.admin-mode .admin-only-grid{display:grid !important}
+.admin-badge{font-size:8px;font-weight:800;color:#ffd700;background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.25);padding:2px 6px;border-radius:4px;letter-spacing:.5px;margin-left:6px}
+.admin-lock-btn{background:none;border:1px solid rgba(255,215,0,.3);color:#ffd700;font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;transition:all .2s}
+.admin-lock-btn:active{transform:scale(.95);opacity:.8}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="hdr" id="main-hdr">
+  <div class="flex items-center gap-3">
+    <span class="hdr-logo">DPA</span>
+    <span class="hdr-badge" id="hdr-duid">---</span>
+  </div>
+  <div class="hdr-status">
+    <div class="hdr-dot"></div>
+    <span style="font-size:11px;color:var(--emerald);font-weight:600">WiFi</span>
+  </div>
+</div>
+<!-- Detail header (hidden by default) -->
+<div class="hdr" id="detail-hdr" style="display:none">
+  <button class="hdr-back" onclick="closeDetail()">
+    <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+    Back
+  </button>
+  <div class="hdr-status">
+    <div class="hdr-dot"></div>
+    <span style="font-size:11px;color:var(--emerald);font-weight:600">WiFi</span>
+  </div>
+</div>
+
+<!-- ═══════════════ HOME TAB — ALBUM HERO ═══════════════ -->
+<div class="tab active" id="tab-home">
+  <!-- Album Cover -->
+  <div class="album-hero">
+    <div class="album-cover-wrap art-album" id="album-art">
+      <div class="art-overlay" id="album-art-text">TWG<small>The Wack Game</small></div>
+      <div class="album-cover-gradient"></div>
+    </div>
+    <div class="album-info">
+      <div class="album-title">The Wack Game</div>
+      <div class="album-artist">Cort Knoxx</div>
+      <div class="album-meta">
+        <span id="home-track-count">3 tracks</span>
+        <span>·</span>
+        <span id="home-duration">11:39</span>
+        <span>·</span>
+        <span>2026</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Battery -->
+  <div class="batt-bar">
+    <div class="batt-icon"><div class="batt-fill" id="batt-fill" style="width:87%;background:var(--emerald)"></div></div>
+    <span class="text-xs font-bold" id="batt-pct">87%</span>
+    <span class="text-xs text-dim" id="batt-status">3.95V</span>
+    <span style="flex:1"></span>
+    <span class="text-xs font-mono text-dim" id="home-uptime">0s</span>
+  </div>
+
+  <!-- Volume -->
+  <div class="td-vol" style="padding:4px 16px 8px">
+    <svg viewBox="0 0 24 24" width="16" height="16" style="flex-shrink:0"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="var(--dim)"/><path d="M15.54 8.46a5 5 0 010 7.07" stroke="var(--dim)" stroke-width="2" fill="none"/></svg>
+    <input id="home-volume-slider" type="range" min="0" max="100" value="70" oninput="setVol(this.value)" style="flex:1;-webkit-appearance:none;height:4px;background:var(--card2);border-radius:999px;outline:none">
+    <span class="bright-val" id="home-volume-val">70</span>
+  </div>
+
+  <!-- EQ Presets -->
+  <div style="padding:4px 16px 8px">
+    <div class="text-xs text-dim mb-2" style="text-transform:uppercase;letter-spacing:1px;font-weight:700">🎛️ EQ</div>
+    <div id="eq-grid" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+  </div>
+
+  <!-- Playlist Mode -->
+  <div style="padding:4px 16px 8px">
+    <div class="text-xs text-dim mb-2" style="text-transform:uppercase;letter-spacing:1px;font-weight:700">🎶 Playlist</div>
+    <div id="pl-mode-grid" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+  </div>
+
+  <!-- Track list on home -->
+  <div id="home-track-list"></div>
+</div>
+
+<!-- ═══════════════ TRACK DETAIL (overlay page) ═══════════════ -->
+<div class="tab" id="tab-detail">
+  <div id="detail-content"></div>
+</div>
+
+<!-- ═══════════════ BOOKLET TAB ═══════════════ -->
+<div class="tab" id="tab-tracks">
+  <!-- Cover Page -->
+  <div class="bklt-cover art-album">
+    <div class="bklt-cover-grad"></div>
+    <div class="bklt-cover-title">The Wack<br>Game</div>
+    <div class="bklt-cover-artist">Cort Knoxx</div>
+    <div class="bklt-cover-year">MMXXVI</div>
+  </div>
+  <div class="bklt-divider"></div>
+  <!-- Track Listing (liner notes) -->
+  <div class="bklt-section">
+    <div class="bklt-section-title">Track Listing</div>
+    <div id="track-list"></div>
+  </div>
+  <div class="bklt-divider"></div>
+  <!-- Credits -->
+  <div class="bklt-section">
+    <div class="bklt-section-title">Credits</div>
+    <div id="bklt-credits" class="bklt-credits-grid"></div>
+  </div>
+  <div class="bklt-divider"></div>
+  <!-- Colophon -->
+  <div class="bklt-colophon">
+    <strong>The Wack Game</strong><br>
+    ℗ &amp; © 2026 DPAC. All rights reserved.<br>
+    Mastered for DPA · Digital Physical Album<br>
+    <span style="font-size:9px;margin-top:8px;display:block;color:var(--border)">DPA-FORMAT v1 · Encrypted Container</span>
+  </div>
+</div>
+
+<!-- ═══════════════ CAPSULES TAB ═══════════════ -->
+<div class="tab" id="tab-caps">
+  <div class="tab-pad">
+    <div class="text-xl font-bold text-white mb-2">Capsule Inbox</div>
+    <div class="filter-bar" id="cap-filters"></div>
+    <div class="timeline" id="cap-timeline"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ DEVICE TAB ═══════════════ -->
+<div class="tab" id="tab-device">
+  <div class="tab-pad">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="text-xl font-bold text-white" ondblclick="adminUnlock()">Device</div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="admin-badge admin-only" id="admin-badge">ADMIN</span>
+        <button class="admin-lock-btn admin-only" onclick="adminLock()">Lock</button>
+      </div>
+    </div>
+
+    <!-- ── CONSUMER: Device Summary (always visible) ── -->
+    <div class="card">
+      <div class="card-title">My Device</div>
+      <div class="info-row"><span class="info-label">Name</span><span class="info-val" id="d-name">DPA Device</span></div>
+      <div class="info-row"><span class="info-label">Battery</span><span class="info-val" id="d-batt-summary">---</span></div>
+      <div class="info-row"><span class="info-label">Tracks</span><span class="info-val" id="d-track-count">---</span></div>
+      <div class="info-row"><span class="info-label">Storage</span><span class="info-val" id="d-storage">---</span></div>
+      <div class="storage-bar"><div class="storage-fill" id="d-stor-fill" style="width:6%"></div></div>
+    </div>
+
+    <!-- ── CONSUMER: LED Theme (always visible) ── -->
+    <div class="card">
+      <div class="card-title">LED Theme</div>
+      <div class="orb-wrap"><div class="orb orb-breathe" id="led-orb"><div class="orb-inner" id="led-orb-inner"></div><div class="orb-glow" id="led-orb-glow"></div></div></div>
+      <div class="mode-tabs">
+        <div class="mode-tab active" onclick="setLedMode('idle')">💤 Idle</div>
+        <div class="mode-tab" onclick="setLedMode('playback')">🎵 Play</div>
+        <div class="mode-tab" onclick="setLedMode('charging')">⚡ Charge</div>
+      </div>
+      <div class="text-xs text-dim mb-2" style="text-transform:uppercase;letter-spacing:1px">Color</div>
+      <div class="clr-row">
+        <input type="color" class="clr-input" id="led-color" oninput="onLedColorChange(this.value)">
+        <span class="clr-hex" id="led-hex">#ff4bcb</span>
+      </div>
+      <div class="text-xs text-dim mb-2" style="text-transform:uppercase;letter-spacing:1px">Pattern</div>
+      <div class="pat-grid" id="pat-grid" style="grid-template-columns:repeat(4,1fr)">
+        <div class="pat-btn active" onclick="setLedPat('breathing')">Breathe</div>
+        <div class="pat-btn" onclick="setLedPat('comet')">Comet</div>
+        <div class="pat-btn" onclick="setLedPat('rainbow')">Rainbow</div>
+        <div class="pat-btn" onclick="setLedPat('fire')">Fire</div>
+        <div class="pat-btn" onclick="setLedPat('sparkle')">Sparkle</div>
+        <div class="pat-btn" onclick="setLedPat('wave')">Wave</div>
+        <div class="pat-btn" onclick="setLedPat('dual_comet')">Dual</div>
+        <div class="pat-btn" onclick="setLedPat('meteor')">Meteor</div>
+        <div class="pat-btn" onclick="setLedPat('theater')">Marquee</div>
+        <div class="pat-btn" onclick="setLedPat('bounce')">Bounce</div>
+        <div class="pat-btn" onclick="setLedPat('pulse')">Pulse</div>
+        <div class="pat-btn" onclick="setLedPat('solid')">Solid</div>
+        <div class="pat-btn" onclick="setLedPat('off')">Off</div>
+      </div>
+      <div class="text-xs text-dim mb-2" style="text-transform:uppercase;letter-spacing:1px">Audio-Reactive</div>
+      <div class="pat-grid" id="pat-grid-audio" style="grid-template-columns:repeat(3,1fr)">
+        <div class="pat-btn" onclick="setLedPat('audio_pulse')">🎵 Pulse</div>
+        <div class="pat-btn" onclick="setLedPat('audio_bass')">🔊 Bass</div>
+        <div class="pat-btn" onclick="setLedPat('audio_beat')">⚡ Beat</div>
+        <div class="pat-btn" onclick="setLedPat('audio_vu')">📊 VU</div>
+        <div class="pat-btn" onclick="setLedPat('audio_comet')">☄️ Comet</div>
+      </div>
+      <div class="text-xs text-dim mb-2" style="text-transform:uppercase;letter-spacing:1px">Presets</div>
+      <div class="preset-row">
+        <div class="preset" style="background:rgba(255,75,203,.1);border-color:rgba(255,75,203,.3);color:#ff4bcb" onclick="ledPreset('default')">Default</div>
+        <div class="preset" style="background:rgba(0,170,255,.1);border-color:rgba(0,170,255,.3);color:#00aaff" onclick="ledPreset('ocean')">Ocean</div>
+        <div class="preset" style="background:rgba(255,68,0,.1);border-color:rgba(255,68,0,.3);color:#ff4400" onclick="ledPreset('fire')">Fire</div>
+        <div class="preset" style="background:rgba(168,85,247,.1);border-color:rgba(168,85,247,.3);color:#a855f7" onclick="ledPreset('galaxy')">Galaxy</div>
+      </div>
+      <div class="text-xs text-dim mb-2" style="text-transform:uppercase;letter-spacing:1px">Brightness</div>
+      <div class="bright-row">
+        <span class="text-xs">☀️</span>
+        <input type="range" min="0" max="100" value="80" id="led-bright" oninput="onBrightChange(this.value)">
+        <span class="bright-val" id="led-bright-val">80%</span>
+      </div>
+    </div>
+    <div class="card admin-only">
+      <div class="card-title">Notification Colors 🔧</div>
+      <div class="dcnp-grid">
+        <div class="dcnp-item"><input type="color" value="#ff3366" id="dcnp-concert" oninput="onDcnpChange()"><span class="dcnp-lbl">Concert</span></div>
+        <div class="dcnp-item"><input type="color" value="#3366ff" id="dcnp-video" oninput="onDcnpChange()"><span class="dcnp-lbl">Video</span></div>
+        <div class="dcnp-item"><input type="color" value="#33ff99" id="dcnp-merch" oninput="onDcnpChange()"><span class="dcnp-lbl">Merch</span></div>
+        <div class="dcnp-item"><input type="color" value="#ffcc00" id="dcnp-signing" oninput="onDcnpChange()"><span class="dcnp-lbl">Signing</span></div>
+        <div class="dcnp-item"><input type="color" value="#cc33ff" id="dcnp-remix" oninput="onDcnpChange()"><span class="dcnp-lbl">Remix</span></div>
+        <div class="dcnp-item"><input type="color" value="#ffffff" id="dcnp-other" oninput="onDcnpChange()"><span class="dcnp-lbl">Other</span></div>
+      </div>
+    </div>
+    <button class="push-btn" id="push-btn" onclick="pushTheme()">⚡ Push to Device</button>
+
+    <!-- ── Mesh (ESP-NOW) ── -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">Mesh</div>
+      <div class="info-row">
+        <span class="info-label">Status</span>
+        <span class="info-val" id="mesh-status">Off</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Role</span>
+        <span class="info-val" id="mesh-role">Auto</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Peers</span>
+        <span class="info-val" id="mesh-peer-count">0</span>
+      </div>
+      <div id="mesh-peer-list" style="margin-top:8px"></div>
+      <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+        <div id="mesh-toggle-btn" class="pat-btn" onclick="meshToggle()" style="padding:6px 12px;font-size:11px;flex:1;text-align:center">Enable</div>
+        <div id="mesh-role-auto" class="pat-btn active" onclick="meshSetRole('auto')" style="padding:6px 10px;font-size:11px;flex:0 0 auto">Auto</div>
+        <div id="mesh-role-master" class="pat-btn" onclick="meshSetRole('master')" style="padding:6px 10px;font-size:11px;flex:0 0 auto">Master</div>
+        <div id="mesh-role-follower" class="pat-btn" onclick="meshSetRole('follower')" style="padding:6px 10px;font-size:11px;flex:0 0 auto">Follower</div>
+      </div>
+    </div>
+
+    <!-- ── ADMIN ONLY: System Details ── -->
+    <div class="card admin-only" style="margin-top:16px">
+      <div class="card-title">System Info 🔧</div>
+      <div class="info-row"><span class="info-label">DUID</span><span class="info-val" id="d-duid">---</span></div>
+      <div class="info-row"><span class="info-label">Firmware</span><span class="info-val" id="d-fw">---</span></div>
+      <div class="info-row"><span class="info-label">Uptime</span><span class="info-val" id="d-uptime">---</span></div>
+      <div class="info-row"><span class="info-label">AP IP</span><span class="info-val">192.168.4.1</span></div>
+      <div class="info-row"><span class="info-label">STA IP</span><span class="info-val" id="d-sta-ip">Not connected</span></div>
+    </div>
+
+    <!-- ── ADMIN ONLY: WiFi Network ── -->
+    <div class="card admin-only">
+      <div class="card-title">WiFi Network 🔧</div>
+      <div id="wifi-sta-status" style="margin-bottom:12px">
+        <div class="info-row"><span class="info-label">Status</span><span class="info-val" id="wifi-status-text">Disconnected</span></div>
+        <div class="info-row" id="wifi-ssid-row" style="display:none"><span class="info-label">Network</span><span class="info-val" id="wifi-ssid-text">---</span></div>
+        <div class="info-row" id="wifi-rssi-row" style="display:none"><span class="info-label">Signal</span><span class="info-val" id="wifi-rssi-text">---</span></div>
+      </div>
+      <div id="wifi-connect-form">
+        <button class="push-btn" style="margin-bottom:8px;background:linear-gradient(135deg,#3b82f6,#1d4ed8)" onclick="wifiScan()">📡 Scan Networks</button>
+        <div id="wifi-scan-list" style="display:none"></div>
+        <div id="wifi-manual" style="display:none;margin-top:8px">
+          <input type="text" id="wifi-ssid-input" placeholder="Network name (SSID)" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;margin-bottom:6px">
+          <input type="password" id="wifi-pass-input" placeholder="Password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;margin-bottom:8px">
+          <button class="push-btn" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="wifiConnect()">🔗 Connect</button>
+        </div>
+      </div>
+      <div id="wifi-disconnect-wrap" style="display:none;margin-top:8px">
+        <button class="push-btn" style="background:linear-gradient(135deg,#ef4444,#dc2626)" onclick="wifiDisconnect()">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- ── ADMIN ONLY: Storage / Files ── -->
+    <div class="card admin-only">
+      <div class="card-title">Storage 🔧</div>
+      <div class="info-row"><span class="info-label">SD Card</span><span class="info-val" id="sd-status">---</span></div>
+      <div class="info-row"><span class="info-label">Used</span><span class="info-val" id="sd-used">---</span></div>
+      <div class="info-row"><span class="info-label">Free</span><span class="info-val" id="sd-free">---</span></div>
+      <div id="sd-file-list" style="margin:12px 0;max-height:200px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ NOW PLAYING BAR ═══════════════ -->
+<div class="np-bar" id="np-bar">
+  <div class="np-track">
+    <div class="np-art art-2" id="np-art"></div>
+    <div class="np-info">
+      <div class="np-title" id="np-title">No track selected</div>
+      <div class="np-meta" id="np-meta">—</div>
+    </div>
+  </div>
+  <!-- Scrub bar with time display -->
+  <div style="display:flex;align-items:center;gap:6px;padding:0 12px">
+    <span class="text-xs font-mono text-dim" id="np-time-pos" style="width:36px;text-align:right;font-size:10px">0:00</span>
+    <input type="range" id="np-scrub" min="0" max="1000" value="0" style="flex:1;-webkit-appearance:none;height:4px;background:var(--card2);border-radius:999px;outline:none;margin:0" oninput="onScrubInput(this)" onchange="onScrubCommit(this)">
+    <span class="text-xs font-mono text-dim" id="np-time-dur" style="width:36px;font-size:10px">0:00</span>
+  </div>
+  <div class="np-controls">
+    <button class="np-btn" data-tap="prevTrack()" onclick="prevTrack()"><svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8v16zM7 19V5"/></svg></button>
+    <button class="np-play" id="np-play-btn" data-tap="togglePlay()" onclick="togglePlay()">
+      <svg viewBox="0 0 24 24" width="24" height="24" id="np-play-icon"><polygon points="6,3 20,12 6,21" fill="currentColor"/></svg>
+    </button>
+    <button class="np-btn" data-tap="nextTrack()" onclick="nextTrack()"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zM17 5v14"/></svg></button>
+    <button class="np-btn np-heart" id="np-heart-btn" data-tap="npToggleHeart()" onclick="npToggleHeart()">
+      <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════ BOTTOM NAV ═══════════════ -->
+<div class="bnav" id="main-bnav">
+  <button class="active" onclick="switchTab('home',this)">
+    <svg viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
+    Album
+  </button>
+  <button onclick="switchTab('tracks',this)">
+    <svg viewBox="0 0 24 24"><path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/></svg>
+    Booklet
+  </button>
+  <button onclick="switchTab('caps',this)">
+    <svg viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+    Capsules
+  </button>
+  <button onclick="switchTab('device',this)">
+    <svg viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+    Device
+  </button>
+</div>
+
+<script>
+// ── Fast-Tap: eliminate 300ms mobile click delay ─────
+// Intercepts touchend on [data-tap] elements and fires the handler immediately.
+// Falls back to onclick for non-touch (desktop).
+(function(){
+  let _tapTarget=null, _tapX=0, _tapY=0, _tapTime=0;
+  document.addEventListener('touchstart',function(e){
+    const t=e.target.closest('[data-tap]');
+    if(!t)return;
+    _tapTarget=t;
+    _tapX=e.touches[0].clientX;
+    _tapY=e.touches[0].clientY;
+    _tapTime=Date.now();
+  },{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(!_tapTarget)return;
+    const t=_tapTarget; _tapTarget=null;
+    // Reject if finger moved too far (scroll) or held too long (long-press)
+    if(Date.now()-_tapTime>400)return;
+    const ch=e.changedTouches[0];
+    if(Math.abs(ch.clientX-_tapX)>12||Math.abs(ch.clientY-_tapY)>12)return;
+    e.preventDefault(); // block delayed onclick
+    const fn=t.getAttribute('data-tap');
+    if(fn){try{new Function(fn).call(t)}catch(ex){console.error(ex)}}
+  });
+  document.addEventListener('touchcancel',function(){_tapTarget=null});
+})();
+
+// ── Extended Track Data with Credits ─────────────────
+// ── State ────────────────────────────────────────────
+let STATUS = null;
+let TRACKS = [];
+let CAPS = [];
+let HEARTS = {}; // synced from device favorites
+let EXPANDED = {};
+let CAP_FILTER = 'all';
+let LED_MODE = 'idle';
+let LED = {idle:{color:'#ff4bcb',pattern:'breathing'},playback:{color:'#00f1df',pattern:'comet'},charging:{color:'#ffcc33',pattern:'breathing'}};
+let BRIGHT = 80;
+let DCNP = {concert:'#ff3366',video:'#3366ff',merch:'#33ff99',signing:'#ffcc00',remix:'#cc33ff',other:'#ffffff'};
+let DETAIL_OPEN = false;
+let LYRICS_OPEN = {};
+let ADMIN = false; // synced from device, controls admin section visibility
+
+// ── API (with timeout + abort to prevent connection exhaustion) ──
+const API = '';
+let _refreshController = null; // AbortController for status polling
+let _refreshing = false;       // Guard against overlapping refreshes
+
+async function api(path, opts = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), opts.timeout || 4000);
+  try {
+    const r = await fetch(API + path, { signal: opts.signal || controller.signal });
+    clearTimeout(timeout);
+    return await r.json();
+  } catch (e) {
+    clearTimeout(timeout);
+    if (e.name !== 'AbortError') console.error(path, e);
+    return null;
+  }
+}
+async function sendCmd(op) { return api('/api/cmd?op=' + op) }
+
+// ── Tab Switching ────────────────────────────────────
+function switchTab(name,btn){
+  DETAIL_OPEN=false;
+  // If leaving Device tab without saving, clear editing flag so refresh syncs again
+  if(name!=='device') LED_EDITING=false;
+  document.getElementById('main-hdr').style.display='flex';
+  document.getElementById('detail-hdr').style.display='none';
+  document.getElementById('main-bnav').style.display='flex';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('.bnav button').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ── Format Helpers ───────────────────────────────────
+function fmtPlays(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(n)}
+function fmtDur(ms){const m=Math.floor(ms/60000),s=Math.floor((ms%60000)/1000);return m+':'+(s<10?'0':'')+s}
+function fmtUptime(s){if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';const h=Math.floor(s/3600);return h+'h '+Math.floor((s%3600)/60)+'m'}
+const EVT_COLORS={concert:'#ff3366',video:'#3366ff',merch:'#33ff99',signing:'#ffcc00',remix:'#cc33ff',other:'#999'};
+
+// ── Refresh Status ───────────────────────────────────
+async function refresh(){
+  if (_refreshing) return false; // Don't overlap
+  _refreshing = true;
+  // Abort any previous stale refresh
+  if (_refreshController) _refreshController.abort();
+  _refreshController = new AbortController();
+  const st = await api('/api/status', { signal: _refreshController.signal, timeout: 3000 });
+  _refreshing = false;
+  if (!st) return false;
+  STATUS = st;
+  // Sync admin mode from device
+  if(typeof st.admin !== 'undefined'){
+    ADMIN = !!st.admin;
+    document.body.classList.toggle('admin-mode', ADMIN);
+  }
+  document.getElementById('hdr-duid').textContent=st.duid;
+  // Battery
+  const bp=st.battery.percent;
+  const bf=document.getElementById('batt-fill');
+  if(bp < 0){
+    // No battery — USB powered
+    document.getElementById('batt-pct').textContent='USB';
+    document.getElementById('batt-status').textContent='Powered';
+    bf.style.width='100%';bf.style.background='var(--indigo)';
+  } else {
+    document.getElementById('batt-pct').textContent=bp+'%';
+    document.getElementById('batt-status').textContent=st.battery.voltage.toFixed(2)+'V'+(st.battery.charging?' ⚡':'');
+    bf.style.width=bp+'%';bf.style.background=bp>20?'var(--emerald)':bp>10?'var(--amber)':'var(--rose)';
+  }
+  document.getElementById('home-uptime').textContent=fmtUptime(st.uptime_s);
+  // Sync playing state from firmware — this is the source of truth
+  // BUT: skip sync for 2s after user taps play/stop/next/prev
+  // to prevent poll from overriding the optimistic UI update
+  if(st.player){
+    const grace = (Date.now() - _userActionAt) < 2000;
+    if(!grace){
+      IS_PLAYING = !!st.player.playing;
+      // Sync current track from nowPlaying path or trackId
+      if(st.player.nowPlaying && st.player.nowPlaying.length > 0){
+        const idx = REAL_WAVS.findIndex(w => w.path === st.player.nowPlaying);
+        if(idx >= 0) CURRENT_WAV_IDX = idx;
+      } else if(st.player.trackId){
+        const idx = REAL_WAVS.findIndex(w => w.path === st.player.trackId);
+        if(idx >= 0) CURRENT_WAV_IDX = idx;
+      }
+    }
+  }
+  // Update now-playing bar (transport controls + progress)
+  updateNowPlayingBar();
+  if(st.audio){
+    const hs=document.getElementById('home-volume-slider');
+    const hv=document.getElementById('home-volume-val');
+    if(hs) hs.value = st.audio.volume;
+    if(hv) hv.textContent = st.audio.volume;
+    if(st.audio.eq && st.audio.eq !== CURRENT_EQ) { CURRENT_EQ = st.audio.eq; renderEQ(); }
+    if(st.audio.mode&&st.audio.mode!==CURRENT_PL_MODE){CURRENT_PL_MODE=st.audio.mode;renderPlaylistMode()}
+  }
+  if(st.favorites && Array.isArray(st.favorites.items) && (Date.now() - _heartActionAt) > 5000){
+    HEARTS = {};
+    st.favorites.items.forEach(p=>HEARTS[p]=true);
+  }
+  // Album art — show current track name
+  if(IS_PLAYING && CURRENT_WAV_IDX >= 0){
+    const title = wavTitle(REAL_WAVS[CURRENT_WAV_IDX].path);
+    const initials = title.split(' ').map(w=>w[0]).join('').substring(0,2);
+    document.getElementById('album-art').className='album-cover-wrap art-' + ((CURRENT_WAV_IDX % 3) + 1);
+    document.getElementById('album-art-text').innerHTML=initials+'<small>'+title+'</small>';
+  }else{
+    document.getElementById('album-art').className='album-cover-wrap art-album';
+    document.getElementById('album-art-text').innerHTML='TWG<small>The Wack Game</small>';
+  }
+  // Device tab — consumer fields (always visible)
+  document.getElementById('d-name').textContent=st.duid;
+  const used=st.storage.usedMB,total=st.storage.totalMB;
+  document.getElementById('d-storage').textContent=used+'MB / '+total+'MB';
+  document.getElementById('d-stor-fill').style.width=(total>0?((used/total)*100).toFixed(1):'0')+'%';
+  document.getElementById('d-track-count').textContent=st.storage.trackCount+' tracks';
+  // Battery summary for consumer card
+  const bpd=st.battery.percent;
+  if(bpd < 0){
+    document.getElementById('d-batt-summary').textContent='USB Powered';
+  } else {
+    document.getElementById('d-batt-summary').textContent=bpd+'% · '+st.battery.voltage.toFixed(2)+'V'+(st.battery.charging?' ⚡':'');
+  }
+  // Device tab — admin fields (visible only in admin mode)
+  const duid=document.getElementById('d-duid');if(duid)duid.textContent=st.duid;
+  const dfw=document.getElementById('d-fw');if(dfw)dfw.textContent='v'+st.ver;
+  const dup=document.getElementById('d-uptime');if(dup)dup.textContent=fmtUptime(st.uptime_s);
+  // Sync WiFi STA status (admin cards)
+  if(st.sta){updateWifiUI(st.sta.connected, st.sta.ssid, st.sta.ip, st.sta.rssi)}
+  // Mesh status
+  if(st.espnow) meshUpdatePeers(st.espnow);
+  // Only sync LED/DCNP from device if user is NOT actively editing
+  if(!LED_EDITING){
+    if(st.led){
+      LED.idle={color:st.led.idle.color,pattern:st.led.idle.pattern};
+      LED.playback={color:st.led.playback.color,pattern:st.led.playback.pattern};
+      LED.charging={color:st.led.charging.color,pattern:st.led.charging.pattern};
+      updateLedUI();
+    }
+    if(st.dcnp){DCNP={...st.dcnp};for(const k in DCNP){const el=document.getElementById('dcnp-'+k);if(el)el.value=DCNP[k]}}
+  }
+  return true;
+}
+
+// ── Home Track List (real WAVs from SD) ──────────────
+// Tap = PLAY the track (or pause if already playing this one).
+// Matches Apple Music / Spotify — tap a song, it plays. Period.
+function renderHomeTrackList(){
+  const el=document.getElementById('home-track-list');
+  if(REAL_WAVS.length === 0){
+    el.innerHTML='<div style="text-align:center;color:var(--dim);padding:20px">No tracks on device</div>';
+    return;
+  }
+  el.innerHTML=REAL_WAVS.map((w,i)=>{
+    const playing = IS_PLAYING && CURRENT_WAV_IDX===i;
+    const selected = CURRENT_WAV_IDX===i && !playing;
+    const title = wavTitle(w.path);
+    const liked = HEARTS[w.path];
+    return `
+    <div class="home-track${playing?' playing':''}${selected?' selected':''}" data-tap="tapTrack(${i})" onclick="tapTrack(${i})">
+      <div class="ht-num">${playing?'<div class="eq-bars"><span></span><span></span><span></span></div>':(i+1)}</div>
+      <div class="ht-info">
+        <div class="ht-title">${title}${liked?' <svg viewBox="0 0 24 24" width="12" height="12" style="fill:var(--rose);stroke:var(--rose);stroke-width:2;flex-shrink:0"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>':''}</div>
+        <div class="ht-sub">
+          <span>${w.sampleRate/1000}kHz / ${w.bitsPerSample}-bit</span>
+          <span>·</span>
+          <span style="font-family:monospace">${fmtDur(w.durationMs)}</span>
+        </div>
+      </div>
+      <div class="ht-right">
+        <button class="heart-btn${liked?' liked':''}" data-tap="event.stopPropagation();toggleHeart('${w.path}',this)" onclick="event.stopPropagation();toggleHeart('${w.path}',this)" data-heart="${w.path}">
+          <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Tracks Tab (real WAVs from SD) ────────────────────
+// ── Booklet liner notes (keyed by filename stem) ──
+const LINER_NOTES = {
+  'default': {note:'', credits:'', tags:[]},
+};
+// Build liner notes from track title heuristics or embedded data
+function getLinerNote(path){
+  const stem = path.split('/').pop().replace(/\.wav$/i,'').toLowerCase();
+  return LINER_NOTES[stem] || LINER_NOTES['default'];
+}
+
+const ALBUM_CREDITS = [
+  {role:'Artist',          name:'Cort Knoxx'},
+  {role:'Executive Producer', name:'Cort Knoxx'},
+  {role:'Mixed & Mastered', name:'Studio TWG'},
+  {role:'DPA Engineering',  name:'DPA Format Lab'},
+  {role:'Artwork',          name:'Visual Division'},
+  {role:'A&R',              name:'The Wack Game LLC'},
+];
+
+function renderTracks(){
+  const list=document.getElementById('track-list');
+  if(REAL_WAVS.length === 0){
+    list.innerHTML='<div style="text-align:center;color:var(--dim);padding:40px 0">No tracks on device</div>';
+    return;
+  }
+  list.innerHTML=REAL_WAVS.map((w,i)=>{
+    const playing = IS_PLAYING && CURRENT_WAV_IDX===i;
+    const title = wavTitle(w.path);
+    const liked = HEARTS[w.path];
+    const liner = getLinerNote(w.path);
+    const eqBars = playing ? '<span class="bklt-eq-playing"><span></span><span></span><span></span></span>' : '';
+    const noteHtml = liner.note ? `<div class="bklt-track-note">${liner.note}</div>` : '';
+    const creditsHtml = liner.credits ? `<div class="bklt-track-credits">${liner.credits}</div>` : '';
+    const tagsHtml = liner.tags && liner.tags.length ? `<div class="bklt-track-tags">${liner.tags.map(t=>'<span class="bklt-tag">'+t+'</span>').join('')}</div>` : '';
+    return `
+    <div class="bklt-track" data-tap="tapTrack(${i})" onclick="tapTrack(${i})">
+      <div class="bklt-track-head">
+        <div class="bklt-track-num${playing?' playing':''}">${String(i+1).padStart(2,'0')}</div>
+        <div class="bklt-track-title${playing?' playing':''}">${title}${eqBars}</div>
+        <div class="bklt-track-dur">${fmtDur(w.durationMs)}</div>
+      </div>
+      <div style="padding-left:44px;display:flex;align-items:center;gap:12px;margin-top:2px">
+        <span class="text-xs text-dim">${w.sampleRate/1000}kHz · ${w.bitsPerSample}-bit</span>
+        <span class="bklt-heart${liked?' liked':''}" data-tap="event.stopPropagation();toggleHeart('${w.path}',this)" onclick="event.stopPropagation();toggleHeart('${w.path}',this)" data-heart="${w.path}">
+          <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          ${liked?'Liked':''}
+        </span>
+      </div>
+      ${noteHtml}${creditsHtml}${tagsHtml}
+    </div>`;
+  }).join('');
+
+  // Render credits grid
+  const cg = document.getElementById('bklt-credits');
+  if(cg) cg.innerHTML = ALBUM_CREDITS.map(c=>`
+    <div class="bklt-credit">
+      <div class="bklt-credit-role">${c.role}</div>
+      <div class="bklt-credit-name">${c.name}</div>
+    </div>
+  `).join('');
+}
+
+// ── Track Detail Page ────────────────────────────────
+function openTrackDetail(idx){
+  const w=REAL_WAVS[idx];if(!w)return;
+  DETAIL_OPEN=true;
+  document.getElementById('main-hdr').style.display='none';
+  document.getElementById('detail-hdr').style.display='flex';
+  document.getElementById('main-bnav').style.display='none';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-detail').classList.add('active');
+
+  const title=wavTitle(w.path);
+  const liked=HEARTS[w.path];
+  const initials=title.split(' ').map(x=>x[0]||'').join('').substring(0,3);
+  const sizeMB=(w.size/(1024*1024)).toFixed(1);
+  const isNowPlaying=(CURRENT_WAV_IDX===idx && IS_PLAYING);
+  const artClasses=['art-1','art-2','art-3'];
+
+  document.getElementById('detail-content').innerHTML=`
+    <div class="td-cover-wrap ${artClasses[idx%3]}">
+      <div class="art-overlay">${initials}<small>${title}</small></div>
+      <div class="td-cover-grad"></div>
+    </div>
+    <div class="td-header">
+      <div class="td-title">${title}</div>
+      <div class="td-artist">Cort Knoxx</div>
+      <div class="td-badges">
+        <span class="td-badge">${w.sampleRate/1000}kHz</span>
+        <span class="td-badge">${w.bitsPerSample}-bit</span>
+        <span class="td-badge">${w.channels===1?'Mono':'Stereo'}</span>
+        <span class="td-badge">${fmtDur(w.durationMs)}</span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="td-controls">
+      <div class="td-ctrl-btn" data-tap="prevTrack()" onclick="prevTrack()">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 20L9 12l10-8v16zM7 19V5" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+      </div>
+      <div class="td-ctrl-btn td-play-btn" data-tap="${isNowPlaying?'stopTrack()':'playTrack('+idx+')'}" onclick="${isNowPlaying?'stopTrack()':'playTrack('+idx+')'}">
+        <svg viewBox="0 0 24 24" width="24" height="24">${isNowPlaying?'<rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/>':'<polygon points="6,3 20,12 6,21" fill="currentColor"/>'}</svg>
+      </div>
+      <div class="td-ctrl-btn" data-tap="nextTrack()" onclick="nextTrack()">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 4l10 8-10 8V4zM17 5v14" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+      </div>
+      <button class="heart-btn${liked?' liked':''}" data-tap="toggleHeart('${w.path}',this)" onclick="toggleHeart('${w.path}',this)" data-heart="${w.path}" style="margin-left:8px">
+        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      </button>
+    </div>
+
+    <!-- Volume -->
+    <div class="td-vol">
+      <svg viewBox="0 0 24 24"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>
+      <input type="range" min="0" max="100" value="${STATUS?STATUS.audio.volume:75}" oninput="setVol(this.value)">
+    </div>
+
+    <!-- Track Info -->
+    <div class="credits">
+      <div class="credit-section">
+        <div class="credit-label">Audio Details</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+          <div class="info-row"><span class="info-label">Format</span><span class="info-val">WAV (PCM)</span></div>
+          <div class="info-row"><span class="info-label">Sample Rate</span><span class="info-val">${w.sampleRate/1000} kHz</span></div>
+          <div class="info-row"><span class="info-label">Bit Depth</span><span class="info-val">${w.bitsPerSample}-bit</span></div>
+          <div class="info-row"><span class="info-label">Channels</span><span class="info-val">${w.channels===1?'Mono':'Stereo'}</span></div>
+          <div class="info-row"><span class="info-label">Duration</span><span class="info-val">${fmtDur(w.durationMs)}</span></div>
+          <div class="info-row"><span class="info-label">File Size</span><span class="info-val">${sizeMB} MB</span></div>
+        </div>
+      </div>
+
+      <div class="credit-section">
+        <div class="credit-label">File</div>
+        <div class="credit-val" style="word-break:break-all;font-family:monospace;font-size:12px;color:var(--slate400)">${w.path}</div>
+      </div>
+    </div>
+  `;
+  window.scrollTo(0,0);
+}
+
+function closeDetail(){
+  DETAIL_OPEN=false;
+  document.getElementById('main-hdr').style.display='flex';
+  document.getElementById('detail-hdr').style.display='none';
+  document.getElementById('main-bnav').style.display='flex';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-tracks').classList.add('active');
+  document.querySelectorAll('.bnav button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.bnav button')[1].classList.add('active');
+}
+
+// toggleLyrics removed — real WAV detail uses file metadata only
+
+// ── Real WAV Tracks from SD ──────────────────────────
+let REAL_WAVS = []; // [{path, size, sampleRate, channels, bitsPerSample, durationMs}]
+let CURRENT_WAV_IDX = -1;
+let IS_PLAYING = false;
+
+async function loadRealWavs(){
+  const [d, favs] = await Promise.all([api('/api/audio/wavs'), api('/api/favorites')]);
+  if(d && d.wavs) { REAL_WAVS = d.wavs; }
+  HEARTS = {};
+  if(favs && Array.isArray(favs.favorites)) favs.favorites.forEach(p=>HEARTS[p]=true);
+  document.getElementById('home-track-count').textContent = REAL_WAVS.length + ' tracks';
+  renderHomeTrackList();
+  renderTracks();
+}
+
+function wavTitle(path){
+  let n = path.split('/').pop();
+  n = n.replace(/\.wav$/i,'').replace(/_/g,' ');
+  return n.charAt(0).toUpperCase() + n.slice(1);
+}
+
+// ── Select / Play / Stop / Transport ─────────────────
+// selectTrack = highlight track in list + update now-playing bar (no playback)
+// tapTrack = THE primary interaction. Tap a song → it plays.
+// Tap the currently playing song → it pauses. That's it.
+async function tapTrack(i){
+  if(i < 0 || i >= REAL_WAVS.length) return;
+  _userActionAt = Date.now();
+  if(IS_PLAYING && CURRENT_WAV_IDX === i){
+    await stopTrack();
+  } else {
+    await playTrack(i);
+  }
+}
+
+// selectTrack = highlight only (used internally, not for user taps)
+function selectTrack(i){
+  if(i < 0 || i >= REAL_WAVS.length) return;
+  CURRENT_WAV_IDX = i;
+  renderAll();
+  updateNowPlayingBar();
+}
+
+// playTrack = actually start playback
+async function playTrack(i){
+  if(i < 0 || i >= REAL_WAVS.length) return;
+  CURRENT_WAV_IDX = i;
+  IS_PLAYING = true;
+  renderAll();
+  updateNowPlayingBar();
+  await api('/api/audio/play?file='+encodeURIComponent(REAL_WAVS[i].path));
+}
+
+// stopTrack = stop playback
+async function stopTrack(){
+  IS_PLAYING = false;
+  renderAll();
+  updateNowPlayingBar();
+  await api('/api/audio/stop');
+}
+
+// togglePlay = mirrors hardware GP1 button exactly
+async function togglePlay(){
+  _userActionAt = Date.now();
+  if(IS_PLAYING){
+    await stopTrack();
+  } else {
+    if(CURRENT_WAV_IDX < 0 && REAL_WAVS.length > 0) CURRENT_WAV_IDX = 0;
+    if(CURRENT_WAV_IDX >= 0) await playTrack(CURRENT_WAV_IDX);
+  }
+}
+
+// nextTrack = mirrors hardware GP2 button
+async function nextTrack(){
+  if(REAL_WAVS.length === 0) return;
+  _userActionAt = Date.now();
+  let next = (CURRENT_WAV_IDX + 1) % REAL_WAVS.length;
+  await playTrack(next);
+}
+
+// prevTrack = mirrors hardware GP3 button
+async function prevTrack(){
+  if(REAL_WAVS.length === 0) return;
+  _userActionAt = Date.now();
+  let prev = (CURRENT_WAV_IDX - 1 + REAL_WAVS.length) % REAL_WAVS.length;
+  await playTrack(prev);
+}
+
+// npToggleHeart = mirrors hardware GP4 button
+function npToggleHeart(){
+  if(CURRENT_WAV_IDX < 0 || CURRENT_WAV_IDX >= REAL_WAVS.length) return;
+  const path = REAL_WAVS[CURRENT_WAV_IDX].path;
+  toggleHeart(path, document.getElementById('np-heart-btn'));
+}
+
+// Render all track lists
+function renderAll(){
+  renderHomeTrackList();
+  renderTracks();
+}
+
+// ── Now Playing Bar ──────────────────────────────────
+function updateNowPlayingBar(){
+  const bar = document.getElementById('np-bar');
+
+  // Auto-select first track if nothing selected but tracks exist
+  if(CURRENT_WAV_IDX < 0 && REAL_WAVS.length > 0) CURRENT_WAV_IDX = 0;
+
+  const hasTrack = CURRENT_WAV_IDX >= 0 && CURRENT_WAV_IDX < REAL_WAVS.length;
+
+  if(!hasTrack){
+    bar.classList.remove('visible');
+    return;
+  }
+
+  bar.classList.add('visible');
+  const w = REAL_WAVS[CURRENT_WAV_IDX];
+  const title = wavTitle(w.path);
+  const liked = HEARTS[w.path];
+
+  document.getElementById('np-title').textContent = title;
+  document.getElementById('np-meta').textContent = (w.sampleRate/1000)+'kHz · '+w.bitsPerSample+'-bit · '+fmtDur(w.durationMs);
+
+  // Play/pause icon
+  const icon = document.getElementById('np-play-icon');
+  icon.innerHTML = IS_PLAYING
+    ? '<rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/>'
+    : '<polygon points="6,3 20,12 6,21" fill="currentColor"/>';
+
+  // Heart state
+  const hb = document.getElementById('np-heart-btn');
+  hb.classList.toggle('liked', !!liked);
+
+  // Art initials
+  const initials = title.split(' ').map(x=>(x[0]||'')).join('').substring(0,2);
+  const art = document.getElementById('np-art');
+  art.className = 'np-art art-' + ((CURRENT_WAV_IDX % 3) + 1);
+  art.textContent = initials;
+
+  // Scrub bar + time display
+  const scrub = document.getElementById('np-scrub');
+  const tPos = document.getElementById('np-time-pos');
+  const tDur = document.getElementById('np-time-dur');
+  const dur = w.durationMs || 0;
+  tDur.textContent = fmtDur(dur);
+  if(!_scrubbing){
+    if(IS_PLAYING && STATUS && STATUS.player){
+      const pos = STATUS.player.posMs || 0;
+      scrub.max = dur > 0 ? dur : 1000;
+      scrub.value = pos;
+      tPos.textContent = fmtDur(pos);
+    } else {
+      scrub.value = 0;
+      tPos.textContent = '0:00';
+    }
+  }
+}
+
+function toggleHeart(id,btn){
+  // Optimistic UI — toggle immediately, no awaits, no re-renders
+  _heartActionAt = Date.now();
+  const wasLiked = !!HEARTS[id];
+  const nowLiked = !wasLiked;
+  if(nowLiked) HEARTS[id]=true; else delete HEARTS[id];
+  // Surgically update ALL heart buttons for this path (no DOM rebuild)
+  document.querySelectorAll('[data-heart="'+id+'"]').forEach(el=>{
+    el.classList.toggle('liked', nowLiked);
+  });
+  // Update the small inline heart icon next to title
+  _syncHeartIcons();
+  // Update np bar heart
+  updateNowPlayingBar();
+  // Fire-and-forget API call (no await)
+  api('/api/favorites/toggle?file='+encodeURIComponent(id)).then(d=>{
+    if(d && !!d.favorite !== nowLiked){
+      // Server disagreed — revert
+      if(d.favorite) HEARTS[id]=true; else delete HEARTS[id];
+      document.querySelectorAll('[data-heart="'+id+'"]').forEach(el=>{
+        el.classList.toggle('liked', !!d.favorite);
+      });
+      _syncHeartIcons();
+      updateNowPlayingBar();
+    }
+  });
+}
+function _syncHeartIcons(){
+  // Sync the small red heart SVGs next to track titles in home list
+  document.querySelectorAll('.ht-title').forEach(el=>{
+    const row=el.closest('.home-track');
+    if(!row)return;
+    const hBtn=row.querySelector('[data-heart]');
+    if(!hBtn)return;
+    const path=hBtn.getAttribute('data-heart');
+    const liked=!!HEARTS[path];
+    const svg=el.querySelector('svg');
+    if(liked && !svg){
+      el.insertAdjacentHTML('beforeend',' <svg viewBox="0 0 24 24" width="12" height="12" style="fill:var(--rose);stroke:var(--rose);stroke-width:2;flex-shrink:0"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>');
+    }else if(!liked && svg){
+      svg.remove();
+    }
+  });
+  // Sync booklet heart text
+  document.querySelectorAll('.bklt-heart[data-heart]').forEach(el=>{
+    const path=el.getAttribute('data-heart');
+    const liked=!!HEARTS[path];
+    const txt=el.childNodes;
+    // Update "Liked" text node
+    for(let n of txt){if(n.nodeType===3){n.textContent=liked?'Liked':'';break;}}
+  });
+}
+
+// ── EQ Preset Control ─────────────────────────────────
+let CURRENT_EQ = 'flat';
+const EQ_PRESETS = [
+  {id:'flat',       label:'Flat',       icon:'🎚️'},
+  {id:'bass_boost', label:'Bass',       icon:'🔊'},
+  {id:'vocal',      label:'Vocal',      icon:'🎤'},
+  {id:'warm',       label:'Warm',       icon:'🌅'},
+];
+
+function renderEQ(){
+  const grid = document.getElementById('eq-grid');
+  if(!grid) return;
+  grid.innerHTML = EQ_PRESETS.map(p =>
+    `<div class="pat-btn${CURRENT_EQ===p.id?' active':''}" onclick="setEQ('${p.id}')" style="padding:6px 10px;font-size:11px;min-width:0;flex:0 0 auto">${p.icon} ${p.label}</div>`
+  ).join('');
+}
+
+let _eqAbort=null;
+async function setEQ(preset){
+  CURRENT_EQ = preset;
+  renderEQ();
+  if(_eqAbort) _eqAbort.abort();
+  _eqAbort = new AbortController();
+  try { await fetch(API+'/api/eq?preset='+preset, {signal:_eqAbort.signal}); } catch(e){}
+}
+
+let _volTimer=null;
+let _volAbort=null;
+const PL_MODES=[{id:'normal',icon:'▶',label:'Normal'},{id:'smart',icon:'🧠',label:'Smart'},{id:'smart_shuffle',icon:'🔀',label:'Shuffle'},{id:'repeat_one',icon:'🔁',label:'Repeat'}];
+let CURRENT_PL_MODE='normal';
+function renderPlaylistMode(){
+  const grid=document.getElementById('pl-mode-grid');
+  if(!grid)return;
+  grid.innerHTML=PL_MODES.map(m=>`<div class="pat-btn${CURRENT_PL_MODE===m.id?' active':''}" onclick="setPlaylistMode('${m.id}')" style="padding:6px 10px;font-size:11px;min-width:0;flex:0 0 auto">${m.icon} ${m.label}</div>`).join('');
+}
+function setPlaylistMode(mode){
+  CURRENT_PL_MODE=mode;
+  renderPlaylistMode();
+  fetch(API+'/api/playlist/mode?mode='+mode).catch(()=>{});
+}
+
+function setVol(v){
+  const n = Math.max(0, Math.min(100, Number(v)||0));
+  const hs=document.getElementById('home-volume-slider');
+  const hv=document.getElementById('home-volume-val');
+  if(hs) hs.value = n;
+  if(hv) hv.textContent = n;
+  // Debounce 200ms — don't flood ESP32 during slider drag
+  clearTimeout(_volTimer);
+  _volTimer=setTimeout(()=>{
+    if(_volAbort) _volAbort.abort();
+    _volAbort=new AbortController();
+    fetch(API+'/api/volume?level='+n,{signal:_volAbort.signal}).catch(()=>{});
+  },200);
+}
+
+// ── Scrub / Seek ─────────────────────────────────────
+let _scrubbing = false;
+let _userActionAt = 0; // timestamp of last play/stop/next/prev tap
+let _heartActionAt = 0; // timestamp of last heart toggle (prevents refresh overwriting)
+let _seekAbort = null;
+function onScrubInput(el){
+  _scrubbing = true;
+  document.getElementById('np-time-pos').textContent = fmtDur(Number(el.value));
+}
+function onScrubCommit(el){
+  const ms = Number(el.value);
+  _scrubbing = false;
+  if(!IS_PLAYING) return;
+  if(_seekAbort) _seekAbort.abort();
+  _seekAbort = new AbortController();
+  fetch(API+'/api/audio/seek?ms='+ms, {signal:_seekAbort.signal}).catch(()=>{});
+}
+
+// ── Capsules ─────────────────────────────────────────
+async function loadCapsules(){
+  const data=await api('/api/capsules');if(!data)return;
+  CAPS=data.capsules;renderCapFilters();renderCapsules();
+}
+
+function renderCapFilters(){
+  const types=['all',...[...new Set(CAPS.map(c=>c.type))]];
+  const counts={};types.forEach(t=>{counts[t]=t==='all'?CAPS.length:CAPS.filter(c=>c.type===t).length});
+  document.getElementById('cap-filters').innerHTML=types.map(t=>`
+    <div class="filter-pill${CAP_FILTER===t?' active':''}" onclick="setCapFilter('${t}')">
+      ${t!=='all'?'<div class="filter-dot" style="background:${EVT_COLORS[t]||"#999"}"></div>':''}
+      ${t.charAt(0).toUpperCase()+t.slice(1)}
+      <span class="filter-count">${counts[t]}</span>
+    </div>
+  `).join('');
+}
+
+function setCapFilter(t){CAP_FILTER=t;renderCapFilters();renderCapsules()}
+
+function renderCapsules(){
+  const filtered=CAP_FILTER==='all'?CAPS:CAPS.filter(c=>c.type===CAP_FILTER);
+  document.getElementById('cap-timeline').innerHTML=filtered.map(c=>{
+    const color=EVT_COLORS[c.type]||'#999';
+    const exp=EXPANDED[c.id];
+    const isNew=(Date.now()-new Date(c.date).getTime())<48*3600*1000;
+    return `
+    <div class="cap-card${exp?' expanded':''}" onclick="toggleCap('${c.id}')">
+      <div class="cap-dot" style="background:${color};box-shadow:0 0 6px ${color}"></div>
+      <div class="cap-inner">
+        <div class="cap-header">
+          <div style="flex:1;min-width:0">
+            <div class="flex items-center gap-2">
+              <span class="cap-type" style="background:${color}22;color:${color};border:1px solid ${color}44">${c.type}</span>
+              ${isNew?'<span class="new-badge">NEW</span>':''}
+            </div>
+            <div class="cap-title">${c.title}</div>
+            <div class="cap-date">${c.date}</div>
+          </div>
+          <svg class="cap-chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="cap-desc">${c.desc}</div>
+        <div class="cap-desc">
+          <span class="cap-status ${c.delivered?'cap-delivered':'cap-pending'}">
+            ${c.delivered?'✓ Delivered to DPA':'⏳ Pending'}
+          </span>
+          ${c.delivered?'<div class="cap-ondevice"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>Stored on device · SD card</div>':''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleCap(id){EXPANDED[id]=!EXPANDED[id];renderCapsules()}
+
+// ── LED Controls ─────────────────────────────────────
+let LED_EDITING = false; // Flag: true while user is on Device tab editing LED
+let _ledSendTimer = null; // Debounce timer for live preview
+let _ledAbort = null;     // AbortController for LED preview requests
+
+// Send current LED state to device immediately (no NVS save)
+function ledSendLive(){
+  clearTimeout(_ledSendTimer);
+  _ledSendTimer = setTimeout(()=>{
+    // Abort previous preview request if still pending
+    if (_ledAbort) _ledAbort.abort();
+    _ledAbort = new AbortController();
+    const cur = LED[LED_MODE];
+    const url = API+'/api/led/preview?mode='+LED_MODE+'&color='+encodeURIComponent(cur.color)+'&pattern='+cur.pattern+'&brightness='+BRIGHT;
+    fetch(url, { signal: _ledAbort.signal }).catch(()=>{});
+  }, 150); // 150ms debounce — ESP32 AP is slow, don't flood
+}
+
+function setLedMode(mode){LED_MODE=mode;LED_EDITING=true;document.querySelectorAll('.mode-tab').forEach((t,i)=>{t.classList.toggle('active',['idle','playback','charging'][i]===mode)});updateLedUI();ledSendLive()}
+function updateLedUI(){
+  const cur=LED[LED_MODE];
+  document.getElementById('led-color').value=cur.color;
+  document.getElementById('led-hex').textContent=cur.color;
+  const orb=document.getElementById('led-orb'),inner=document.getElementById('led-orb-inner'),glow=document.getElementById('led-orb-glow');
+  inner.style.background=cur.color;glow.style.background=cur.color;
+  orb.className='orb orb-'+(cur.pattern==='breathing'?'breathe':cur.pattern);
+  _highlightPatBtns(cur.pattern);
+  document.getElementById('led-bright').value=BRIGHT;document.getElementById('led-bright-val').textContent=BRIGHT+'%';
+}
+function onLedColorChange(val){LED_EDITING=true;LED[LED_MODE].color=val;document.getElementById('led-hex').textContent=val;document.getElementById('led-orb-inner').style.background=val;document.getElementById('led-orb-glow').style.background=val;ledSendLive()}
+function setLedPat(pat){LED_EDITING=true;LED[LED_MODE].pattern=pat;const orbPat=pat==='breathing'?'breathe':pat.startsWith('audio_')?'breathe':pat;document.getElementById('led-orb').className='orb orb-'+orbPat;_highlightPatBtns(pat);ledSendLive()}
+function _highlightPatBtns(pat){document.querySelectorAll('#pat-grid .pat-btn, #pat-grid-audio .pat-btn').forEach(b=>{const onclick=b.getAttribute('onclick')||'';const match=onclick.match(/setLedPat\('([^']+)'\)/);b.classList.toggle('active',match&&match[1]===pat)})}
+function ledPreset(name){
+  const P={default:{idle:{color:'#ff4bcb',pattern:'breathing'},playback:{color:'#00f1df',pattern:'comet'},charging:{color:'#ffcc33',pattern:'breathing'}},ocean:{idle:{color:'#0066ff',pattern:'breathing'},playback:{color:'#00ccff',pattern:'comet'},charging:{color:'#00ffaa',pattern:'breathing'}},fire:{idle:{color:'#ff4400',pattern:'breathing'},playback:{color:'#ff8800',pattern:'comet'},charging:{color:'#ffcc00',pattern:'breathing'}},galaxy:{idle:{color:'#8b5cf6',pattern:'breathing'},playback:{color:'#a855f7',pattern:'comet'},charging:{color:'#c084fc',pattern:'breathing'}}};
+  if(P[name]){LED_EDITING=true;LED=JSON.parse(JSON.stringify(P[name]));updateLedUI();ledSendLive()}
+}
+function onBrightChange(v){LED_EDITING=true;BRIGHT=parseInt(v);document.getElementById('led-bright-val').textContent=v+'%';ledSendLive()}
+function onDcnpChange(){['concert','video','merch','signing','remix','other'].forEach(k=>{DCNP[k]=document.getElementById('dcnp-'+k).value})}
+async function pushTheme(){
+  const btn=document.getElementById('push-btn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Saving...';
+  const body=JSON.stringify({idle_color:LED.idle.color,idle_pattern:LED.idle.pattern,play_color:LED.playback.color,play_pattern:LED.playback.pattern,charge_color:LED.charging.color,charge_pattern:LED.charging.pattern,brightness:BRIGHT,dcnp_concert:DCNP.concert,dcnp_video:DCNP.video,dcnp_merch:DCNP.merch,dcnp_signing:DCNP.signing,dcnp_remix:DCNP.remix,dcnp_other:DCNP.other});
+  try{const r=await fetch(API+'/api/theme',{method:'POST',headers:{'Content-Type':'application/json'},body});const j=await r.json();btn.innerHTML=j.ok?'✓ Saved to Device!':'✗ Failed';LED_EDITING=false}catch(e){btn.innerHTML='✗ Connection Error'}
+  setTimeout(()=>{btn.disabled=false;btn.innerHTML='⚡ Save to Device'},2000);
+}
+
+// ── Mesh (ESP-NOW) ──────────────────────────────────
+let MESH_ENABLED=false, MESH_ROLE='auto';
+async function meshToggle(){
+  const endpoint=MESH_ENABLED?'/api/espnow/disable':'/api/espnow/enable';
+  const d=await api(endpoint);
+  if(d){MESH_ENABLED=!MESH_ENABLED;meshUpdateUI()}
+}
+async function meshSetRole(role){
+  const d=await api('/api/espnow/role?role='+role);
+  if(d){MESH_ROLE=role;meshUpdateUI()}
+}
+function meshUpdateUI(){
+  const tb=document.getElementById('mesh-toggle-btn');
+  if(tb){tb.textContent=MESH_ENABLED?'Disable':'Enable';tb.classList.toggle('active',MESH_ENABLED)}
+  ['auto','master','follower'].forEach(r=>{
+    const b=document.getElementById('mesh-role-'+r);
+    if(b)b.classList.toggle('active',MESH_ROLE===r);
+  });
+  const ms=document.getElementById('mesh-status');
+  if(ms)ms.textContent=MESH_ENABLED?'Active':'Off';
+  const mr=document.getElementById('mesh-role');
+  if(mr)mr.textContent=MESH_ROLE.charAt(0).toUpperCase()+MESH_ROLE.slice(1);
+}
+function meshUpdatePeers(espnow){
+  if(!espnow)return;
+  MESH_ENABLED=!!espnow.enabled||!!espnow.active;
+  if(espnow.role)MESH_ROLE=espnow.role;
+  const pc=document.getElementById('mesh-peer-count');
+  if(pc)pc.textContent=espnow.peers||0;
+  meshUpdateUI();
+  // Render peer list
+  const pl=document.getElementById('mesh-peer-list');
+  if(!pl||!espnow.peerList||espnow.peerList.length===0){if(pl)pl.innerHTML='';return}
+  pl.innerHTML=espnow.peerList.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--border)"><span class="text-sm font-bold">${p.duid}</span><span class="text-xs text-dim">${p.playing?'▶ Playing':'⏸ Idle'} · ${p.battery}% · ${p.master?'Master':'Follower'}</span></div>`).join('');
+}
+
+// ── WiFi Station Management ──────────────────────────
+let WIFI_SCANNING = false;
+
+function wifiSignalBars(rssi) {
+  let s = rssi > -50 ? 4 : rssi > -65 ? 3 : rssi > -80 ? 2 : 1;
+  return `<div class="wifi-net-bars s${s}"><span style="height:3px"></span><span style="height:6px"></span><span style="height:9px"></span><span style="height:12px"></span></div>`;
+}
+
+async function wifiScan() {
+  if (WIFI_SCANNING) return;
+  WIFI_SCANNING = true;
+  const list = document.getElementById('wifi-scan-list');
+  list.style.display = 'block';
+  list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted)"><span class="spinner"></span> Scanning...</div>';
+
+  // Start async scan — poll until results are ready
+  let data = await api('/api/wifi/scan', { timeout: 5000 });
+  let attempts = 0;
+  while (data && data.scanning && attempts < 10) {
+    await new Promise(r => setTimeout(r, 1000));
+    data = await api('/api/wifi/scan?results=1', { timeout: 5000 });
+    attempts++;
+  }
+
+  WIFI_SCANNING = false;
+  if (!data || !data.networks || data.networks.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:12px;color:var(--dim)">No networks found</div>';
+    return;
+  }
+  // Sort by signal strength
+  data.networks.sort((a, b) => b.rssi - a.rssi);
+  let html = '';
+  for (const net of data.networks) {
+    if (!net.ssid || net.ssid.length === 0) continue;
+    html += `<div class="wifi-net" onclick="wifiSelectNetwork('${net.ssid.replace(/'/g, "\\'")}', ${net.open})">
+      <span class="wifi-net-name">${net.ssid}${net.open ? ' 🔓' : ' 🔒'}</span>
+      <span class="wifi-net-info">${net.rssi}dBm ${wifiSignalBars(net.rssi)}</span>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+function wifiSelectNetwork(ssid, isOpen) {
+  document.getElementById('wifi-scan-list').style.display = 'none';
+  const manual = document.getElementById('wifi-manual');
+  manual.style.display = 'block';
+  document.getElementById('wifi-ssid-input').value = ssid;
+  if (isOpen) {
+    document.getElementById('wifi-pass-input').style.display = 'none';
+  } else {
+    document.getElementById('wifi-pass-input').style.display = 'block';
+    document.getElementById('wifi-pass-input').focus();
+  }
+}
+
+async function wifiConnect() {
+  const ssid = document.getElementById('wifi-ssid-input').value.trim();
+  if (!ssid) return;
+  const pass = document.getElementById('wifi-pass-input').value;
+  const manual = document.getElementById('wifi-manual');
+  manual.innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted)"><span class="spinner"></span> Connecting to ' + ssid + '...</div>';
+  const url = '/api/wifi/connect?ssid=' + encodeURIComponent(ssid) + '&pass=' + encodeURIComponent(pass);
+  const data = await api(url, { timeout: 15000 });
+  if (data && data.ok) {
+    manual.innerHTML = '<div style="text-align:center;padding:12px;color:var(--emerald);font-weight:700">✓ Connected! IP: ' + data.ip + '</div>';
+    updateWifiUI(true, ssid, data.ip, 0);
+  } else {
+    manual.innerHTML = '<div style="text-align:center;padding:12px;color:var(--rose);font-weight:700">✗ Failed to connect</div>';
+    setTimeout(() => {
+      manual.style.display = 'none';
+      manual.innerHTML = `<input type="text" id="wifi-ssid-input" placeholder="Network name (SSID)" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;margin-bottom:6px">
+        <input type="password" id="wifi-pass-input" placeholder="Password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;margin-bottom:8px">
+        <button class="push-btn" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="wifiConnect()">🔗 Connect</button>`;
+    }, 3000);
+  }
+}
+
+async function wifiDisconnect() {
+  await api('/api/wifi/disconnect');
+  updateWifiUI(false, '', '', 0);
+  // Reset form
+  const manual = document.getElementById('wifi-manual');
+  manual.style.display = 'none';
+  manual.innerHTML = `<input type="text" id="wifi-ssid-input" placeholder="Network name (SSID)" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;margin-bottom:6px">
+    <input type="password" id="wifi-pass-input" placeholder="Password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;margin-bottom:8px">
+    <button class="push-btn" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="wifiConnect()">🔗 Connect</button>`;
+  document.getElementById('wifi-scan-list').style.display = 'none';
+}
+
+function updateWifiUI(connected, ssid, ip, rssi) {
+  document.getElementById('wifi-status-text').textContent = connected ? 'Connected' : 'Disconnected';
+  document.getElementById('wifi-status-text').style.color = connected ? 'var(--emerald)' : 'var(--dim)';
+  document.getElementById('wifi-ssid-row').style.display = connected ? 'flex' : 'none';
+  document.getElementById('wifi-ssid-text').textContent = ssid;
+  document.getElementById('wifi-rssi-row').style.display = connected ? 'flex' : 'none';
+  document.getElementById('wifi-rssi-text').textContent = rssi + ' dBm';
+  document.getElementById('wifi-disconnect-wrap').style.display = connected ? 'block' : 'none';
+  document.getElementById('wifi-connect-form').style.display = connected ? 'none' : 'block';
+  document.getElementById('d-sta-ip').textContent = connected ? ip : 'Not connected';
+}
+
+// ── Storage / Upload ─────────────────────────────────
+async function sdRefresh() {
+  if(!ADMIN) return; // SD file browsing is admin-only
+  try {
+    const d = await api('/api/storage');
+    if(!d) return; // timeout/error guard
+    document.getElementById('sd-status').textContent = d.sdMounted ? 'Mounted' : 'Not detected';
+    document.getElementById('sd-status').style.color = d.sdMounted ? 'var(--emerald)' : 'var(--rose)';
+    document.getElementById('sd-used').textContent = d.usedMB + ' / ' + d.totalMB + ' MB';
+    document.getElementById('sd-free').textContent = d.freeMB + ' MB';
+    // File list
+    const list = document.getElementById('sd-file-list');
+    if (d.files && d.files.length > 0) {
+      list.innerHTML = d.files.map(f =>
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--card2);border-radius:8px;margin-bottom:4px">' +
+        '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + f.name + '</div>' +
+        '<div style="font-size:11px;color:var(--dim)">' + (f.size/1024).toFixed(0) + ' KB</div></div>' +
+        '<div style="display:flex;gap:6px">' +
+        '<button onclick="sdPlay(\'' + f.path + '\')" style="background:var(--indigo);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">▶</button>' +
+        '</div></div>'
+      ).join('');
+    } else {
+      list.innerHTML = '<div style="text-align:center;color:var(--dim);font-size:12px;padding:8px">No files on SD</div>';
+    }
+  } catch(e) { console.error('sdRefresh', e); }
+}
+
+async function sdUploadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // Validate file type
+  if (!file.name.toLowerCase().endsWith('.wav')) {
+    alert('DPA devices only support WAV files.\n\nPlease convert your audio to .wav format first.');
+    input.value = '';
+    return;
+  }
+
+  const status = document.getElementById('sd-upload-status');
+  const barWrap = document.getElementById('sd-upload-bar-wrap');
+  const bar = document.getElementById('sd-upload-bar');
+  const path = '/tracks/' + file.name;
+  const sizeMB = (file.size / 1048576).toFixed(1);
+  status.textContent = 'Uploading ' + file.name + ' (' + sizeMB + ' MB)...';
+  status.style.color = 'var(--muted)';
+  barWrap.style.display = 'block';
+  bar.style.width = '0%';
+
+  try {
+    // Use XMLHttpRequest for real upload progress
+    const result = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', API+'/api/sd/upload-raw?path='+encodeURIComponent(path));
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          bar.style.width = pct + '%';
+          status.textContent = 'Uploading ' + file.name + ' — ' + pct + '%';
+        }
+      };
+      xhr.onload = () => {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch(e) { resolve({ok: xhr.status === 200}); }
+      };
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.ontimeout = () => reject(new Error('Timeout'));
+      xhr.timeout = 300000; // 5 min for large files
+      xhr.send(file);
+    });
+
+    bar.style.width = '100%';
+    if (result.ok) {
+      status.textContent = '✓ ' + file.name + ' (' + sizeMB + ' MB)';
+      status.style.color = 'var(--emerald)';
+      // Refresh both SD file list AND track lists across all tabs
+      sdRefresh();
+      loadRealWavs();
+    } else {
+      status.textContent = '✕ Upload failed';
+      status.style.color = 'var(--rose)';
+    }
+  } catch(e) {
+    status.textContent = '✕ ' + e.message;
+    status.style.color = 'var(--rose)';
+  }
+  input.value = '';
+  setTimeout(() => { barWrap.style.display = 'none'; bar.style.width = '0'; }, 4000);
+}
+
+async function sdPlay(path) {
+  try { await api('/api/audio/play?file='+encodeURIComponent(path)); } catch(e) {}
+}
+
+async function sdDelete(path) {
+  if (!confirm('Delete ' + path + '?')) return;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    await fetch(API+'/api/sd/delete?path='+encodeURIComponent(path), {method:'DELETE', signal:controller.signal});
+    clearTimeout(timeout);
+    sdRefresh();
+    loadRealWavs();
+  } catch(e) {}
+}
+
+// ── Admin Mode ────────────────────────────────────────
+async function adminLock(){
+  await api('/api/admin/lock');
+  ADMIN = false;
+  document.body.classList.remove('admin-mode');
+}
+async function adminUnlock(){
+  // Prompt for DUID as unlock key
+  const key = prompt('Enter device DUID to unlock admin mode:');
+  if(!key) return;
+  const d = await api('/api/admin/unlock?key='+encodeURIComponent(key));
+  if(d && d.ok){
+    ADMIN = true;
+    document.body.classList.add('admin-mode');
+  } else {
+    alert('Invalid key');
+  }
+}
+
+// ── Connection Monitor ────────────────────────────────
+let _failCount = 0;
+function updateConnDot(ok){
+  const dot = document.querySelector('.hdr-dot');
+  const lbl = dot ? dot.nextElementSibling : null;
+  if(ok){
+    _failCount = 0;
+    if(dot){dot.style.background='var(--emerald)'}
+    if(lbl){lbl.textContent='WiFi';lbl.style.color='var(--emerald)'}
+  } else {
+    _failCount++;
+    if(dot){dot.style.background='var(--rose)';dot.style.animation='none'}
+    if(lbl){lbl.textContent='Reconnecting...';lbl.style.color='var(--rose)'}
+  }
+}
+
+// ── Init ─────────────────────────────────────────────
+async function init(){
+  renderEQ();
+  renderPlaylistMode();
+  await refresh();
+  await loadRealWavs();
+  await loadCapsules();
+  sdRefresh();
+  updateNowPlayingBar();
+  setInterval(async()=>{
+    const ok = await refresh();
+    updateConnDot(!!ok);
+    if(!DETAIL_OPEN){renderAll();updateNowPlayingBar()}
+  },3000);
+  // Refresh SD info every 15s (not as frequent — heavier call)
+  setInterval(sdRefresh, 15000);
+}
+init();
+</script>
+</body>
+</html>
