@@ -71,6 +71,10 @@ static bool   g_meshInited   = false;
 // Broadcast address (all 0xFF = ESP-NOW broadcast)
 static uint8_t g_broadcastAddr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
+// Deferred play commands (set in WiFi callback, processed in loop)
+static volatile uint8_t g_meshPendingCmd   = 0;   // 0 = none
+static volatile int     g_meshPendingTrack = -1;
+
 // Timing
 static uint32_t g_lastBeaconMs    = 0;
 static uint32_t g_lastAudioFeatMs = 0;
@@ -312,20 +316,10 @@ static void meshOnRecv(const uint8_t* mac, const uint8_t* data, int len) {
 
       Serial.printf("[MESH] Play sync from %s: cmd=0x%02X track=%d\n", srcDuid, cmd, trackIdx);
 
-      if (cmd == 0x01 && trackIdx >= 0 && trackIdx < g_wavCount) {
-        playTrackByIndex(trackIdx);
-      } else if (cmd == 0x02) {
-        extern void audioStop();
-        extern bool g_audioPlaying;
-        if (g_audioPlaying) {
-          g_playing = false;
-          audioStop();
-        }
-      } else if (cmd == 0x03 || cmd == 0x04) {
-        if (trackIdx >= 0 && trackIdx < g_wavCount) {
-          playTrackByIndex(trackIdx);
-        }
-      }
+      // IMPORTANT: Don't call playTrackByIndex/audioStop from WiFi callback context.
+      // Defer to main loop via pending command.
+      g_meshPendingCmd = cmd;
+      g_meshPendingTrack = trackIdx;
       break;
     }
 
@@ -454,6 +448,27 @@ void espnowDisable() {
 // ── Tick (call from main loop) ────────────────────────────
 void espnowTick() {
   if (!g_meshEnabled || !g_meshInited) return;
+
+  // Process deferred play commands from ESP-NOW callback (safe: runs in loop on core 0)
+  uint8_t cmd = g_meshPendingCmd;
+  if (cmd != 0) {
+    int track = g_meshPendingTrack;
+    g_meshPendingCmd = 0;
+    g_meshPendingTrack = -1;
+
+    if (cmd == 0x01 && track >= 0 && track < g_wavCount) {
+      playTrackByIndex(track);
+    } else if (cmd == 0x02) {
+      extern void audioStop();
+      extern bool g_audioPlaying;
+      if (g_audioPlaying) {
+        g_playing = false;
+        audioStop();
+      }
+    } else if ((cmd == 0x03 || cmd == 0x04) && track >= 0 && track < g_wavCount) {
+      playTrackByIndex(track);
+    }
+  }
 
   uint32_t now = millis();
 

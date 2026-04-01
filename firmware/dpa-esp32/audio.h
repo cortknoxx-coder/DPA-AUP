@@ -752,7 +752,7 @@ static void audioToneTick() {
   }
 
   size_t bytesWritten = 0;
-  i2s_channel_write(g_i2sTxHandle, buf, samples * 4, &bytesWritten, portMAX_DELAY);
+  i2s_channel_write(g_i2sTxHandle, buf, samples * 4, &bytesWritten, pdMS_TO_TICKS(100));
   g_toneSamplesLeft -= samples;
   g_wavBytesRead += bytesWritten;
 }

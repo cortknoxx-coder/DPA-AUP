@@ -46,6 +46,7 @@ struct TrackStats {
 
 static TrackStats g_trackStats[32] = {};
 static const char* ANALYTICS_PATH = "/data/analytics.bin";
+static bool g_analyticsDirty = false;  // deferred save flag
 
 // ── Playlist State ──────────────────────────────────────────
 static int g_playlistOrder[32] = {};  // indices into g_wavPaths
@@ -81,16 +82,31 @@ void analyticsInit() {
 }
 
 // ── Save Analytics to SD ────────────────────────────────────
+// Uses .part temp file strategy to prevent corruption on power loss
 void analyticsSave() {
   if (!SD.exists("/data")) SD.mkdir("/data");
-  // Remove old file first (SD FAT quirk)
-  if (SD.exists(ANALYTICS_PATH)) SD.remove(ANALYTICS_PATH);
-  File f = SD.open(ANALYTICS_PATH, FILE_WRITE);
+  const char* partPath = "/data/analytics.bin.part";
+  if (SD.exists(partPath)) SD.remove(partPath);
+  File f = SD.open(partPath, FILE_WRITE);
   if (!f) { Serial.println("[INTEL] Failed to save analytics"); return; }
   int count = g_wavCount > 32 ? 32 : g_wavCount;
   f.write((uint8_t*)g_trackStats, count * sizeof(TrackStats));
   f.close();
+  // Atomic rename
+  if (SD.exists(ANALYTICS_PATH)) SD.remove(ANALYTICS_PATH);
+  SD.rename(partPath, ANALYTICS_PATH);
+  g_analyticsDirty = false;
   Serial.printf("[INTEL] Saved analytics for %d tracks\n", count);
+}
+
+// Mark dirty — actual save deferred until playback stops
+void analyticsDeferSave() {
+  g_analyticsDirty = true;
+}
+
+// Call from loop when not playing to flush pending saves
+void analyticsFlushIfDirty() {
+  if (g_analyticsDirty) analyticsSave();
 }
 
 // ── Auto-derive rating from behavior ────────────────────────
@@ -150,8 +166,8 @@ void analyticsOnPlay(int idx, uint32_t durationMs) {
   g_recentRing[g_recentIdx] = idx;
   g_recentIdx = (g_recentIdx + 1) % 8;
 
-  // Auto-save every play event
-  analyticsSave();
+  // Defer save — will flush when playback stops (avoid SPI contention)
+  analyticsDeferSave();
 }
 
 // Called when playback naturally completes (track reached end)
@@ -162,7 +178,7 @@ void analyticsOnComplete(int idx) {
   g_trackStats[idx].totalListenMs += listened;
   g_trackStats[idx].rating = computeRating(idx);
   g_currentPlayIdx = -1;
-  analyticsSave();
+  analyticsDeferSave();
 }
 
 // Called when user explicitly stops playback
@@ -177,7 +193,7 @@ void analyticsOnStop(int idx) {
   }
   g_trackStats[idx].rating = computeRating(idx);
   g_currentPlayIdx = -1;
-  analyticsSave();
+  analyticsDeferSave();
 }
 
 // ── Smart Playlist Scoring ──────────────────────────────────

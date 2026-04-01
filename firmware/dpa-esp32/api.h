@@ -97,8 +97,7 @@ String escJson(const String& s) {
 }
 
 
-// ── Favorites + Real WAV Helpers ────────────────────────────
-static const char* FAVORITES_PATH = "/data/favorites.json";
+// ── Real WAV Helpers ─────────────────────────────────────────
 
 String audioGetCurrentOrFirstPlayablePath() {
   if (g_audioNowPlaying.length() > 0) return g_audioNowPlaying;
@@ -198,75 +197,6 @@ String audioGetRelativePlayablePath(int delta) {
   if (idx < 0) idx = 0;
   idx = (idx + delta + count) % count;
   return audioGetWavPathByIndex(idx);
-}
-
-String favoritesLoadJson() {
-  if (!g_sdMounted || !SD.exists(FAVORITES_PATH)) return "{\"favorites\":[]}";
-  File f = SD.open(FAVORITES_PATH, FILE_READ);
-  if (!f) return "{\"favorites\":[]}";
-  String body = f.readString();
-  f.close();
-  body.trim();
-  if (body.length() == 0) return "{\"favorites\":[]}";
-  return body;
-}
-
-bool favoritesSaveJson(const String& json) {
-  if (!g_sdMounted) return false;
-  if (!SD.exists("/data")) SD.mkdir("/data");
-  if (SD.exists(FAVORITES_PATH)) SD.remove(FAVORITES_PATH);
-  File f = SD.open(FAVORITES_PATH, FILE_WRITE);
-  if (!f) return false;
-  f.print(json);
-  f.close();
-  return true;
-}
-
-bool favoritesContains(const String& path) {
-  String json = favoritesLoadJson();
-  String needle = "\"" + path + "\"";
-  return json.indexOf(needle) >= 0;
-}
-
-int favoritesCount() {
-  String json = favoritesLoadJson();
-  int count = 0, pos = 0;
-  while (true) {
-    int q1 = json.indexOf('"', pos);
-    if (q1 < 0) break;
-    int q2 = json.indexOf('"', q1 + 1);
-    if (q2 < 0) break;
-    String token = json.substring(q1 + 1, q2);
-    if (token.startsWith("/")) count++;
-    pos = q2 + 1;
-  }
-  return count;
-}
-
-bool favoritesToggle(const String& path) {
-  String json = favoritesLoadJson();
-  String needle = "\"" + path + "\"";
-  bool exists = json.indexOf(needle) >= 0;
-
-  if (!exists) {
-    int arrEnd = json.lastIndexOf(']');
-    if (arrEnd < 0) json = "{\"favorites\":[]}", arrEnd = json.lastIndexOf(']');
-    if (json.indexOf("\"/") >= 0) {
-      json = json.substring(0, arrEnd) + "," + needle + json.substring(arrEnd);
-    } else {
-      json = json.substring(0, arrEnd) + needle + json.substring(arrEnd);
-    }
-    favoritesSaveJson(json);
-    return true;
-  }
-
-  json.replace("," + needle, "");
-  json.replace(needle + ",", "");
-  json.replace(needle, "");
-  json.replace("[,", "[");
-  json.replace(",]", "]");
-  favoritesSaveJson(json);
-  return false;
 }
 
 // ── Build Status JSON ────────────────────────────────────────

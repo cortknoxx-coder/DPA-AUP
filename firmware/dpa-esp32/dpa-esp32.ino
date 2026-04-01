@@ -265,7 +265,15 @@ void loadFavorites() {
   Serial.printf("[FAV] Loaded %d favorites\n", g_favCount);
 }
 
+static bool g_favsDirty = false;
+
 void saveFavorites() {
+  // Defer if audio is playing to avoid SPI bus contention with core 1
+  if (g_audioPlaying) {
+    g_favsDirty = true;
+    Serial.println("[FAV] Deferred save (audio playing)");
+    return;
+  }
   if (!SD.exists("/data")) SD.mkdir("/data");
   File f = SD.open("/data/favorites.txt", FILE_WRITE);
   if (!f) { Serial.println("[FAV] Failed to save"); return; }
@@ -273,7 +281,12 @@ void saveFavorites() {
     f.println(g_favorites[i]);
   }
   f.close();
+  g_favsDirty = false;
   Serial.printf("[FAV] Saved %d favorites\n", g_favCount);
+}
+
+void favoritesFlushIfDirty() {
+  if (g_favsDirty) saveFavorites();
 }
 
 bool isFavorite(const String& path) {
@@ -633,6 +646,12 @@ void loop() {
       ledSetMode(LED_IDLE);
       Serial.println("[STOP] Playback stopped by user");
     }
+  }
+
+  // Flush deferred saves when not playing (safe: no SPI contention)
+  if (!g_audioPlaying) {
+    analyticsFlushIfDirty();
+    favoritesFlushIfDirty();
   }
 
   // Run WiFi scan if requested by API — skip during playback (blocks SPI)
