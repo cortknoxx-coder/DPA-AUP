@@ -62,6 +62,7 @@ export class DeviceConnectionService {
   // --- BLE Connection ---
 
   async connectViaBle(): Promise<boolean> {
+    this.connectionError.set('');
     if (!this.ble.isSupported) {
       this.connectionError.set('Web Bluetooth is not supported in this browser. Use Chrome, Edge, or Opera.');
       return false;
@@ -69,6 +70,7 @@ export class DeviceConnectionService {
 
     const success = await this.ble.connect();
     if (success) {
+      this.connectionError.set('');
       this.connectionStatus.set('bluetooth');
       this.isSimulated.set(false);
 
@@ -80,14 +82,17 @@ export class DeviceConnectionService {
       }
       return true;
     }
+    this.connectionError.set('Bluetooth connection failed. Keep the device nearby and try again.');
     return false;
   }
 
   // --- WiFi Connection ---
 
   async connectViaWifi(ip?: string): Promise<boolean> {
+    this.connectionError.set('');
     const success = ip ? await this.wifi.probe(ip) : await this.wifi.autoConnect();
     if (success) {
+      this.connectionError.set('');
       this.connectionStatus.set('wifi');
       this.isSimulated.set(false);
 
@@ -105,6 +110,7 @@ export class DeviceConnectionService {
       }
       return true;
     }
+    this.connectionError.set('Could not reach DPA over WiFi. Confirm you are on the DPA-Portal network and retry.');
     return false;
   }
 
@@ -161,6 +167,7 @@ export class DeviceConnectionService {
     if (this.nfc.isScanning()) this.nfc.stopScan();
 
     this.connectionStatus.set('disconnected');
+    this.connectionError.set('');
     this.isSimulated.set(false);
     this.deviceInfo.set(null);
     this.deviceLibrary.set(null);

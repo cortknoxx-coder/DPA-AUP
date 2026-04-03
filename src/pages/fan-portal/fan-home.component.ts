@@ -57,4 +57,8 @@ export class FanHomeComponent {
   logout() {
     this.router.navigate(['/login']);
   }
+
+  openConnectionOptions() {
+    this.router.navigate(['/fan/auth']);
+  }
 }

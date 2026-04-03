@@ -28,10 +28,10 @@
             <div class="flex-1 text-center md:text-left">
               @if (connectionService.connectionStatus() === 'disconnected') {
                 <h2 class="text-xl font-bold text-white">Connect Your DPA™</h2>
-                <p class="text-slate-400 text-sm mt-2 max-w-md">Connect your device via USB-C to launch the Desktop Bridge, or use the simulator for a demo.</p>
+                <p class="text-slate-400 text-sm mt-2 max-w-md">Choose WiFi Direct, USB-C Bridge, or Bluetooth from connection options.</p>
                 <div class="mt-6 flex flex-wrap gap-4 justify-center md:justify-start">
-                   <button (click)="connectionService.connectToBridge()" class="px-5 py-2.5 bg-white text-black font-semibold rounded-full text-sm hover:bg-slate-200 transition-colors shadow-lg shadow-white/10">
-                     Connect to Bridge
+                   <button (click)="openConnectionOptions()" class="px-5 py-2.5 bg-white text-black font-semibold rounded-full text-sm hover:bg-slate-200 transition-colors shadow-lg shadow-white/10">
+                     Open Connection Options
                    </button>
                    <button (click)="connectionService.toggleSimulator()" class="px-5 py-2.5 bg-slate-800 text-slate-300 font-semibold rounded-full text-sm hover:bg-slate-700 transition-colors border border-slate-700">
                      Use Simulator
