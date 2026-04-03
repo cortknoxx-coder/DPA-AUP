@@ -216,7 +216,7 @@ export class TrackListComponent {
     }, 2000);
   }
 
-  private canTransferToDevice(): boolean {
+  canTransferToDevice(): boolean {
     return this.connectionService.connectionStatus() === 'wifi'
       && !!this.connectionService.deviceInfo()?.serial
       && this.connectionService.deviceInfo()?.serial !== 'DPA-SIM-1234';
