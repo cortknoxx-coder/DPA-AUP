@@ -87,4 +87,8 @@ export class FanSettingsComponent {
   setDefaultPaymentMethod(id: string) {
     this.userService.setDefaultPaymentMethod(id);
   }
+
+  saveNotifications() {
+    alert('Notification settings saved!');
+  }
 }
