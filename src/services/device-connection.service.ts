@@ -5,7 +5,7 @@ import { DeviceBleService } from './device-ble.service';
 import { DeviceWifiService } from './device-wifi.service';
 import { DeviceNfcService } from './device-nfc.service';
 import { ApiService } from './api.service';
-import { DpaDeviceInfo, LibraryIndex, Album, Track } from '../types';
+import { DpaDeviceInfo, LibraryIndex, Album, Track, FirmwareStatus } from '../types';
 import { DataService } from './data.service';
 
 export type ConnectionStatus = 'disconnected' | 'usb' | 'bluetooth' | 'wifi';
@@ -75,7 +75,7 @@ export class DeviceConnectionService {
       if (info) {
         this.deviceInfo.set(info);
         this.registrationStatus.set('registered');
-        this.populateMockLibrary();
+        await this.refreshWifiLibrary();
       }
       return true;
     }
@@ -210,6 +210,32 @@ export class DeviceConnectionService {
         codec: 'audio/wav',
       })),
     });
+    await this.syncWifiStatusIntoLibrary();
+  }
+
+  private async syncWifiStatusIntoLibrary() {
+    try {
+      const status: FirmwareStatus = await this.wifi.getStatus();
+      const current = this.deviceLibrary();
+      if (!current || !status?.player?.trackId) return;
+
+      const normalizedPath = status.player.trackId.trim();
+      const normalizedTitle = status.player.trackTitle?.trim();
+
+      this.deviceLibrary.set({
+        ...current,
+        tracks: current.tracks.map((t) => {
+          const samePath = t.id === normalizedPath;
+          const sameTitle = normalizedTitle && t.title === normalizedTitle;
+          if (samePath || sameTitle) {
+            return { ...t, id: normalizedPath || t.id };
+          }
+          return t;
+        }),
+      });
+    } catch {
+      // best effort only
+    }
   }
 
   async registerDevice(deviceId: string): Promise<boolean> {

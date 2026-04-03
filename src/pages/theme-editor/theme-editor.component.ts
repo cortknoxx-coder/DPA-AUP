@@ -29,6 +29,8 @@ export class ThemeEditorComponent {
   previewMode = signal<'idle' | 'playback' | 'charging'>('idle');
   notificationPreviewActive = signal<DcnpEventType | null>(null);
   glowOverride = signal<{ cssClass: string; color: string; customDuration?: string } | null>(null);
+  pushStatus = signal<'idle' | 'pushing' | 'ok' | 'error'>('idle');
+  isPushingTheme = computed(() => this.pushStatus() === 'pushing');
 
   readonly dcnpTypes: DcnpEventType[] = ['concert', 'video', 'merch', 'signing', 'remix', 'other'];
 
@@ -118,11 +120,32 @@ export class ThemeEditorComponent {
     );
   }
 
-  save() {
+  async save() {
     const a = this.album();
     if (a && this.form.valid) {
       const theme = this.form.value as Theme;
       this.dataService.updateAlbumTheme(a.albumId, theme);
+      if (this.connectionService.connectionStatus() === 'wifi') {
+        this.pushStatus.set('pushing');
+        const ok = await this.connectionService.wifi.pushTheme(theme);
+        this.pushStatus.set(ok ? 'ok' : 'error');
+      } else {
+        this.pushStatus.set('idle');
+      }
     }
+  }
+
+  async pushThemeToDevice() {
+    const a = this.album();
+    if (!a || !this.form.valid) return;
+    if (this.connectionService.connectionStatus() !== 'wifi') {
+      this.pushStatus.set('error');
+      return;
+    }
+
+    const theme = this.form.value as Theme;
+    this.pushStatus.set('pushing');
+    const ok = await this.connectionService.wifi.pushTheme(theme);
+    this.pushStatus.set(ok ? 'ok' : 'error');
   }
 }

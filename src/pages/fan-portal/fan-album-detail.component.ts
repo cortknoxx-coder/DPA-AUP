@@ -18,6 +18,7 @@ export class FanAlbumDetailComponent {
   private dataService = inject(DataService);
   private bridge = inject(DeviceBridgeService);
   private connectionService = inject(DeviceConnectionService);
+  private wifi = this.connectionService.wifi;
   playerService = inject(PlayerService);
 
   @Input() id!: string;
@@ -34,6 +35,7 @@ export class FanAlbumDetailComponent {
 
   /** Set of trackIds the fan has hearted */
   favorites = signal<Set<string>>(new Set());
+  private firmwarePathByTrackId = signal<Record<string, string>>({});
 
   constructor() {
     // Seed play counts once the manifest loads
@@ -50,6 +52,11 @@ export class FanAlbumDetailComponent {
     effect(() => {
       this.loadManifest(this.id);
     }, { allowSignalWrites: true });
+    effect(() => {
+      if (this.connectionService.connectionStatus() === 'wifi') {
+        this.refreshFavoritesFromDevice();
+      }
+    }, { allowSignalWrites: true });
   }
 
   async loadManifest(albumId: string) {
@@ -59,6 +66,8 @@ export class FanAlbumDetailComponent {
 
       if (this.connectionService.isSimulationMode()) {
         manifestData = this.createMockManifest(albumId);
+      } else if (this.connectionService.connectionStatus() === 'wifi') {
+        manifestData = await this.createFirmwareManifest(albumId);
       } else {
         manifestData = await this.bridge.getManifest(albumId);
       }
@@ -109,6 +118,42 @@ export class FanAlbumDetailComponent {
     };
   }
 
+  private async createFirmwareManifest(albumId: string): Promise<Manifest> {
+    const tracks = await this.wifi.getDeviceTracks();
+    const album = this.albumMetadata();
+    const trackRefs = tracks.map((t, i) => ({
+      trackId: `fw-${t.index}`,
+      blobId: t.filename,
+      codec: 'audio/wav',
+      title: t.title,
+      trackNo: i + 1,
+      durationSec: Math.max(1, Math.round(t.durationMs / 1000)),
+    }));
+    this.firmwarePathByTrackId.set(
+      trackRefs.reduce((acc, t) => {
+        acc[t.trackId] = t.blobId;
+        return acc;
+      }, {} as Record<string, string>)
+    );
+    return {
+      version: 1,
+      albumId: album?.albumId || albumId,
+      policyHash: 'sha256:firmware-live',
+      blobs: trackRefs.map(t => ({
+        blobId: t.blobId,
+        sha256: '',
+        size: 0,
+        mime: 'audio/wav',
+        kind: 'audio' as const
+      })),
+      tracks: trackRefs,
+      signatures: {
+        manifestSigEd25519B64: '',
+        publisherPubkeyEd25519B64: '',
+      },
+    };
+  }
+
   totalDuration = computed(() => {
     const tracks = this.manifest()?.tracks || [];
     return tracks.reduce((acc, t) => acc + t.durationSec, 0);
@@ -127,6 +172,19 @@ export class FanAlbumDetailComponent {
       coverUrl: `https://picsum.photos/seed/${m.albumId}/300/300`,
       blobId: track.blobId
     };
+    const conn = this.connectionService.connectionStatus();
+    if (conn === 'wifi') {
+      const path = this.firmwarePathByTrackId()[track.trackId] || track.blobId;
+      this.wifi.playFile(path).then(ok => {
+        if (ok) {
+          this.playerService.currentTrack.set(playerTrack);
+          this.playerService.isPlaying.set(true);
+          this.playerService.currentTime.set(0);
+          this.playerService.progress.set(0);
+        }
+      });
+      return;
+    }
     this.playerService.play(playerTrack);
   }
 
@@ -153,14 +211,15 @@ export class FanAlbumDetailComponent {
   /** Toggle heart/favorite for a track */
   toggleFavorite(trackId: string, event: Event) {
     event.stopPropagation();
-    const current = new Set(this.favorites());
-    if (current.has(trackId)) {
-      current.delete(trackId);
-      console.log(`[DPA] Unfavorited track ${trackId}`);
-    } else {
-      current.add(trackId);
-      console.log(`[DPA] Favorited track ${trackId} — sending feedback to creator portal`);
+    const path = this.firmwarePathByTrackId()[trackId];
+    if (this.connectionService.connectionStatus() === 'wifi' && path) {
+      const want = !this.favorites().has(trackId);
+      this.wifi.setFavorite(path, want).then(() => this.refreshFavoritesFromDevice());
+      return;
     }
+    const current = new Set(this.favorites());
+    if (current.has(trackId)) current.delete(trackId);
+    else current.add(trackId);
     this.favorites.set(current);
   }
 
@@ -172,5 +231,15 @@ export class FanAlbumDetailComponent {
     const max = Math.max(...values);
     if (max === 0) return 0;
     return Math.round(((counts[trackId] ?? 0) / max) * 100);
+  }
+
+  private async refreshFavoritesFromDevice() {
+    const paths = await this.wifi.getFavorites();
+    const reverse = this.firmwarePathByTrackId();
+    const next = new Set<string>();
+    for (const [trackId, path] of Object.entries(reverse)) {
+      if (paths.includes(path)) next.add(trackId);
+    }
+    this.favorites.set(next);
   }
 }

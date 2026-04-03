@@ -120,6 +120,16 @@ export class DeviceWifiService {
     }
   }
 
+  async playFile(path: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/audio/play?file=${encodeURIComponent(path)}`);
+      const result = await response.json();
+      return result.ok === true;
+    } catch {
+      return false;
+    }
+  }
+
   async getMeshPeers(): Promise<any> {
     // Mesh endpoint not implemented in current firmware build.
     return { active: false, peers: 0, peerList: [] };
@@ -206,6 +216,38 @@ export class DeviceWifiService {
         } as DeviceTrack;
       });
     } catch { return []; }
+  }
+
+  async getCapsules(): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/capsules`);
+      const data = await response.json();
+      return data.capsules ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  async getFavorites(): Promise<string[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/favorites`);
+      const data = await response.json();
+      return data.favorites ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  async setFavorite(path: string, state: boolean): Promise<boolean> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/api/favorites/set?file=${encodeURIComponent(path)}&state=${state ? 'true' : 'false'}`
+      );
+      const data = await response.json();
+      return data.ok === true;
+    } catch {
+      return false;
+    }
   }
 
   // --- .dpa File Upload ---

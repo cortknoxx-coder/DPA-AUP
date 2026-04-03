@@ -357,7 +357,13 @@
       </div>
     </section>
 
-    <div class="flex justify-end pt-4">
+    <div class="flex justify-end pt-4 gap-2">
+      <button type="button"
+              (click)="pushThemeToDevice()"
+              [disabled]="pushStatus() === 'pushing'"
+              class="rounded border border-indigo-600 px-6 py-2 text-sm font-semibold text-indigo-300 hover:bg-indigo-900/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        @if (pushStatus() === 'pushing') { Pushing... } @else { Push Theme to Device }
+      </button>
       <button type="submit" class="rounded bg-teal-600 px-6 py-2 text-sm font-semibold text-white hover:bg-teal-500 shadow-lg shadow-teal-900/20 transition-all">
         Save Theme & Queue Rebuild
       </button>
