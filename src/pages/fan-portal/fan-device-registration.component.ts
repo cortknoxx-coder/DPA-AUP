@@ -5,7 +5,7 @@ import { FormsModule, FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { UserService } from '../../services/user.service';
 import { DevicePreviewComponent } from '../../components/device-preview/device-preview.component';
-import { Theme, LedPattern } from '../../types';
+import { Theme, LedPattern, DeviceTrack } from '../../types';
 
 type ViewState = 'dashboard' | 'unregister-auth' | 'unregister-confirm';
 
@@ -41,6 +41,7 @@ export class FanDeviceRegistrationComponent {
   isPushingTheme = signal(false);
   pushStatus = signal<'idle' | 'pushing' | 'ok' | 'error'>('idle');
   pushMessage = signal<string>('');
+  deviceTracks = signal<DeviceTrack[]>([]);
   realTimeMode = signal(false);
   brightness = signal(80);
 
@@ -94,6 +95,14 @@ export class FanDeviceRegistrationComponent {
         dcnpSub.unsubscribe();
       };
     });
+
+    effect(() => {
+      if (this.deviceService.connectionStatus() === 'wifi') {
+        this.refreshDeviceTracks();
+      } else {
+        this.deviceTracks.set([]);
+      }
+    }, { allowSignalWrites: true });
   }
 
   setLedPreviewMode(mode: 'idle' | 'playback' | 'charging') {
@@ -238,5 +247,10 @@ export class FanDeviceRegistrationComponent {
     if (confirm(confirmMsg)) {
       this.deviceService.reportLost();
     }
+  }
+
+  private async refreshDeviceTracks() {
+    const tracks = await this.deviceService.wifi.getDeviceTracks();
+    this.deviceTracks.set(tracks);
   }
 }

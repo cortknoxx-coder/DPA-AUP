@@ -52,6 +52,10 @@ export class FanLayoutComponent {
     this.router.navigate(['/login']);
   }
 
+  openConnectionOptions() {
+    this.router.navigate(['/fan/auth']);
+  }
+
   formatTime(sec: number): string {
     const m = Math.floor(sec / 60);
     const s = sec % 60;

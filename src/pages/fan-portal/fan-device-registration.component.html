@@ -57,6 +57,30 @@
            }
          </div>
       </div>
+
+      @if (deviceService.connectionStatus() === 'wifi') {
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl mt-6">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Device Storage Tracks</h3>
+            <span class="text-xs font-mono text-teal-400">{{ deviceTracks().length }} file(s)</span>
+          </div>
+          @if (deviceTracks().length > 0) {
+            <div class="max-h-56 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40">
+              @for (t of deviceTracks(); track t.filename) {
+                <div class="px-3 py-2 border-b border-slate-800/60 last:border-0 flex items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="text-sm text-slate-200 truncate">{{ t.title }}</div>
+                    <div class="text-[11px] text-slate-500 font-mono truncate">{{ t.filename }}</div>
+                  </div>
+                  <div class="text-[11px] text-slate-400 font-mono shrink-0">{{ (t.durationMs / 1000).toFixed(1) }}s</div>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="text-xs text-slate-500">No valid WAV files detected from `/api/audio/wavs` yet.</div>
+          }
+        </div>
+      }
     }
 
     <!-- STATE: ANALYZING -->

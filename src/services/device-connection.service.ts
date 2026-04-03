@@ -63,7 +63,7 @@ export class DeviceConnectionService {
 
   async connectViaBle(): Promise<boolean> {
     if (!this.ble.isSupported) {
-      alert('Web Bluetooth is not supported in this browser. Use Chrome, Edge, or Opera.');
+      this.connectionError.set('Web Bluetooth is not supported in this browser. Use Chrome, Edge, or Opera.');
       return false;
     }
 
