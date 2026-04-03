@@ -1,21 +1,17 @@
 /*
  * DPA On-Device Intelligence — intelligence.h
- * Smart playlist engine + per-track analytics + DUID content binding
+ * Sequential playlist + per-track analytics + DUID content binding
  *
  * Analytics: per-track play/skip counts, total listen time, last played,
  *            favorite timestamp, auto-derived rating (0-5)
  *            Persisted to /data/analytics.bin on track transitions.
  *
- * Smart Playlist: score-based ordering with recency penalty.
- *   score = (playCount × 10) + (isFavorite ? 200 : 0) - (skipCount × 50) - recencyPenalty
- *   recencyPenalty = -500 if track is in last-8-played ring buffer
+ * Playlist modes: normal (sequential), repeat_one
  *
- * Modes: normal (sequential), smart (score-sorted), smart_shuffle (weighted random), repeat_one
- *
- * Content Protection: HMAC-SHA256(DUID + filename) stored as /data/auth/<hash>.key
+ * Content Protection: SHA-256(DUID + filename) stored as /data/auth/<hash>.key
  *   Uses ESP32-S3 hardware SHA256 via mbedtls. Offline-only, no cloud.
  *
- * RAM cost: ~652 bytes (32 tracks × 20 bytes + playlist order + ring buffer)
+ * RAM cost: ~640 bytes (32 tracks × 20 bytes)
  */
 
 #ifndef DPA_INTELLIGENCE_H
@@ -49,13 +45,7 @@ static const char* ANALYTICS_PATH = "/data/analytics.bin";
 static bool g_analyticsDirty = false;  // deferred save flag
 
 // ── Playlist State ──────────────────────────────────────────
-static int g_playlistOrder[32] = {};  // indices into g_wavPaths
-static int g_playlistLen = 0;
-static String g_playlistMode = "normal";  // normal, smart, smart_shuffle, repeat_one
-
-// Recency ring buffer (last 8 played indices)
-static int g_recentRing[8] = {-1,-1,-1,-1,-1,-1,-1,-1};
-static int g_recentIdx = 0;
+static String g_playlistMode = "normal";  // normal, repeat_one
 
 // Current playback tracking for skip detection
 static int g_currentPlayIdx = -1;
@@ -162,10 +152,6 @@ void analyticsOnPlay(int idx, uint32_t durationMs) {
   g_currentTrackDurationMs = durationMs;
   g_trackStats[idx].lastPlayedAt = millis();
 
-  // Add to recency ring
-  g_recentRing[g_recentIdx] = idx;
-  g_recentIdx = (g_recentIdx + 1) % 8;
-
   // Defer save — will flush when playback stops (avoid SPI contention)
   analyticsDeferSave();
 }
@@ -196,32 +182,7 @@ void analyticsOnStop(int idx) {
   analyticsDeferSave();
 }
 
-// ── Smart Playlist Scoring ──────────────────────────────────
-static int playlistScore(int idx) {
-  if (idx < 0 || idx >= 32) return 0;
-  const TrackStats& s = g_trackStats[idx];
-
-  int score = 0;
-  score += s.playCount * 10;
-  if (idx < g_wavCount && isFavorite(g_wavPaths[idx])) score += 200;
-  score -= s.skipCount * 50;
-
-  // Recency penalty: -500 if in last-8-played
-  for (int i = 0; i < 8; i++) {
-    if (g_recentRing[i] == idx) { score -= 500; break; }
-  }
-
-  return score;
-}
-
-// ── Build Playlist Order (sequential only) ──────────────────
-void playlistBuild() {
-  g_playlistLen = g_wavCount > 32 ? 32 : g_wavCount;
-  for (int i = 0; i < g_playlistLen; i++) g_playlistOrder[i] = i;
-  // Always sequential — smart/shuffle removed
-}
-
-// ── Get Next Track Index (simple sequential) ────────────────
+// ── Get Next/Prev Track Index ────────────────────────────────
 int playlistNextTrack(int currentIdx) {
   if (g_wavCount == 0) return 0;
   if (g_playlistMode == "repeat_one") return currentIdx;
@@ -282,17 +243,6 @@ String analyticsToJson() {
     j += ",\"listenMs\":" + String(g_trackStats[i].totalListenMs);
     j += ",\"rating\":" + String(g_trackStats[i].rating);
     j += "}";
-  }
-  j += "]}";
-  return j;
-}
-
-String playlistOrderToJson() {
-  if (g_playlistLen == 0) playlistBuild();
-  String j = "{\"mode\":\"" + g_playlistMode + "\",\"order\":[";
-  for (int i = 0; i < g_playlistLen; i++) {
-    if (i > 0) j += ",";
-    j += String(g_playlistOrder[i]);
   }
   j += "]}";
   return j;

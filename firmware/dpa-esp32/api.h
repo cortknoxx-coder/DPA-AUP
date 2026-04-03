@@ -90,8 +90,21 @@ static const int NUM_CAPSULES = 4;
 
 // ── JSON Helpers ─────────────────────────────────────────────
 String escJson(const String& s) {
-  String out = s;
-  out.replace("\"", "\\\"");
+  String out;
+  out.reserve(s.length() + 8);
+  for (unsigned int i = 0; i < s.length(); i++) {
+    char c = s[i];
+    switch (c) {
+      case '"':  out += "\\\""; break;
+      case '\\': out += "\\\\"; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      case '\t': out += "\\t"; break;
+      default:
+        if (c < 0x20) { char buf[7]; snprintf(buf, sizeof(buf), "\\u%04x", c); out += buf; }
+        else out += c;
+    }
+  }
   return out;
 }
 
@@ -222,7 +235,7 @@ String buildStatusJson() {
   favItems += "]";
 
   String j;
-  j.reserve(1400);
+  j.reserve(1800);
   j += "{\"name\":\"" + escJson(g_duid) + "\",\"ver\":\"" + g_fwVersion + "\",";
   j += "\"env\":\"dev\",\"duid\":\"" + g_duid + "\",";
   j += "\"admin\":" + String(g_adminMode ? "true" : "false") + ",";
@@ -526,12 +539,13 @@ void registerApiRoutes(AsyncWebServer& server) {
   server.on("/api/mode", HTTP_GET, [](AsyncWebServerRequest* req) {
     if (req->hasParam("mode")) {
       String mode = req->getParam("mode")->value();
-      g_playMode = mode;
-      g_playlistMode = mode;  // Keep playlist engine in sync
-      playlistBuild();
-      Serial.printf("[API] Mode -> %s\n", mode.c_str());
+      if (mode == "normal" || mode == "repeat_one") {
+        g_playMode = mode;
+        g_playlistMode = mode;
+        Serial.printf("[API] Mode -> %s\n", mode.c_str());
+      }
     }
-    req->send(200, "application/json", "{\"ok\":true}");
+    req->send(200, "application/json", "{\"ok\":true,\"mode\":\"" + g_playMode + "\"}");
   });
 
   // ── GET /api/audio/play?file=/path.wav ──────────────────────
@@ -561,11 +575,6 @@ void registerApiRoutes(AsyncWebServer& server) {
     for (int i = 0; i < g_wavCount; i++) {
       if (g_wavPaths[i] == path) { g_trackIndex = i; foundIdx = true; break; }
     }
-    Serial.printf("[API] Track index: %d (found=%s, total=%d)\n", g_trackIndex, foundIdx ? "yes" : "NO", g_wavCount);
-    for (int i = 0; i < g_wavCount; i++) {
-      Serial.printf("[API]   g_wavPaths[%d] = '%s' %s\n", i, g_wavPaths[i].c_str(), g_wavPaths[i] == path ? "<-- MATCH" : "");
-    }
-
     bool ok = audioPlayFile(path.c_str());
     if (ok) {
       g_playing = true;
@@ -595,25 +604,6 @@ void registerApiRoutes(AsyncWebServer& server) {
   // Per-track play/skip counts and ratings
   server.on("/api/analytics", HTTP_GET, [](AsyncWebServerRequest* req) {
     req->send(200, "application/json", analyticsToJson());
-  });
-
-  // ── GET /api/playlist/mode?mode=normal|repeat|repeat_one ─────
-  server.on("/api/playlist/mode", HTTP_GET, [](AsyncWebServerRequest* req) {
-    if (req->hasParam("mode")) {
-      String mode = req->getParam("mode")->value();
-      if (mode == "normal" || mode == "repeat" || mode == "repeat_one") {
-        g_playlistMode = mode;
-        g_playMode = mode;
-        Serial.printf("[INTEL] Playlist mode -> %s\n", mode.c_str());
-      }
-    }
-    req->send(200, "application/json", "{\"ok\":true,\"mode\":\"" + g_playlistMode + "\"}");
-  });
-
-  // ── GET /api/playlist/order ──────────────────────────────────
-  // Current track order based on playlist mode
-  server.on("/api/playlist/order", HTTP_GET, [](AsyncWebServerRequest* req) {
-    req->send(200, "application/json", playlistOrderToJson());
   });
 
   // ── GET /api/audio/test ─────────────────────────────────────

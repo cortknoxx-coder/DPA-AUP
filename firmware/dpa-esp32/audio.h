@@ -290,8 +290,9 @@ struct WavInfo {
 static uint8_t  g_audioInBuf[32768];
 static uint8_t  g_audioCarryBuf[16];
 static size_t   g_audioCarryLen = 0;
-// Output buffer: 32KB input of 24-bit stereo (5461 frames) → 5461×8 = 43688 bytes
-static int32_t  g_audioOutBuf[16384];
+// Output buffer: 32KB input of 24-bit stereo (5461 frames) → 5461×8 = ~44KB
+// Sized to 11264 entries (5632 stereo frames × 2 channels × 4 bytes = 45056 bytes)
+static int32_t  g_audioOutBuf[11264];
 
 // ── WAV Parser Helpers ──────────────────────────────────────
 static uint16_t audioRd16(File& f) {
@@ -314,13 +315,13 @@ static WavInfo audioParseWav(File& f) {
   f.seek(0);
 
   if (f.read((uint8_t*)id, 4) != 4) return info;
-  if (String(id) != "RIFF") return info;
+  if (memcmp(id, "RIFF", 4) != 0) return info;
 
   audioRd32(f); // file size
 
   memset(id, 0, sizeof(id));
   if (f.read((uint8_t*)id, 4) != 4) return info;
-  if (String(id) != "WAVE") return info;
+  if (memcmp(id, "WAVE", 4) != 0) return info;
 
   bool gotFmt = false;
   bool gotData = false;
@@ -329,9 +330,7 @@ static WavInfo audioParseWav(File& f) {
     memset(id, 0, sizeof(id));
     if (f.read((uint8_t*)id, 4) != 4) break;
     uint32_t chunkSize = audioRd32(f);
-    String chunk = String(id);
-
-    if (chunk == "fmt ") {
+    if (memcmp(id, "fmt ", 4) == 0) {
       info.audioFormat   = audioRd16(f);
       info.channels      = audioRd16(f);
       info.sampleRate    = audioRd32(f);
@@ -344,7 +343,7 @@ static WavInfo audioParseWav(File& f) {
       }
 
       if (info.audioFormat == 1) gotFmt = true;
-    } else if (chunk == "data") {
+    } else if (memcmp(id, "data", 4) == 0) {
       info.dataOffset = f.position();
       info.dataSize = chunkSize;
       f.seek(f.position() + chunkSize);
@@ -747,8 +746,9 @@ bool audioPlayFile(const char* path) {
 
   String* arg = new String(path);
   BaseType_t result = xTaskCreatePinnedToCore(
-    audioPlaybackTask, "audioPlay", 16384, arg, 5, &g_playbackTaskHandle, 1
-    // Priority 5 = above WiFi/default tasks, prevents stutter at 96kHz
+    audioPlaybackTask, "audioPlay", 20480, arg, 5, &g_playbackTaskHandle, 1
+    // 20KB stack (was 16KB) — headroom for 96kHz/24-bit + EQ + SD reads
+    // Priority 5 = above WiFi/default tasks, prevents stutter
   );
 
   if (result != pdPASS) {
@@ -798,8 +798,8 @@ bool audioPlayTestTone() {
   g_audioFile = "test_tone";
   g_wavSampleRate = 44100;
   g_wavChannels = 2;
-  g_wavBitsPerSample = 16;
-  g_wavDataSize = g_toneSamplesLeft * 4;
+  g_wavBitsPerSample = 32;
+  g_wavDataSize = g_toneSamplesLeft * 8;
   g_wavBytesRead = 0;
   Serial.println("[AUDIO] Playing test tone (440Hz, 3s)");
   return true;
@@ -818,21 +818,21 @@ static void audioToneTick() {
     return;
   }
 
-  int16_t buf[512];  // 256 stereo samples
+  int32_t buf[512];  // 256 stereo frames (32-bit per channel to match I2S config)
   int samples = min((uint32_t)256, g_toneSamplesLeft);
 
   static uint32_t phase = 0;
   for (int i = 0; i < samples; i++) {
     float t = (float)phase / 44100.0f;
-    int16_t val = (int16_t)(32000.0f * sinf(2.0f * 3.14159f * 440.0f * t));
-    val = (int16_t)((int32_t)val * constrain(g_volume, 0, 100) / 100);
+    int32_t val = (int32_t)(2000000000.0f * sinf(2.0f * PI * 440.0f * t));
+    val = (int32_t)(((int64_t)val * constrain(g_volume, 0, 100)) / 100);
     buf[i * 2]     = val;
     buf[i * 2 + 1] = val;
     phase++;
   }
 
   size_t bytesWritten = 0;
-  i2s_channel_write(g_i2sTxHandle, buf, samples * 4, &bytesWritten, pdMS_TO_TICKS(100));
+  i2s_channel_write(g_i2sTxHandle, buf, samples * 8, &bytesWritten, pdMS_TO_TICKS(100));
   g_toneSamplesLeft -= samples;
   g_wavBytesRead += bytesWritten;
 }

@@ -136,7 +136,7 @@ bool   g_battPresent = false; // true if voltage divider is wired
 // ── Battery ADC Reading ─────────────────────────────────────
 void batteryInit() {
   analogReadResolution(12);           // 0-4095
-  analogSetAttenuation(ADC_11db);     // Full 0-3.3V range (ADC_ATTEN_DB_11 on Core 3.x)
+  analogSetAttenuation(ADC_11db);     // Full 0-3.3V range
   pinMode(BATT_ADC_PIN, INPUT);
   if (BATT_CHG_PIN >= 0) {
     pinMode(BATT_CHG_PIN, INPUT_PULLUP);
@@ -532,9 +532,8 @@ void setup() {
     // Load favorites from SD
     loadFavorites();
 
-    // Init on-device intelligence (analytics + smart playlist)
+    // Init on-device intelligence (analytics)
     analyticsInit();
-    playlistBuild();
   } else {
     Serial.println("[BOOT] SD card not available (continuing without storage)");
   }
@@ -568,7 +567,7 @@ void setup() {
 
   // 7. Serve dashboard (gzipped HTML from PROGMEM)
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
-    AsyncWebServerResponse* response = req->beginResponse_P(
+    AsyncWebServerResponse* response = req->beginResponse(
       200, "text/html", DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN
     );
     response->addHeader("Content-Encoding", "gzip");
@@ -622,10 +621,10 @@ void setup() {
   server.begin();
   Serial.println("[HTTP] Server started on port 80");
 
-  // 12. Record boot time for uptime calculation
+  // 13. Record boot time for uptime calculation
   g_bootTime = millis();
 
-  // 13. Summary
+  // 14. Summary
   Serial.println();
   Serial.println("[BOOT] Ready! Firmware v" + g_fwVersion);
   Serial.println("[BOOT] AP dashboard: http://192.168.4.1");

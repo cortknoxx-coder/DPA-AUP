@@ -53,6 +53,8 @@ static uint32_t g_sdCurrentHz = 0;
 static bool g_sdSpiReady = false;
 
 // ── Internal Helpers ─────────────────────────────────────────
+static const int SD_MAX_FILE_SCAN = 200;
+
 static uint64_t dpaCountDirBytes(File dir, int& fileCount) {
   uint64_t total = 0;
 
@@ -60,12 +62,14 @@ static uint64_t dpaCountDirBytes(File dir, int& fileCount) {
 
   File entry = dir.openNextFile();
   while (entry) {
+    if (fileCount >= SD_MAX_FILE_SCAN) { entry.close(); break; }
     if (entry.isDirectory()) {
       total += dpaCountDirBytes(entry, fileCount);
     } else {
       total += entry.size();
       fileCount++;
     }
+    entry.close();
     entry = dir.openNextFile();
   }
 
@@ -265,23 +269,26 @@ static String sdListFilesJson(const char* dirPath) {
   String json = "[";
   bool first = true;
 
+  int count = 0;
   File entry = dir.openNextFile();
-  while (entry) {
+  while (entry && count < SD_MAX_FILE_SCAN) {
     if (!first) json += ",";
     first = false;
 
     String name = entry.name();
-    String fullPath = name;
 
     json += "{";
     json += "\"name\":\"" + dpaJsonEscape(name) + "\",";
-    json += "\"path\":\"" + dpaJsonEscape(fullPath) + "\",";
+    json += "\"path\":\"" + dpaJsonEscape(name) + "\",";
     json += "\"size\":" + String((unsigned long)entry.size()) + ",";
     json += "\"isDir\":" + String(entry.isDirectory() ? "true" : "false");
     json += "}";
 
+    entry.close();
+    count++;
     entry = dir.openNextFile();
   }
+  if (entry) entry.close();
 
   dir.close();
   return json;

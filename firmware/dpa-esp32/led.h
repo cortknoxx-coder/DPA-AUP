@@ -76,7 +76,7 @@ CRGB getCurrentColor() {
   }
 }
 
-String getCurrentPattern() {
+const String& getCurrentPattern() {
   if (g_ledMode == LED_NOTIFICATION && g_notifyPattern.length() > 0) {
     return g_notifyPattern;
   }
@@ -134,7 +134,7 @@ void ledTick() {
   // Reset stale static state when pattern or mode changes
   static String s_lastPattern = "";
   static LedMode s_lastMode = LED_IDLE;
-  String _curPat = getCurrentPattern();
+  const String& _curPat = getCurrentPattern();
   if (_curPat != s_lastPattern || g_ledMode != s_lastMode) {
     s_lastPattern = _curPat;
     s_lastMode = g_ledMode;
@@ -158,7 +158,7 @@ void ledTick() {
   }
 
   CRGB color = getCurrentColor();
-  String pattern = getCurrentPattern();
+  const String& pattern = getCurrentPattern();
   uint8_t bright = map(g_brightness, 0, 100, 0, MAX_BRIGHTNESS);
 
   // ── BASE PATTERNS (looping) ──────────────────────────────
