@@ -3,13 +3,16 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
+import { CryptoService } from '../../services/crypto.service';
+import { DeviceConnectionService } from '../../services/device-connection.service';
 
 interface UploadItem {
   id: string;
   filename: string;
   size: string;
   progress: number;
-  status: 'uploading' | 'processing' | 'done';
+  status: 'uploading' | 'processing' | 'encrypting' | 'transferring' | 'done';
+  file?: File;
 }
 
 @Component({
@@ -21,6 +24,8 @@ interface UploadItem {
 export class TrackListComponent {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
+  private cryptoService = inject(CryptoService);
+  private connectionService = inject(DeviceConnectionService);
 
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
@@ -103,59 +108,113 @@ export class TrackListComponent {
           filename: file.name,
           size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
           progress: 0,
-          status: 'uploading'
+          status: 'uploading',
+          file: file
         };
         newUploads.push(uploadItem);
-        this.simulateUpload(uploadItem);
+        this.processUpload(uploadItem, file);
       }
     }
 
     this.uploads.update(current => [...newUploads, ...current]);
   }
 
-  private simulateUpload(item: UploadItem) {
-    const speed = 2 + Math.random() * 5; // Random speed
-    
-    const interval = setInterval(() => {
-      this.uploads.update(items => items.map(u => {
-        if (u.id === item.id) {
-          const newProgress = Math.min(u.progress + speed, 100);
-          
-          if (newProgress === 100 && u.status === 'uploading') {
-            // Trigger processing phase
-            setTimeout(() => this.finalizeUpload(u), 1000);
-            return { ...u, progress: 100, status: 'processing' };
-          }
-          
-          return { ...u, progress: newProgress };
-        }
-        return u;
-      }));
-      
-      const currentItem = this.uploads().find(u => u.id === item.id);
-      if (currentItem && currentItem.progress >= 100) {
-        clearInterval(interval);
-      }
-    }, 100);
-  }
+  private async processUpload(item: UploadItem, file: File) {
+    const conn = this.connectionService.connectionStatus();
+    const duid = this.connectionService.deviceInfo()?.serial;
 
-  private finalizeUpload(item: UploadItem) {
-    // 1. Mark upload as done (and remove after delay)
-    this.uploads.update(items => items.map(u => u.id === item.id ? { ...u, status: 'done' } : u));
-    
+    // Phase 1: Read file into ArrayBuffer (simulate progress)
+    const arrayBuffer = await this.readFileWithProgress(file, item.id);
+
+    // Phase 2: Encrypt to .dpa format if we have a device DUID
+    if (duid && duid !== 'DPA-SIM-1234') {
+      this.updateItemStatus(item.id, 'encrypting', 0);
+
+      try {
+        const dpaData = await this.cryptoService.encryptToDpa(arrayBuffer, duid, 'audio');
+        const dpaFilename = file.name.replace(/\.[^/.]+$/, '.dpa');
+        const dpaFile = new File([dpaData], dpaFilename, { type: 'application/octet-stream' });
+
+        console.log(`[Upload] Encrypted ${file.name} → ${dpaFilename} (${(dpaData.byteLength / (1024 * 1024)).toFixed(2)} MB) for device ${duid}`);
+
+        // Phase 3: Transfer to device if WiFi connected
+        if (conn === 'wifi') {
+          this.updateItemStatus(item.id, 'transferring', 0);
+
+          const success = await this.connectionService.wifi.uploadDpaFile(dpaFile, (percent) => {
+            this.uploads.update(items => items.map(u =>
+              u.id === item.id ? { ...u, progress: percent } : u
+            ));
+          });
+
+          if (success) {
+            console.log(`[Upload] Successfully transferred ${dpaFilename} to device`);
+          } else {
+            console.warn(`[Upload] Transfer failed for ${dpaFilename}, file saved locally`);
+          }
+        } else {
+          console.log(`[Upload] .dpa file created (device not on WiFi — transfer manually)`);
+        }
+      } catch (err) {
+        console.error('[Upload] Encryption failed:', err);
+      }
+    } else {
+      // No real device — simulate processing
+      this.updateItemStatus(item.id, 'processing', 100);
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    // Phase 4: Finalize
+    this.uploads.update(items => items.map(u => u.id === item.id ? { ...u, status: 'done' as const, progress: 100 } : u));
+
     setTimeout(() => {
       this.uploads.update(items => items.filter(u => u.id !== item.id));
     }, 2000);
 
-    // 2. Add to Album Data
+    // Add to Album Data
     const a = this.album();
     if (a) {
-      // Strip extension for title
-      const title = item.filename.replace(/\.[^/.]+$/, "");
-      // Mock duration (random between 2:30 and 4:30)
-      const duration = 150 + Math.floor(Math.random() * 120);
-      
+      const title = file.name.replace(/\.[^/.]+$/, '');
+      // Try to get real duration from AudioContext, fallback to estimate
+      const duration = await this.getAudioDuration(file);
       this.dataService.addTrack(a.albumId, title, duration);
+    }
+  }
+
+  private readFileWithProgress(file: File, itemId: string): Promise<ArrayBuffer> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          this.uploads.update(items => items.map(u =>
+            u.id === itemId ? { ...u, progress: percent } : u
+          ));
+        }
+      };
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  private updateItemStatus(itemId: string, status: UploadItem['status'], progress: number) {
+    this.uploads.update(items => items.map(u =>
+      u.id === itemId ? { ...u, status, progress } : u
+    ));
+  }
+
+  private async getAudioDuration(file: File): Promise<number> {
+    try {
+      const audioCtx = new AudioContext();
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      const duration = Math.round(audioBuffer.duration);
+      audioCtx.close();
+      return duration;
+    } catch {
+      // Fallback: estimate from file size (~1.4MB per minute for WAV 16/44.1)
+      return Math.max(60, Math.round(file.size / (1024 * 1024) * 42));
     }
   }
 }

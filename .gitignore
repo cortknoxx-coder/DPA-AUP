@@ -12,6 +12,9 @@ dist
 .angular
 dist-ssr
 *.local
+.angular/
+DPA-AUP.zip
+/dashboard.h
 
 # Editor directories and files
 .vscode/*

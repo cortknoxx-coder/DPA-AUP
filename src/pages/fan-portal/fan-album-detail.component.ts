@@ -29,7 +29,24 @@ export class FanAlbumDetailComponent {
 
   activeSection = signal('tracks');
 
+  /** Mock play counts per trackId (random 12–500), generated once */
+  trackPlayCounts = signal<Record<string, number>>({});
+
+  /** Set of trackIds the fan has hearted */
+  favorites = signal<Set<string>>(new Set());
+
   constructor() {
+    // Seed play counts once the manifest loads
+    effect(() => {
+      const m = this.manifest();
+      if (m) {
+        const counts: Record<string, number> = {};
+        for (const t of m.tracks) {
+          counts[t.trackId] = Math.floor(Math.random() * 489) + 12; // 12–500
+        }
+        this.trackPlayCounts.set(counts);
+      }
+    }, { allowSignalWrites: true });
     effect(() => {
       this.loadManifest(this.id);
     }, { allowSignalWrites: true });
@@ -131,5 +148,29 @@ export class FanAlbumDetailComponent {
     const m = Math.floor((sec % 3600) / 60);
     if (h > 0) return `${h}h ${m}m`;
     return `${m} min`;
+  }
+
+  /** Toggle heart/favorite for a track */
+  toggleFavorite(trackId: string, event: Event) {
+    event.stopPropagation();
+    const current = new Set(this.favorites());
+    if (current.has(trackId)) {
+      current.delete(trackId);
+      console.log(`[DPA] Unfavorited track ${trackId}`);
+    } else {
+      current.add(trackId);
+      console.log(`[DPA] Favorited track ${trackId} — sending feedback to creator portal`);
+    }
+    this.favorites.set(current);
+  }
+
+  /** Returns 0–100 popularity relative to the most-played track */
+  getPopularity(trackId: string): number {
+    const counts = this.trackPlayCounts();
+    const values = Object.values(counts);
+    if (!values.length) return 0;
+    const max = Math.max(...values);
+    if (max === 0) return 0;
+    return Math.round(((counts[trackId] ?? 0) / max) * 100);
   }
 }

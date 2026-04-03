@@ -60,10 +60,30 @@
         50% { transform: scaleY(1.0); }
       }
       
+      @keyframes flash {
+        0%, 100% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
+        10%, 90% { box-shadow: 0 0 40px 8px var(--glow-color, transparent); opacity: 1; }
+      }
+      @keyframes rhythmic-pulse {
+        0%, 100% { box-shadow: 0 0 15px -5px var(--glow-color, transparent); }
+        50% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); }
+      }
+      @keyframes fade-glow {
+        0% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
+        30% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); opacity: 1; }
+        70% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); opacity: 1; }
+        100% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
+      }
+
       .animate-breathe { animation: breathe 4s ease-in-out infinite; }
       .animate-pulse-fast { animation: pulse-fast 1.2s ease-in-out infinite; }
       .animate-spin-slow { animation: spin-slow 8s linear infinite; }
       .animate-fade-in-up { animation: fade-in-up 0.3s ease-out forwards; }
+      .animate-flash { animation: flash 0.6s ease-in-out; }
+      .animate-rhythmic-pulse { animation: rhythmic-pulse var(--pulse-duration, 500ms) ease-in-out infinite; }
+      .animate-fade-glow { animation: fade-glow 7s ease-in-out; }
+      .led-solid { box-shadow: 0 0 30px 4px var(--glow-color, transparent); }
+      .led-off { box-shadow: none !important; opacity: 0; }
     </style>
   <script type="importmap">
 {

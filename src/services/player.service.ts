@@ -1,18 +1,19 @@
 
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { DeviceConnectionService } from './device-connection.service';
 import { DeviceBridgeService } from './device-bridge.service';
 import { CryptoService } from './crypto.service';
+import { BLE_CMD } from './device-ble.service';
 import { Manifest, TrackRef } from '../types';
 
 export interface PlayerTrack {
-  id: string; // This will be the trackId from the manifest
+  id: string;
   title: string;
   artist: string;
   album: string;
   duration: number; // seconds
   coverUrl: string;
-  blobId: string; // Added for fetching encrypted data
+  blobId: string;
 }
 
 @Injectable({
@@ -28,8 +29,8 @@ export class PlayerService {
   currentTrack = signal<PlayerTrack | null>(null);
   progress = signal(0); // 0 to 100
   currentTime = signal(0);
-  volume = signal(0.8);
-  
+  volume = signal(75); // 0-100 (matches firmware scale)
+
   // Playback Context
   sessionKey = signal<string | null>(null);
   queue = signal<PlayerTrack[]>([]);
@@ -42,6 +43,40 @@ export class PlayerService {
     if (!track) return 0;
     return this.deviceService.isSnippetMode() ? Math.min(track.duration, this.SNIPPET_LIMIT) : track.duration;
   });
+
+  constructor() {
+    // Sync player state from BLE status notifications
+    effect(() => {
+      const status = this.deviceService.ble.lastStatus();
+      if (!status || this.deviceService.connectionStatus() !== 'bluetooth') return;
+
+      this.isPlaying.set(status.player.playing);
+      this.currentTime.set(Math.floor(status.player.posMs / 1000));
+      if (status.audio?.volume !== undefined) {
+        this.volume.set(status.audio.volume);
+      }
+      const duration = this.effectiveDuration();
+      if (duration > 0) {
+        this.progress.set((this.currentTime() / duration) * 100);
+      }
+    });
+
+    // Sync player state from WiFi status
+    effect(() => {
+      const status = this.deviceService.wifi.lastStatus();
+      if (!status || this.deviceService.connectionStatus() !== 'wifi') return;
+
+      this.isPlaying.set(status.player.playing);
+      this.currentTime.set(Math.floor(status.player.posMs / 1000));
+      if (status.audio?.volume !== undefined) {
+        this.volume.set(status.audio.volume);
+      }
+      const duration = this.effectiveDuration();
+      if (duration > 0) {
+        this.progress.set((this.currentTime() / duration) * 100);
+      }
+    });
+  }
 
   setQueueFromManifest(manifest: Manifest, albumInfo: { artist: string, title: string }) {
     const newQueue = manifest.tracks.map(t => ({
@@ -62,20 +97,45 @@ export class PlayerService {
       return;
     }
 
+    // Route through device transport
+    const conn = this.deviceService.connectionStatus();
+    if (conn === 'bluetooth') {
+      if (track) {
+        this.currentTrack.set(track);
+        this.progress.set(0);
+        this.currentTime.set(0);
+      }
+      await this.deviceService.ble.sendCommand(BLE_CMD.PLAY);
+      this.isPlaying.set(true);
+      return;
+    }
+
+    if (conn === 'wifi') {
+      if (track) {
+        this.currentTrack.set(track);
+        this.progress.set(0);
+        this.currentTime.set(0);
+      }
+      await this.deviceService.wifi.sendCommand(BLE_CMD.PLAY);
+      this.isPlaying.set(true);
+      this.startTimer();
+      return;
+    }
+
+    // USB Bridge flow
     if (track) {
       this.currentTrack.set(track);
       this.progress.set(0);
       this.currentTime.set(0);
     }
-    
+
     const current = this.currentTrack();
     if (!current) return;
 
-    // --- AUP Check & Decryption Flow (Real Hardware) ---
     try {
       console.log(`[Player] Requesting Key for trackId: ${current.id}...`);
       const response = await this.bridge.requestDecryptionKey(current.id);
-      
+
       if (response.aup.decision !== 'ALLOW') {
         alert(`Playback Denied by Device AUP: ${response.aup.message} (${response.aup.reasonCode})`);
         this.pause();
@@ -85,15 +145,11 @@ export class PlayerService {
       if (response.sessionKeyB64) {
         this.sessionKey.set(response.sessionKeyB64);
         console.log('[Player] Session Key Acquired. Starting Stream Simulation.');
-        
-        // Simulate the E2E data flow for demo purposes
         await this.simulateBlobStream(current.blobId, response.sessionKeyB64);
-
       } else {
         throw new Error('AUP allowed but no session key was returned.');
       }
 
-      // Start the UI timer
       this.isPlaying.set(true);
       this.startTimer();
 
@@ -103,13 +159,12 @@ export class PlayerService {
         this.pause();
     }
   }
-  
+
   private async simulateBlobStream(blobId: string, sessionKey: string) {
     console.log(`[Player] Fetching encrypted blob: ${blobId}...`);
-    // We fetch just the first chunk to demonstrate the flow
-    const blobChunk = await this.bridge.readBlob(blobId, 0, 1024); 
+    const blobChunk = await this.bridge.readBlob(blobId, 0, 1024);
     console.log(`[Player] Received ${blobChunk.dataB64.length} base64 chars.`);
-    
+
     console.log('[Player] Decrypting blob chunk in-browser...');
     const decrypted = await this.crypto.aesGcmDecrypt(blobChunk.dataB64, sessionKey);
     console.log(`[Player] SUCCESS: Decrypted ${decrypted.byteLength} bytes. Ready for AudioContext.`);
@@ -125,6 +180,13 @@ export class PlayerService {
   }
 
   pause() {
+    const conn = this.deviceService.connectionStatus();
+    if (conn === 'bluetooth') {
+      this.deviceService.ble.sendCommand(BLE_CMD.PAUSE);
+    } else if (conn === 'wifi') {
+      this.deviceService.wifi.sendCommand(BLE_CMD.PAUSE);
+    }
+
     this.isPlaying.set(false);
     this.stopTimer();
   }
@@ -135,6 +197,13 @@ export class PlayerService {
   }
 
   next() {
+    const conn = this.deviceService.connectionStatus();
+    if (conn === 'bluetooth') {
+      this.deviceService.ble.sendCommand(BLE_CMD.NEXT);
+    } else if (conn === 'wifi') {
+      this.deviceService.wifi.sendCommand(BLE_CMD.NEXT);
+    }
+
     const current = this.currentTrack();
     const q = this.queue();
     if (current && q.length > 0) {
@@ -145,6 +214,13 @@ export class PlayerService {
   }
 
   prev() {
+    const conn = this.deviceService.connectionStatus();
+    if (conn === 'bluetooth') {
+      this.deviceService.ble.sendCommand(BLE_CMD.PREV);
+    } else if (conn === 'wifi') {
+      this.deviceService.wifi.sendCommand(BLE_CMD.PREV);
+    }
+
     const current = this.currentTrack();
     const q = this.queue();
     if (current && q.length > 0) {
@@ -154,6 +230,36 @@ export class PlayerService {
         this.currentTime.set(0);
         this.progress.set(0);
       }
+    }
+  }
+
+  async volumeUp() {
+    const newVol = Math.min(100, this.volume() + 5);
+    this.volume.set(newVol);
+    const conn = this.deviceService.connectionStatus();
+    if (conn === 'wifi') {
+      await this.deviceService.wifi.setVolume(newVol);
+    } else if (conn === 'bluetooth') {
+      await this.deviceService.ble.sendCommand(BLE_CMD.VOLUME_UP);
+    }
+  }
+
+  async volumeDown() {
+    const newVol = Math.max(0, this.volume() - 5);
+    this.volume.set(newVol);
+    const conn = this.deviceService.connectionStatus();
+    if (conn === 'wifi') {
+      await this.deviceService.wifi.setVolume(newVol);
+    } else if (conn === 'bluetooth') {
+      await this.deviceService.ble.sendCommand(BLE_CMD.VOLUME_DOWN);
+    }
+  }
+
+  async setVolume(vol: number) {
+    this.volume.set(vol);
+    const conn = this.deviceService.connectionStatus();
+    if (conn === 'wifi') {
+      await this.deviceService.wifi.setVolume(vol);
     }
   }
 

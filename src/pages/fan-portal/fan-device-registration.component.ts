@@ -1,21 +1,24 @@
 
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, effect, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { UserService } from '../../services/user.service';
+import { DevicePreviewComponent } from '../../components/device-preview/device-preview.component';
+import { Theme, LedPattern } from '../../types';
 
 type ViewState = 'dashboard' | 'unregister-auth' | 'unregister-confirm';
 
 @Component({
   selector: 'app-fan-device-registration',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, DevicePreviewComponent],
   templateUrl: './fan-device-registration.component.html'
 })
 export class FanDeviceRegistrationComponent {
   deviceService = inject(DeviceConnectionService);
   userService = inject(UserService);
+  private fb = inject(FormBuilder);
 
   // View State
   viewState = signal<ViewState>('dashboard');
@@ -29,21 +32,106 @@ export class FanDeviceRegistrationComponent {
   authEmail = signal('');
   authError = signal('');
   isProcessingAuth = signal(false);
-  
+
   confirmDeviceIdInput = signal('');
   confirmError = signal('');
 
+  // LED Controls
+  ledPreviewMode = signal<'idle' | 'playback' | 'charging'>('idle');
+  isPushingTheme = signal(false);
+  realTimeMode = signal(false);
+  brightness = signal(80);
+
+  ledForm = this.fb.group({
+    idle: this.fb.group({ color: ['#00ff88'], pattern: ['breathing'] }),
+    playback: this.fb.group({ color: ['#00aaff'], pattern: ['pulse'] }),
+    charging: this.fb.group({ color: ['#ffaa00'], pattern: ['breathing'] }),
+  });
+
+  dcnpForm = this.fb.group({
+    concert: ['#ff3366'],
+    video: ['#3366ff'],
+    merch: ['#33ff99'],
+    signing: ['#ffcc00'],
+    remix: ['#cc33ff'],
+    other: ['#ffffff'],
+  });
+
+  get currentLedColor(): string {
+    const mode = this.ledPreviewMode();
+    return (this.ledForm.value as any)[mode]?.color || '#00ff88';
+  }
+
+  get currentLedPattern(): LedPattern {
+    const mode = this.ledPreviewMode();
+    return (this.ledForm.value as any)[mode]?.pattern || 'breathing';
+  }
+
+  constructor() {
+    // Auto-push when real-time mode is on
+    effect(() => {
+      const rtm = this.realTimeMode();
+      if (!rtm) return;
+
+      // Subscribe to form value changes for real-time push
+      const sub = this.ledForm.valueChanges.subscribe(() => {
+        if (this.realTimeMode()) {
+          this.pushThemeToDevice(true);
+        }
+      });
+
+      const dcnpSub = this.dcnpForm.valueChanges.subscribe(() => {
+        if (this.realTimeMode()) {
+          this.pushThemeToDevice(true);
+        }
+      });
+
+      // Cleanup on effect re-run
+      return () => {
+        sub.unsubscribe();
+        dcnpSub.unsubscribe();
+      };
+    });
+  }
+
+  setLedPreviewMode(mode: 'idle' | 'playback' | 'charging') {
+    this.ledPreviewMode.set(mode);
+  }
+
+  async pushThemeToDevice(silent = false) {
+    if (this.deviceService.connectionStatus() !== 'wifi' && !this.deviceService.isSimulationMode()) {
+      if (!silent) {
+        alert('Connect to your DPA via WiFi to push theme changes. Join the device WiFi network first.');
+      }
+      return;
+    }
+
+    this.isPushingTheme.set(true);
+    const led = this.ledForm.value as Theme['led'];
+    const dcnp = this.dcnpForm.value as Theme['dcnp'];
+    const success = await this.deviceService.wifi.pushTheme({ led, dcnp } as Theme, this.brightness());
+    this.isPushingTheme.set(false);
+
+    if (!silent) {
+      if (success) {
+        alert('Theme pushed to device!');
+      } else {
+        alert('Failed to push theme. Check your WiFi connection to the device.');
+      }
+    }
+  }
+
   // --- Registration Logic ---
-  
+
   async register() {
     const id = this.deviceIdInput().trim();
     if (!id) return;
 
     this.errorMsg.set('');
-    
+
     // Start Analysis Animation
     this.runAnalysisSequence();
-    
+
     const success = await this.deviceService.registerDevice(id);
 
     if (!success) {
@@ -61,10 +149,10 @@ export class FanDeviceRegistrationComponent {
       'Decrypting Master License Key...',
       'Finalizing Registration...'
     ];
-    
+
     let i = 0;
     this.analysisStep.set(steps[0]);
-    
+
     const interval = setInterval(() => {
       i++;
       if (i < steps.length && this.deviceService.registrationStatus() === 'analyzing') {
@@ -113,11 +201,11 @@ export class FanDeviceRegistrationComponent {
 
   async sendIdReminder() {
     if (!this.authEmail()) return;
-    
+
     this.isProcessingAuth.set(true); // Re-use spinner
     await this.deviceService.sendDeviceIdReminder(this.authEmail());
     this.isProcessingAuth.set(false);
-    
+
     alert(`Device ID sent to ${this.authEmail()}. Check your inbox.`);
   }
 

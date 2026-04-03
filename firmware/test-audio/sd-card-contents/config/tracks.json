@@ -1,0 +1,52 @@
+{
+  "tracks": [
+    {
+      "id": "t1",
+      "file": "/tracks/neon_rain.wav",
+      "title": "Neon Rain",
+      "artist": "808 Dreams",
+      "album": "Midnight Horizons",
+      "trackNum": 1,
+      "durationMs": 15000,
+      "bpm": 128,
+      "key": "F minor",
+      "explicit": false,
+      "writers": "Jaylen Carter, Mika Tanaka",
+      "producers": "808 Dreams, Phantom",
+      "isrc": "USRC12600001",
+      "recordedAt": "Midnight Studio, Los Angeles"
+    },
+    {
+      "id": "t2",
+      "file": "/tracks/cyber_heart.wav",
+      "title": "Cyber Heart",
+      "artist": "808 Dreams",
+      "album": "Midnight Horizons",
+      "trackNum": 2,
+      "durationMs": 12000,
+      "bpm": 135,
+      "key": "A minor",
+      "explicit": true,
+      "writers": "Jaylen Carter, Devon Blake, Mika Tanaka",
+      "producers": "808 Dreams",
+      "isrc": "USRC12600002",
+      "recordedAt": "Midnight Studio, Los Angeles"
+    },
+    {
+      "id": "t3",
+      "file": "/tracks/analog_dreams.wav",
+      "title": "Analog Dreams",
+      "artist": "808 Dreams",
+      "album": "Midnight Horizons",
+      "trackNum": 3,
+      "durationMs": 18000,
+      "bpm": 98,
+      "key": "D major",
+      "explicit": false,
+      "writers": "Jaylen Carter, Mika Tanaka, Reese Kim",
+      "producers": "808 Dreams, Reese Kim",
+      "isrc": "USRC12600003",
+      "recordedAt": "Sunset Sound, Los Angeles"
+    }
+  ]
+}

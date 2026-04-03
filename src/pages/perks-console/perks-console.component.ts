@@ -5,7 +5,8 @@ import { ActivatedRoute } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { DataService } from '../../services/data.service';
-import { DcnpPayload } from '../../types';
+import { DeviceConnectionService } from '../../services/device-connection.service';
+import { DcnpPayload, DcnpEventType } from '../../types';
 
 @Component({
   selector: 'app-perks-console',
@@ -17,6 +18,7 @@ export class PerksConsoleComponent {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
   private fb: FormBuilder = inject(FormBuilder);
+  private connectionService = inject(DeviceConnectionService);
 
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
@@ -152,6 +154,18 @@ export class PerksConsoleComponent {
         eventType: type as any,
         payload: payload
       });
+
+      // Push capsule notification to device if WiFi connected
+      if (this.connectionService.connectionStatus() === 'wifi') {
+        this.connectionService.wifi.pushCapsule(
+          type as DcnpEventType,
+          `cap-${Date.now().toString(36)}`,
+          payload
+        ).then(ok => {
+          if (ok) console.log('[Perks] Capsule pushed to device');
+          else console.warn('[Perks] Failed to push capsule to device');
+        });
+      }
 
       // Reset form but keep type for convenience
       const currentType = this.form.get('eventType')?.value;
