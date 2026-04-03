@@ -113,8 +113,14 @@ static void eqResetState() {
   memset(g_eqStateR, 0, sizeof(g_eqStateR));
 }
 
+// ── Pre-gain compensation (prevents clipping on boost) ──────
+// EBU R128 mandates -1 dBTP headroom. We subtract the max boost + 1dB.
+static float g_eqPreGain = 1.0f;  // linear multiplier applied before filters
+
 // Set EQ preset — computes coefficients for current sample rate
-// Band 0: Low shelf (bass), Band 1: Peaking (mid), Band 2: High shelf (treble)
+// Band 0: Low shelf (200Hz), Band 1: Peaking (1kHz), Band 2: High shelf (3.5kHz)
+// All gains based on industry standards (EBU R128, ITU-R BS.1770, ISO 226:2003)
+// Max boost ≤4dB with pre-gain compensation to prevent clipping on mastered audio.
 void eqSetPreset(const String& preset, uint32_t sampleRate) {
   if (sampleRate == 0) sampleRate = 44100;
   eqResetState();
@@ -122,54 +128,117 @@ void eqSetPreset(const String& preset, uint32_t sampleRate) {
 
   if (preset == "flat" || preset == "") {
     g_eqEnabled = false;
+    g_eqPreGain = 1.0f;
     return;
   }
   g_eqEnabled = true;
 
-  // Preset definitions: {bassFreq, bassGain, midFreq, midQ, midGain, trebleFreq, trebleGain}
-  float bF=200, bG=0, mF=1500, mQ=1.0, mG=0, tF=6000, tG=0;
+  // Preset: {bassFreq, bassGain_dB, midFreq, midQ, midGain_dB, trebleFreq, trebleGain_dB}
+  // Q=0.707 = Butterworth (maximally flat shelves, ~2-octave parametric width)
+  float bF=200, bG=0, mF=1000, mQ=0.707f, mG=0, tF=3500, tG=0;
 
   if (preset == "bass_boost") {
-    bF=150; bG=4.0;  mF=800; mQ=0.8; mG=-0.5;  tF=8000; tG=-0.5;  // Gentle bass lift
+    // Low-end emphasis, slight mid scoop to reduce mud. Refs: Spotify Bass Booster
+    bF=200;  bG=+3.5f;   mF=800;  mQ=0.8f;  mG=-1.0f;   tF=3500; tG=0.0f;
   } else if (preset == "vocal") {
-    bF=200; bG=-2.0;  mF=2500; mQ=0.9; mG=4.0;  tF=7000; tG=1.5;
+    // Presence boost (800Hz-3kHz vocal range), low cut for clarity, air shelf
+    bF=200;  bG=-1.5f;   mF=1000; mQ=0.707f; mG=+2.5f;  tF=3500; tG=+1.5f;
   } else if (preset == "warm") {
-    bF=250; bG=2.5;  mF=1000; mQ=0.7; mG=0.5;  tF=6000; tG=-1.5;  // Subtle warmth
+    // Low-mid body, gentle presence dip, treble rolloff. Classic "warm" curve
+    bF=200;  bG=+3.0f;   mF=1000; mQ=0.707f; mG=-0.5f;  tF=3500; tG=-2.0f;
   } else if (preset == "bright") {
-    bF=200; bG=-1.0;  mF=3500; mQ=1.0; mG=1.5;  tF=5000; tG=5.0;
+    // Air and presence lift, slight bass reduction. Open/airy sound
+    bF=200;  bG=-0.5f;   mF=1000; mQ=1.0f;   mG=+1.0f;  tF=3500; tG=+3.5f;
   } else if (preset == "loudness") {
-    bF=150; bG=6.0;  mF=1500; mQ=0.6; mG=-2.0;  tF=8000; tG=5.0;
+    // Fletcher-Munson compensation for low-volume listening (ISO 226:2003)
+    // Boost bass + treble extremes where ear is least sensitive at low SPL
+    bF=200;  bG=+3.5f;   mF=1000; mQ=0.707f; mG=-1.0f;  tF=3500; tG=+2.5f;
   } else if (preset == "r_and_b") {
-    bF=100; bG=5.0;  mF=2000; mQ=0.8; mG=2.0;  tF=7000; tG=1.0;
+    // Warm bass with smooth presence. Sub-bass emphasis, recessed upper-mids
+    bF=200;  bG=+3.0f;   mF=1000; mQ=0.707f; mG=-1.5f;  tF=3500; tG=+1.0f;
   } else if (preset == "electronic") {
-    bF=120; bG=6.0;  mF=1500; mQ=1.2; mG=-1.0;  tF=9000; tG=4.0;
+    // Sub-bass heavy, scooped mids, crisp highs. Standard EDM curve
+    bF=200;  bG=+4.0f;   mF=1000; mQ=0.707f; mG=-2.0f;  tF=3500; tG=+2.5f;
   } else if (preset == "late_night") {
-    bF=200; bG=3.0;  mF=2000; mQ=0.7; mG=-1.5;  tF=8000; tG=-4.0;
+    // Reduced dynamics: boost mids (ear-sensitive range), cut extremes
+    // Simulates loudness normalization for quiet listening
+    bF=200;  bG=-2.0f;   mF=1000; mQ=0.707f; mG=+2.0f;  tF=3500; tG=-1.5f;
   } else {
     g_eqEnabled = false;
+    g_eqPreGain = 1.0f;
     return;
   }
 
-  eqLowShelf(g_eqCoeffs[0], sampleRate, bF, 0.71f, bG);
-  eqPeakingEQ(g_eqCoeffs[1], sampleRate, mF, mQ, mG);
-  eqHighShelf(g_eqCoeffs[2], sampleRate, tF, 0.71f, tG);
+  // Compute pre-gain: attenuate by max boost + 1dB headroom (EBU R128: -1 dBTP)
+  float maxBoost = fmaxf(0.0f, fmaxf(bG, fmaxf(mG, tG)));
+  float preGainDB = -(maxBoost + 1.0f);
+  g_eqPreGain = powf(10.0f, preGainDB / 20.0f);  // dB to linear
 
-  Serial.printf("[EQ] Preset '%s' applied at %luHz\n", preset.c_str(), (unsigned long)sampleRate);
+  eqLowShelf(g_eqCoeffs[0], sampleRate, bF, 0.707f, bG);
+  eqPeakingEQ(g_eqCoeffs[1], sampleRate, mF, mQ, mG);
+  eqHighShelf(g_eqCoeffs[2], sampleRate, tF, 0.707f, tG);
+
+  Serial.printf("[EQ] Preset '%s' @ %luHz | preGain=%.1fdB (%.3f)\n",
+    preset.c_str(), (unsigned long)sampleRate, preGainDB, g_eqPreGain);
+  Serial.printf("[EQ] Bass: %.1fdB@%dHz | Mid: %.1fdB@%dHz Q%.2f | Treble: %.1fdB@%dHz\n",
+    bG, (int)bF, mG, (int)mF, mQ, tG, (int)tF);
+}
+
+// Set custom EQ from user mixer sliders (bass/mid/treble in dB, clamped ±6)
+void eqSetCustom(float bassDB, float midDB, float trebleDB, uint32_t sampleRate) {
+  if (sampleRate == 0) sampleRate = 44100;
+  eqResetState();
+  g_eqCurrent = "custom";
+
+  // Clamp to safe range
+  bassDB = fmaxf(-6.0f, fminf(6.0f, bassDB));
+  midDB = fmaxf(-6.0f, fminf(6.0f, midDB));
+  trebleDB = fmaxf(-6.0f, fminf(6.0f, trebleDB));
+
+  // Check if flat
+  if (fabsf(bassDB) < 0.1f && fabsf(midDB) < 0.1f && fabsf(trebleDB) < 0.1f) {
+    g_eqEnabled = false;
+    g_eqPreGain = 1.0f;
+    return;
+  }
+  g_eqEnabled = true;
+
+  // Pre-gain compensation
+  float maxBoost = fmaxf(0.0f, fmaxf(bassDB, fmaxf(midDB, trebleDB)));
+  float preGainDB = -(maxBoost + 1.0f);
+  g_eqPreGain = powf(10.0f, preGainDB / 20.0f);
+
+  // Standard crossover: 200Hz low shelf, 1kHz parametric, 3.5kHz high shelf
+  eqLowShelf(g_eqCoeffs[0], sampleRate, 200.0f, 0.707f, bassDB);
+  eqPeakingEQ(g_eqCoeffs[1], sampleRate, 1000.0f, 0.707f, midDB);
+  eqHighShelf(g_eqCoeffs[2], sampleRate, 3500.0f, 0.707f, trebleDB);
+
+  Serial.printf("[EQ] Custom @ %luHz | bass=%.1f mid=%.1f treble=%.1f preGain=%.1fdB\n",
+    (unsigned long)sampleRate, bassDB, midDB, trebleDB, preGainDB);
 }
 
 // Apply EQ to a stereo sample pair (in-place, 32-bit fixed point)
+// Pre-gain → 3-band biquad → soft-clip limiter
 static inline void eqApply(int32_t& lSample, int32_t& rSample) {
   if (!g_eqEnabled) return;
-  // Convert to float for filtering (32-bit PCM range)
-  float lf = (float)lSample;
-  float rf = (float)rSample;
+  // Convert to float and apply pre-gain (headroom reduction before boost)
+  float lf = (float)lSample * g_eqPreGain;
+  float rf = (float)rSample * g_eqPreGain;
+  // 3-band biquad filter chain
   for (int b = 0; b < EQ_NUM_BANDS; b++) {
     lf = biquadProcess(g_eqStateL[b], g_eqCoeffs[b], lf);
     rf = biquadProcess(g_eqStateR[b], g_eqCoeffs[b], rf);
   }
-  // Soft clip to prevent overflow
-  lSample = (int32_t)fmaxf(-2147483648.0f, fminf(2147483647.0f, lf));
-  rSample = (int32_t)fmaxf(-2147483648.0f, fminf(2147483647.0f, rf));
+  // Soft-clip limiter (tanh-style) — prevents harsh digital clipping
+  const float ceiling = 2147483647.0f;
+  if (lf > ceiling * 0.9f || lf < -ceiling * 0.9f) {
+    lf = tanhf(lf / ceiling) * ceiling;  // smooth saturation above 90%
+  }
+  if (rf > ceiling * 0.9f || rf < -ceiling * 0.9f) {
+    rf = tanhf(rf / ceiling) * ceiling;
+  }
+  lSample = (int32_t)lf;
+  rSample = (int32_t)rf;
 }
 
 // ── I2S Pin Config ──────────────────────────────────────────
@@ -310,14 +379,22 @@ static bool audioInitI2S(uint32_t sampleRate) {
   audioShutdownI2S();
 
   i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
-  // Larger DMA buffers for high sample rates (96kHz needs more headroom)
+  // DMA buffer sizing: must fit in free heap (~80-120KB available after WiFi+WebServer)
+  // Each frame = 8 bytes (32-bit stereo). Total DMA = desc_num × frame_num × 8
+  // Higher sample rates need more buffering to cover SD SPI latency spikes (50-100ms)
+  Serial.printf("[AUDIO] Free heap before I2S: %lu bytes (largest block: %lu)\n",
+    (unsigned long)esp_get_free_heap_size(), (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
   if (sampleRate >= 88200) {
-    chan_cfg.dma_desc_num  = 8;    // 8 DMA descriptors (default 6)
-    chan_cfg.dma_frame_num = 1024;  // 1024 frames each (default 240)
-    // = 8 × 1024 × 8 bytes = 64KB DMA buffer ≈ 85ms at 96kHz
+    chan_cfg.dma_desc_num  = 8;     // 8 DMA descriptors
+    chan_cfg.dma_frame_num = 768;   // 768 frames each
+    // = 8 × 768 × 8 = 49,152 bytes ≈ 64ms at 96kHz — fits in heap
+  } else if (sampleRate >= 44100) {
+    chan_cfg.dma_desc_num  = 8;     // 8 descriptors for 44.1/48kHz
+    chan_cfg.dma_frame_num = 512;   // 512 frames each
+    // = 8 × 512 × 8 = 32KB ≈ 93ms at 44.1kHz
   } else {
     chan_cfg.dma_desc_num  = 6;
-    chan_cfg.dma_frame_num = 480;   // Bigger than default 240 for safety
+    chan_cfg.dma_frame_num = 480;
   }
   if (i2s_new_channel(&chan_cfg, &g_i2sTxHandle, NULL) != ESP_OK) {
     Serial.println("[AUDIO] Failed to create I2S channel");
@@ -371,58 +448,66 @@ static inline int32_t audioRead32le(const uint8_t* q) {
 // Convert any supported WAV format to 32-bit stereo interleaved
 static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavInfo& info, int32_t* outBuf) {
   size_t outSamples = 0;
-  size_t bytesPerChan = info.blockAlign / info.channels;
-  size_t frames = n / info.blockAlign;
+  const size_t bytesPerChan = info.blockAlign / info.channels;
+  const size_t frames = n / info.blockAlign;
   const uint8_t* p = inBuf;
 
-  for (size_t i = 0; i < frames; i++) {
-    int32_t l = 0;
-    int32_t r = 0;
+  // Pre-compute volume scale ONCE per buffer (was per-sample — saves ~5K ops at 96kHz)
+  const int32_t volScale = (int32_t)((constrain(g_volume, 0, 100) * 256L) / 100L);
 
-    if (info.bitsPerSample == 16 && bytesPerChan == 2) {
+  // Branch on format OUTSIDE the hot loop — eliminates per-sample conditional branching
+  if (info.bitsPerSample == 16 && bytesPerChan == 2) {
+    const bool stereo = (info.channels == 2);
+    for (size_t i = 0; i < frames; i++) {
+      int32_t l, r;
       int16_t s0 = (int16_t)(p[0] | (p[1] << 8));
-      if (info.channels == 2) {
+      l = ((int32_t)s0) << 16;
+      if (stereo) {
         int16_t s1 = (int16_t)(p[2] | (p[3] << 8));
-        l = ((int32_t)s0) << 16;
         r = ((int32_t)s1) << 16;
-      } else {
-        l = ((int32_t)s0) << 16;
-        r = l;
-      }
-    } else if (info.bitsPerSample == 24 && bytesPerChan == 3) {
-      if (info.channels == 2) {
-        l = audioRead24le_to_32(p);
-        r = audioRead24le_to_32(p + 3);
-      } else {
-        l = audioRead24le_to_32(p);
-        r = l;
-      }
-    } else if ((info.bitsPerSample == 24 || info.bitsPerSample == 32) && bytesPerChan == 4) {
-      if (info.channels == 2) {
-        l = audioRead32le(p);
-        r = audioRead32le(p + 4);
-      } else {
-        l = audioRead32le(p);
-        r = l;
-      }
-    } else {
-      return 0;
+      } else { r = l; }
+      audioReactiveAccumulate(l, r);  // BEFORE volume — VU reacts to source level
+      l = (int32_t)(((int64_t)l * volScale) >> 8);
+      r = (int32_t)(((int64_t)r * volScale) >> 8);
+      eqApply(l, r);
+      outBuf[outSamples++] = l;
+      outBuf[outSamples++] = r;
+      p += info.blockAlign;
     }
-
-    int32_t scale = (int32_t)((constrain(g_volume, 0, 100) * 256L) / 100L);
-    l = (int32_t)(((int64_t)l * scale) / 256);
-    r = (int32_t)(((int64_t)r * scale) / 256);
-
-    // Apply EQ (3-band biquad filter)
-    eqApply(l, r);
-
-    // Accumulate audio features for reactive LEDs (~4 float ops/sample)
-    audioReactiveAccumulate(l, r);
-
-    outBuf[outSamples++] = l;
-    outBuf[outSamples++] = r;
-    p += info.blockAlign;
+  } else if (info.bitsPerSample == 24 && bytesPerChan == 3) {
+    const bool stereo = (info.channels == 2);
+    for (size_t i = 0; i < frames; i++) {
+      int32_t l, r;
+      l = audioRead24le_to_32(p);
+      if (stereo) { r = audioRead24le_to_32(p + 3); } else { r = l; }
+      audioReactiveAccumulate(l, r);  // BEFORE volume
+      l = (int32_t)(((int64_t)l * volScale) >> 8);
+      r = (int32_t)(((int64_t)r * volScale) >> 8);
+      eqApply(l, r);
+      outBuf[outSamples++] = l;
+      outBuf[outSamples++] = r;
+      p += info.blockAlign;
+    }
+  } else if ((info.bitsPerSample == 24 || info.bitsPerSample == 32) && bytesPerChan == 4) {
+    const bool stereo = (info.channels == 2);
+    for (size_t i = 0; i < frames; i++) {
+      int32_t l, r;
+      l = audioRead32le(p);
+      if (stereo) { r = audioRead32le(p + 4); } else { r = l; }
+      audioReactiveAccumulate(l, r);  // BEFORE volume
+      l = (int32_t)(((int64_t)l * volScale) >> 8);
+      r = (int32_t)(((int64_t)r * volScale) >> 8);
+      eqApply(l, r);
+      outBuf[outSamples++] = l;
+      outBuf[outSamples++] = r;
+      p += info.blockAlign;
+    }
+  } else {
+    return 0;
   }
+
+  // Feed bass EQ state to reactive system once per buffer (was per-sample)
+  if (g_eqEnabled) audioReactiveSetBass(g_eqStateL[0].y1);
 
   return outSamples * sizeof(int32_t);
 }
@@ -471,49 +556,38 @@ String audioFindFirstWav() {
 
 // ── List All Valid WAVs in /tracks ──────────────────────────
 String audioListWavsJson() {
-  File dir = SD.open("/tracks");
-  if (!dir || !dir.isDirectory()) {
-    if (dir) dir.close();
-    return "[]";
-  }
+  // Uses g_wavPaths[] from scanWavList() as canonical order.
+  // scanWavList() already validates headers, so indices match 1:1.
+  // Includes "idx" so dashboard can map firmware trackIndex directly.
+  if (g_wavCount == 0) return "[]";
 
   String json = "[";
-  bool first = true;
 
-  while (true) {
-    File file = dir.openNextFile();
-    if (!file) break;
+  for (int i = 0; i < g_wavCount; i++) {
+    File file = SD.open(g_wavPaths[i], FILE_READ);
+    if (!file) continue;
 
-    String name = String(file.name());
     size_t fsize = file.size();
+    WavInfo info = audioParseWav(file);
+    file.close();
 
-    if (name.endsWith(".wav") || name.endsWith(".WAV")) {
-      WavInfo info = audioParseWav(file);
-      file.close();
+    if (!info.valid) continue;  // safety net — shouldn't happen
 
-      if (info.valid) {
-        if (!first) json += ",";
-        first = false;
-        String fullPath = name.startsWith("/") ? name : ("/tracks/" + name);
-        json += "{\"path\":\"" + fullPath + "\",";
-        json += "\"size\":" + String((unsigned long)fsize) + ",";
-        json += "\"sampleRate\":" + String(info.sampleRate) + ",";
-        json += "\"channels\":" + String(info.channels) + ",";
-        json += "\"bitsPerSample\":" + String(info.bitsPerSample) + ",";
-        uint32_t bytesPerSample = (info.bitsPerSample / 8) * info.channels;
-        uint32_t durationMs = 0;
-        if (bytesPerSample > 0 && info.sampleRate > 0) {
-          uint32_t totalSamples = info.dataSize / bytesPerSample;
-          durationMs = (uint32_t)((uint64_t)totalSamples * 1000 / info.sampleRate);
-        }
-        json += "\"durationMs\":" + String(durationMs) + "}";
-      }
-    } else {
-      file.close();
+    if (json.length() > 1) json += ",";
+    json += "{\"idx\":" + String(i) + ",";
+    json += "\"path\":\"" + g_wavPaths[i] + "\",";
+    json += "\"size\":" + String((unsigned long)fsize) + ",";
+    json += "\"sampleRate\":" + String(info.sampleRate) + ",";
+    json += "\"channels\":" + String(info.channels) + ",";
+    json += "\"bitsPerSample\":" + String(info.bitsPerSample) + ",";
+    uint32_t bytesPerSample = (info.bitsPerSample / 8) * info.channels;
+    uint32_t durationMs = 0;
+    if (bytesPerSample > 0 && info.sampleRate > 0) {
+      uint32_t totalSamples = info.dataSize / bytesPerSample;
+      durationMs = (uint32_t)((uint64_t)totalSamples * 1000 / info.sampleRate);
     }
+    json += "\"durationMs\":" + String(durationMs) + "}";
   }
-
-  dir.close();
   return json + "]";
 }
 
@@ -527,6 +601,7 @@ static void audioPlaybackTask(void* param) {
   File f = SD.open(path, FILE_READ);
   if (!f) {
     Serial.printf("[AUDIO] Failed to open: %s\n", path.c_str());
+    g_audioStopRequested = true;  // prevent auto-advance on error
     g_audioPlaying = false;
     g_playbackTaskHandle = nullptr;
     vTaskDelete(NULL);
@@ -537,6 +612,7 @@ static void audioPlaybackTask(void* param) {
   if (!info.valid) {
     Serial.printf("[AUDIO] Unsupported WAV: %s\n", path.c_str());
     f.close();
+    g_audioStopRequested = true;  // prevent auto-advance on error
     g_audioPlaying = false;
     g_playbackTaskHandle = nullptr;
     vTaskDelete(NULL);
@@ -544,7 +620,9 @@ static void audioPlaybackTask(void* param) {
   }
 
   if (!audioInitI2S(info.sampleRate)) {
+    Serial.printf("[AUDIO] I2S init failed for %lu Hz — cannot play this track\n", (unsigned long)info.sampleRate);
     f.close();
+    g_audioStopRequested = true;  // prevent auto-advance to next track
     g_audioPlaying = false;
     g_playbackTaskHandle = nullptr;
     vTaskDelete(NULL);
@@ -610,7 +688,9 @@ static void audioPlaybackTask(void* param) {
     }
 
     size_t written = 0;
-    esp_err_t err = i2s_channel_write(g_i2sTxHandle, g_audioOutBuf, outBytes, &written, 1000);
+    // Timeout in ticks — use portMAX_DELAY to block until DMA accepts all data
+    // This prevents partial writes that cause clicks at buffer boundaries
+    esp_err_t err = i2s_channel_write(g_i2sTxHandle, g_audioOutBuf, outBytes, &written, portMAX_DELAY);
     if (err != ESP_OK) {
       Serial.printf("[AUDIO] I2S write error: %d\n", (int)err);
       break;
@@ -660,10 +740,11 @@ bool audioPlayFile(const char* path) {
   // Stop current playback first
   if (g_audioPlaying) {
     audioStop();
-    delay(250);
+    delay(50);  // Brief settle time after I2S stop (was 250ms)
   }
 
   g_audioStopRequested = false;
+  g_audioPlaying = true;  // Set BEFORE task creation to prevent auto-advance race
   g_audioFile = String(path);
 
   String* arg = new String(path);
@@ -674,6 +755,7 @@ bool audioPlayFile(const char* path) {
 
   if (result != pdPASS) {
     delete arg;
+    g_audioPlaying = false;  // Task failed — undo the early set
     Serial.println("[AUDIO] Failed to create playback task");
     return false;
   }
@@ -686,10 +768,10 @@ bool audioPlayFile(const char* path) {
 void audioStop() {
   if (g_audioPlaying) {
     g_audioStopRequested = true;
-    // Wait for task to finish (up to 500ms)
-    int timeout = 50;
+    // Wait for task to finish (up to 200ms — tighter for snappy buttons)
+    int timeout = 40;
     while (g_audioPlaying && timeout-- > 0) {
-      delay(10);
+      delay(5);
     }
     if (g_audioPlaying) {
       Serial.println("[AUDIO] Warning: playback task did not stop in time");

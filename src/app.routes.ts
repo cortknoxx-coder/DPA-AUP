@@ -19,6 +19,7 @@ import { FanDeviceRegistrationComponent } from './pages/fan-portal/fan-device-re
 import { FanMarketplaceComponent } from './pages/fan-portal/fan-marketplace.component';
 import { FanCheckoutComponent } from './pages/fan-portal/fan-checkout.component';
 import { FanSettingsComponent } from './pages/fan-portal/fan-settings.component';
+import { FanAudioComponent } from './pages/fan-portal/fan-audio.component';
 import { FleetTrackerComponent } from './pages/fleet-tracker/fleet-tracker.component';
 import { FanAuthComponent } from './pages/fan-portal/fan-auth.component';
 
@@ -70,6 +71,7 @@ export const routes: Routes = [
           { path: 'marketplace', component: FanMarketplaceComponent },
           { path: 'devices', component: FanDeviceRegistrationComponent },
           { path: 'checkout', component: FanCheckoutComponent },
+          { path: 'audio', component: FanAudioComponent },
           { path: 'settings', component: FanSettingsComponent }
         ]
       }

@@ -214,77 +214,26 @@ static int playlistScore(int idx) {
   return score;
 }
 
-// ── Build Playlist Order ────────────────────────────────────
+// ── Build Playlist Order (sequential only) ──────────────────
 void playlistBuild() {
   g_playlistLen = g_wavCount > 32 ? 32 : g_wavCount;
   for (int i = 0; i < g_playlistLen; i++) g_playlistOrder[i] = i;
-
-  if (g_playlistMode == "smart") {
-    // Sort by score descending (simple insertion sort — max 32 items)
-    for (int i = 1; i < g_playlistLen; i++) {
-      int key = g_playlistOrder[i];
-      int keyScore = playlistScore(key);
-      int j = i - 1;
-      while (j >= 0 && playlistScore(g_playlistOrder[j]) < keyScore) {
-        g_playlistOrder[j + 1] = g_playlistOrder[j];
-        j--;
-      }
-      g_playlistOrder[j + 1] = key;
-    }
-  } else if (g_playlistMode == "smart_shuffle") {
-    // Weighted random: higher score = more likely to appear earlier
-    for (int i = 0; i < g_playlistLen - 1; i++) {
-      // Pick a random index from remaining, weighted by score
-      int best = i;
-      int bestScore = playlistScore(g_playlistOrder[i]) + (int)(esp_random() % 200);
-      for (int j = i + 1; j < g_playlistLen; j++) {
-        int s = playlistScore(g_playlistOrder[j]) + (int)(esp_random() % 200);
-        if (s > bestScore) { best = j; bestScore = s; }
-      }
-      if (best != i) {
-        int tmp = g_playlistOrder[i];
-        g_playlistOrder[i] = g_playlistOrder[best];
-        g_playlistOrder[best] = tmp;
-      }
-    }
-  }
-  // "normal" and "repeat_one" keep sequential order
+  // Always sequential — smart/shuffle removed
 }
 
-// ── Get Next Track Index (smart or sequential) ──────────────
+// ── Get Next Track Index (simple sequential) ────────────────
 int playlistNextTrack(int currentIdx) {
-  if (g_playlistLen == 0) { playlistBuild(); }
-  if (g_playlistLen == 0) return 0;
-
+  if (g_wavCount == 0) return 0;
   if (g_playlistMode == "repeat_one") return currentIdx;
-
-  // Find current position in playlist order
-  int pos = -1;
-  for (int i = 0; i < g_playlistLen; i++) {
-    if (g_playlistOrder[i] == currentIdx) { pos = i; break; }
-  }
-
-  int nextPos = (pos + 1) % g_playlistLen;
-
-  // If we wrapped around, rebuild playlist (re-score/re-shuffle)
-  if (nextPos == 0 && (g_playlistMode == "smart" || g_playlistMode == "smart_shuffle")) {
-    playlistBuild();
-  }
-
-  return g_playlistOrder[nextPos];
+  // Simple sequential: next track by index, wrap around
+  return (currentIdx + 1) % g_wavCount;
 }
 
 int playlistPrevTrack(int currentIdx) {
-  if (g_playlistLen == 0) { playlistBuild(); }
-  if (g_playlistLen == 0) return 0;
+  if (g_wavCount == 0) return 0;
   if (g_playlistMode == "repeat_one") return currentIdx;
-
-  int pos = -1;
-  for (int i = 0; i < g_playlistLen; i++) {
-    if (g_playlistOrder[i] == currentIdx) { pos = i; break; }
-  }
-
-  return g_playlistOrder[(pos - 1 + g_playlistLen) % g_playlistLen];
+  // Simple sequential: previous track by index, wrap around
+  return (currentIdx - 1 + g_wavCount) % g_wavCount;
 }
 
 // ── Content Protection (HMAC-SHA256 DUID binding) ────────────

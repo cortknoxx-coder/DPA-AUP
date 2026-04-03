@@ -53,9 +53,25 @@ export interface ThemeColors {
   background: string;
 }
 
+// All LED patterns supported by firmware (led.h)
+export type LedBasePattern =
+  | 'off' | 'solid' | 'breathing' | 'pulse'
+  | 'comet' | 'rainbow' | 'fire' | 'sparkle'
+  | 'wave' | 'dual_comet' | 'meteor' | 'theater' | 'bounce';
+
+export type LedAudioPattern =
+  | 'audio_pulse' | 'audio_bass' | 'audio_beat' | 'audio_comet'
+  | 'audio_vu' | 'vu_classic' | 'vu_fill' | 'vu_peak'
+  | 'vu_split' | 'vu_bass' | 'vu_energy';
+
+export type LedNotifyPattern =
+  | 'chase_fwd' | 'chase_rev' | 'heartbeat' | 'fade_out';
+
+export type LedPattern = LedBasePattern | LedAudioPattern | LedNotifyPattern;
+
 export interface LedState {
   color: string;
-  pattern: 'breathing' | 'solid' | 'pulse' | 'off';
+  pattern: LedPattern;
 }
 
 export interface Theme {
@@ -72,6 +88,102 @@ export interface Theme {
     video: string;
     merch: string;
     signing: string;
+    remix: string;
+    other: string;
+  };
+}
+
+// --- DCNP Notification Types ---
+
+export type DcnpEventType = 'concert' | 'video' | 'merch' | 'signing' | 'remix' | 'other';
+
+export interface LedNotificationStep {
+  pattern: LedNotifyPattern | 'pulse' | 'breathing' | 'solid' | 'off';
+  durationMs: number;
+  repeatCount: number;
+  bpm?: number;
+}
+
+// --- Firmware Communication Types ---
+
+export type PlaybackMode = 'normal' | 'repeat_all' | 'repeat_one' | 'shuffle';
+export type EqPreset = 'flat' | 'bass' | 'vocal' | 'warm';
+export type A2dpState = 'disconnected' | 'connecting' | 'connected' | 'playing';
+
+export interface BatteryStatus {
+  voltage: number;
+  percent: number;
+  charging: boolean;
+}
+
+export interface AudioStatus {
+  volume: number;
+  eq: EqPreset;
+  mode: PlaybackMode;
+  a2dp: A2dpState;
+  a2dpDevice: string;
+}
+
+export interface StorageStatus {
+  totalMB: number;
+  usedMB: number;
+  freeMB: number;
+  trackCount: number;
+  capsuleCount: number;
+  videoCount: number;
+}
+
+export interface DeviceTrack {
+  index: number;
+  filename: string;
+  title: string;
+  sizeMB: number;
+  plays: number;
+  durationMs: number;
+}
+
+export interface A2dpDevice {
+  name: string;
+  addr: string;
+  rssi: number;
+}
+
+export interface FirmwareStatus {
+  name: string;
+  ver: string;
+  env: string;
+  duid: string;
+  ble: boolean;
+  wifi: boolean;
+  ip: string;
+  sta?: {
+    connected: boolean;
+    ssid: string;
+    ip: string;
+    rssi: number;
+  };
+  uptime_s: number;
+  battery: BatteryStatus;
+  audio: AudioStatus;
+  storage: StorageStatus;
+  espnow: {
+    active: boolean;
+    peers: number;
+    peerList: Array<{ duid: string; age: number }>;
+  };
+  player: {
+    trackIndex: number;
+    trackId: string;
+    trackTitle: string;
+    playing: boolean;
+    posMs: number;
+    durationMs: number;
+  };
+  counts: {
+    play: number;
+    pause: number;
+    next: number;
+    prev: number;
   };
 }
 
@@ -268,4 +380,36 @@ export interface Manifest {
     manifestSigEd25519B64: string;
     publisherPubkeyEd25519B64: string;
   };
+}
+
+// --- .dpa Encrypted Container Format ---
+
+export interface DpaFileHeader {
+  magic: 'DPA\x01';
+  version: number;
+  flags: number; // bit0=FLAC, bit1=video, bit2=capsule
+  duidHash: string; // SHA-256 hex of DUID + master key
+  ivHex: string; // 12-byte nonce as hex
+}
+
+export interface DpaEncryptionConfig {
+  masterKey: string; // Compiled constant
+  duid: string; // Target device DUID
+  contentType: 'audio' | 'video' | 'capsule';
+}
+
+// --- WiFi Network Types ---
+
+export interface WifiNetwork {
+  ssid: string;
+  rssi: number;
+  encryption: string;
+  channel: number;
+}
+
+export interface WifiConnectionStatus {
+  connected: boolean;
+  ssid: string;
+  ip: string;
+  rssi: number;
 }

@@ -250,8 +250,13 @@ void meshSendLedTheme() {
     if (p == "audio_pulse") return 10;
     if (p == "audio_bass") return 11;
     if (p == "audio_beat") return 12;
-    if (p == "audio_vu") return 13;
+    if (p == "audio_vu" || p == "vu_classic") return 13;
     if (p == "audio_comet") return 14;
+    if (p == "vu_fill") return 15;
+    if (p == "vu_peak") return 16;
+    if (p == "vu_split") return 17;
+    if (p == "vu_bass") return 18;
+    if (p == "vu_energy") return 19;
     return 0;
   };
 
@@ -352,7 +357,10 @@ static void meshOnRecv(const uint8_t* mac, const uint8_t* data, int len) {
           case 4: return "fire"; case 5: return "sparkle";
           case 6: return "wave"; case 10: return "audio_pulse";
           case 11: return "audio_bass"; case 12: return "audio_beat";
-          case 13: return "audio_vu"; case 14: return "audio_comet";
+          case 13: return "vu_classic"; case 14: return "audio_comet";
+          case 15: return "vu_fill"; case 16: return "vu_peak";
+          case 17: return "vu_split"; case 18: return "vu_bass";
+          case 19: return "vu_energy";
           default: return "breathing";
         }
       };
@@ -460,7 +468,7 @@ void espnowTick() {
       playTrackByIndex(track);
     } else if (cmd == 0x02) {
       extern void audioStop();
-      extern bool g_audioPlaying;
+      extern volatile bool g_audioPlaying;
       if (g_audioPlaying) {
         g_playing = false;
         audioStop();

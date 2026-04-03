@@ -51,6 +51,7 @@ extern String g_ledPlay, g_ledPlayPat;
 extern String g_ledCharge, g_ledChargePat;
 extern int g_brightness;
 extern int g_volume;
+extern String g_ledGradEnd;
 extern String g_dcnpConcert, g_dcnpVideo, g_dcnpMerch;
 extern String g_dcnpSigning, g_dcnpRemix, g_dcnpOther;
 
@@ -89,7 +90,7 @@ String getCurrentPattern() {
 // ── Helpers ──────────────────────────────────────────────────
 
 // Blend a pixel toward a color with distance-based falloff
-static inline void setPixelWithTail(int pos, CRGB color, uint8_t bright, int tailLen) {
+static inline void setPixelWithTail(int pos, CRGB color, int tailLen) {
   for (int t = 0; t <= tailLen; t++) {
     int idx = pos - t;
     if (idx < 0 || idx >= NUM_LEDS) continue;
@@ -102,7 +103,7 @@ static inline void setPixelWithTail(int pos, CRGB color, uint8_t bright, int tai
   }
 }
 
-static inline void setPixelWithTailRev(int pos, CRGB color, uint8_t bright, int tailLen) {
+static inline void setPixelWithTailRev(int pos, CRGB color, int tailLen) {
   for (int t = 0; t <= tailLen; t++) {
     int idx = pos + t;
     if (idx < 0 || idx >= NUM_LEDS) continue;
@@ -113,8 +114,35 @@ static inline void setPixelWithTailRev(int pos, CRGB color, uint8_t bright, int 
   }
 }
 
+// ── Gradient End Color ───────────────────────────────────────
+CRGB getGradientEnd() {
+  return hexToCRGB(g_ledGradEnd);
+}
+
+// ── VU Idle Fallback (breathing) ─────────────────────────────
+static inline void vuIdleFallback(CRGB color, uint8_t bright) {
+  unsigned long ms = millis();
+  float phase = (ms % 4000) / 4000.0f;
+  float sinVal = (sin(phase * 2.0f * PI - PI / 2.0f) + 1.0f) / 2.0f;
+  uint8_t b = (uint8_t)(sinVal * bright);
+  fill_solid(leds, NUM_LEDS, color);
+  FastLED.setBrightness(b < 8 ? 8 : b);
+}
+
 // ── Animation Engine (non-blocking) ──────────────────────────
 void ledTick() {
+  // Reset stale static state when pattern or mode changes
+  static String s_lastPattern = "";
+  static LedMode s_lastMode = LED_IDLE;
+  String _curPat = getCurrentPattern();
+  if (_curPat != s_lastPattern || g_ledMode != s_lastMode) {
+    s_lastPattern = _curPat;
+    s_lastMode = g_ledMode;
+    // Clear strip to avoid ghosting from previous pattern's static vars
+    fill_solid(leds, NUM_LEDS, CRGB::Black);
+    FastLED.show();
+  }
+
   // Check if notification has expired
   if (g_ledMode == LED_NOTIFICATION) {
     if (millis() - g_notifyStart >= g_notifyDuration) {
@@ -588,32 +616,142 @@ void ledTick() {
     }
   }
 
-  else if (pattern == "audio_vu") {
-    // VU meter: LEDs light up from center outward based on RMS
-    if (!g_audioFeatures.active) {
-      unsigned long ms = millis();
-      float phase = (ms % 4000) / 4000.0f;
-      float sinVal = (sin(phase * 2.0f * PI - PI / 2.0f) + 1.0f) / 2.0f;
-      uint8_t b = (uint8_t)(sinVal * bright);
-      fill_solid(leds, NUM_LEDS, color);
-      FastLED.setBrightness(b < 8 ? 8 : b);
-    } else {
+  // ── VU METER PATTERNS ──────────────────────────────────────
+  // All VU patterns are real-time audio-reactive using RMS/peak/bass
+
+  else if (pattern == "audio_vu" || pattern == "vu_classic") {
+    // Classic VU: center-out, user gradient color (start → end)
+    if (!g_audioFeatures.active) { vuIdleFallback(color, bright); }
+    else {
       fill_solid(leds, NUM_LEDS, CRGB::Black);
       FastLED.setBrightness(bright);
-      float level = g_audioFeatures.rms * 3.0f;  // boost for visibility
+      CRGB gradEnd = getGradientEnd();
+      float level = g_audioFeatures.rms * 3.0f;
       if (level > 1.0f) level = 1.0f;
       int litCount = (int)(level * (NUM_LEDS / 2));
       int center = NUM_LEDS / 2;
       for (int i = 0; i <= litCount; i++) {
-        // Color gradient: base color → warm → hot at peaks
         float ratio = (float)i / (float)(NUM_LEDS / 2);
-        CRGB c;
-        if (ratio < 0.6f) c = color;
-        else if (ratio < 0.85f) c = CRGB(255, 180, 0);  // amber
-        else c = CRGB(255, 50, 30);  // red-hot
+        CRGB c = blend(color, gradEnd, (uint8_t)(ratio * 255));
         if (center + i < NUM_LEDS) leds[center + i] = c;
         if (center - i >= 0) leds[center - i] = c;
       }
+    }
+  }
+
+  else if (pattern == "vu_fill") {
+    // Fill VU: left-to-right fill, gradient across full strip
+    if (!g_audioFeatures.active) { vuIdleFallback(color, bright); }
+    else {
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.setBrightness(bright);
+      CRGB gradEnd = getGradientEnd();
+      float level = g_audioFeatures.rms * 3.0f;
+      if (level > 1.0f) level = 1.0f;
+      int litCount = (int)(level * NUM_LEDS);
+      for (int i = 0; i < litCount && i < NUM_LEDS; i++) {
+        float ratio = (float)i / (float)(NUM_LEDS - 1);
+        leds[i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+      }
+    }
+  }
+
+  else if (pattern == "vu_peak") {
+    // Peak Hold VU: fill + floating peak dot with slow decay
+    static float peakHold = 0.0f;
+    static unsigned long peakTime = 0;
+    if (!g_audioFeatures.active) { vuIdleFallback(color, bright); peakHold = 0; }
+    else {
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.setBrightness(bright);
+      CRGB gradEnd = getGradientEnd();
+      float level = g_audioFeatures.rms * 3.0f;
+      if (level > 1.0f) level = 1.0f;
+      // Update peak hold
+      if (level >= peakHold) { peakHold = level; peakTime = millis(); }
+      else if (millis() - peakTime > 400) { peakHold *= 0.96f; } // slow decay after hold
+      int litCount = (int)(level * NUM_LEDS);
+      for (int i = 0; i < litCount && i < NUM_LEDS; i++) {
+        float ratio = (float)i / (float)(NUM_LEDS - 1);
+        leds[i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+      }
+      // Peak indicator dot (bright white-tinted)
+      int peakIdx = (int)(peakHold * (NUM_LEDS - 1));
+      if (peakIdx >= NUM_LEDS) peakIdx = NUM_LEDS - 1;
+      if (peakIdx >= litCount) {
+        leds[peakIdx] = CRGB::White;
+        leds[peakIdx].nscale8(200);
+      }
+    }
+  }
+
+  else if (pattern == "vu_split") {
+    // Split Stereo VU: left channel → left half, right channel → right half
+    if (!g_audioFeatures.active) { vuIdleFallback(color, bright); }
+    else {
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.setBrightness(bright);
+      CRGB gradEnd = getGradientEnd();
+      int half = NUM_LEDS / 2;
+      float levelL = g_audioFeatures.peakL * 2.5f;
+      float levelR = g_audioFeatures.peakR * 2.5f;
+      if (levelL > 1.0f) levelL = 1.0f;
+      if (levelR > 1.0f) levelR = 1.0f;
+      // Left half: fills from center outward to left
+      int litL = (int)(levelL * half);
+      for (int i = 0; i < litL && i < half; i++) {
+        float ratio = (float)i / (float)(half - 1);
+        leds[half - 1 - i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+      }
+      // Right half: fills from center outward to right
+      int litR = (int)(levelR * (NUM_LEDS - half));
+      for (int i = 0; i < litR && (half + i) < NUM_LEDS; i++) {
+        float ratio = (float)i / (float)(NUM_LEDS - half - 1);
+        leds[half + i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+      }
+    }
+  }
+
+  else if (pattern == "vu_bass") {
+    // Bass VU: reacts to low-freq energy, fills with gradient + pulse on hits
+    static float bassDecayVU = 0.0f;
+    if (!g_audioFeatures.active) { vuIdleFallback(color, bright); bassDecayVU = 0; }
+    else {
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.setBrightness(bright);
+      CRGB gradEnd = getGradientEnd();
+      float bass = g_audioFeatures.bassEnergy * 4.0f;
+      if (bass > 1.0f) bass = 1.0f;
+      if (bass > bassDecayVU) bassDecayVU = bass;
+      else bassDecayVU *= 0.88f;
+      int litCount = (int)(bassDecayVU * NUM_LEDS);
+      int center = NUM_LEDS / 2;
+      int litHalf = litCount / 2;
+      for (int i = 0; i <= litHalf && i < center + 1; i++) {
+        float ratio = (float)i / (float)center;
+        CRGB c = blend(color, gradEnd, (uint8_t)(ratio * 255));
+        // Brighten on fresh hit
+        if (bass > 0.7f) c = blend(c, CRGB::White, 60);
+        if (center + i < NUM_LEDS) leds[center + i] = c;
+        if (center - i >= 0) leds[center - i] = c;
+      }
+    }
+  }
+
+  else if (pattern == "vu_energy") {
+    // Energy VU: full-strip brightness pulse + gradient color wash
+    if (!g_audioFeatures.active) { vuIdleFallback(color, bright); }
+    else {
+      CRGB gradEnd = getGradientEnd();
+      float env = g_audioFeatures.envelope;
+      float level = 0.15f + env * 0.85f;
+      uint8_t b = (uint8_t)(level * bright);
+      // Gradient across entire strip, brightness modulated by energy
+      for (int i = 0; i < NUM_LEDS; i++) {
+        float ratio = (float)i / (float)(NUM_LEDS - 1);
+        leds[i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+      }
+      FastLED.setBrightness(b < 4 ? 4 : b);
     }
   }
 
@@ -692,6 +830,7 @@ void ledSaveToNVS() {
   prefs.putString("chrg_p", g_ledChargePat);
   prefs.putInt("bright", g_brightness);
   prefs.putInt("volume", g_volume);
+  prefs.putString("grad_e", g_ledGradEnd);
   prefs.putString("dcnp_cn", g_dcnpConcert);
   prefs.putString("dcnp_vd", g_dcnpVideo);
   prefs.putString("dcnp_mr", g_dcnpMerch);
@@ -713,6 +852,7 @@ void ledLoadFromNVS() {
   g_ledChargePat= prefs.getString("chrg_p", g_ledChargePat);
   g_brightness  = prefs.getInt("bright", g_brightness);
   g_volume      = prefs.getInt("volume", g_volume);
+  g_ledGradEnd  = prefs.getString("grad_e", g_ledGradEnd);
   g_dcnpConcert = prefs.getString("dcnp_cn", g_dcnpConcert);
   g_dcnpVideo   = prefs.getString("dcnp_vd", g_dcnpVideo);
   g_dcnpMerch   = prefs.getString("dcnp_mr", g_dcnpMerch);

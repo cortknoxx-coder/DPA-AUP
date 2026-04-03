@@ -1,6 +1,6 @@
 
 import { Component, inject, signal, effect } from '@angular/core';
-import { CommonModule, CurrencyPipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { UserService } from '../../services/user.service';
 import { UserProfile } from '../../types';
@@ -8,7 +8,7 @@ import { UserProfile } from '../../types';
 @Component({
   selector: 'app-fan-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, CurrencyPipe],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './fan-settings.component.html',
 })
 export class FanSettingsComponent {
@@ -23,7 +23,7 @@ export class FanSettingsComponent {
     name: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]]
   });
-  
+
   notificationsForm = this.fb.group({
     capsuleDrops: [true],
     marketplaceOffers: [true],
@@ -35,13 +35,12 @@ export class FanSettingsComponent {
     name: ['', Validators.required],
     number: ['', [Validators.required, Validators.pattern(/^\d{16}$/)]],
     expiry: ['', [Validators.required, Validators.pattern(/^(0[1-9]|1[0-2])\/\d{2}$/)]],
-    cvc: ['', [Validators.required, Validators.pattern(/^\d{3,4}$/)]]
+    cvc: ['', [Validators.required, Validators.pattern(/^\d{3,4}$/)]],
   });
 
   constructor() {
     effect(() => {
       const user = this.userService.userProfile();
-      // Using `reset` instead of `setValue` to avoid errors if the form structure diverges slightly
       this.profileForm.reset({
         name: user.name,
         email: user.email
@@ -66,14 +65,14 @@ export class FanSettingsComponent {
     if (this.addMethodForm.invalid) return;
 
     const val = this.addMethodForm.value;
-    
+
     this.userService.addPaymentMethod({
       type: 'card',
       name: `${val.name}`,
       last4: val.number?.slice(-4) || '0000',
       isDefault: false
     });
-    
+
     this.showAddMethodModal.set(false);
     this.addMethodForm.reset({ type: 'card' });
   }
@@ -86,5 +85,9 @@ export class FanSettingsComponent {
 
   setDefaultPaymentMethod(id: string) {
     this.userService.setDefaultPaymentMethod(id);
+  }
+
+  saveNotifications() {
+    alert('Notification settings saved!');
   }
 }

@@ -1,5 +1,5 @@
 
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { PlayerService, PlayerTrack } from '../../services/player.service';
@@ -21,6 +21,20 @@ export class FanLayoutComponent {
   sidebarOpen = signal(false);
   playlistOverlayVisible = signal(false);
   cartOverlayVisible = signal(false);
+
+  // Battery percentage from device WiFi or BLE status (-1 = unknown)
+  batteryPercent = computed(() => {
+    const conn = this.connectionService.connectionStatus();
+    if (conn === 'wifi') {
+      const status = this.connectionService.wifi.lastStatus();
+      return status?.battery?.percent ?? -1;
+    }
+    if (conn === 'bluetooth') {
+      const status = this.connectionService.ble.lastStatus();
+      return status?.battery?.percent ?? -1;
+    }
+    return -1;
+  });
 
   togglePlaylistOverlay() {
     this.playlistOverlayVisible.update(v => !v);

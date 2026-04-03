@@ -104,10 +104,13 @@ String g_firstPlayableWav = "";
 String g_ledIdle      = "#ff4bcb";
 String g_ledIdlePat   = "breathing";
 String g_ledPlay      = "#00f1df";
-String g_ledPlayPat   = "comet";
+String g_ledPlayPat   = "vu_classic";
 String g_ledCharge    = "#ffcc33";
 String g_ledChargePat = "breathing";
 int    g_brightness   = 80;
+
+// VU Gradient end color (start color = mode color above)
+String g_ledGradEnd   = "#ff6600";  // default: orange gradient end
 
 // DCNP notification colors
 String g_dcnpConcert = "#ff3366";
@@ -194,9 +197,9 @@ int g_nextCount = 0, g_prevCount = 0;
 #include "led.h"       // FastLED strip (GPIO 5) + onboard LED (GPIO 21)
 #include "sd_card.h"   // SD card via SPI (GP10-13)
 #include "audio.h"     // I2S DAC playback via PCM5122 (GP6-8)
-#include "captive.h"   // Captive portal DNS hijack + probe redirects
 #include "intelligence.h" // Smart playlist, analytics, content protection
-#include "espnow_mesh.h"  // ESP-NOW device mesh (broadcast, peer tracking)
+#include "captive.h"      // Captive portal DNS hijack (auto-open dashboard on WiFi connect)
+// #include "espnow_mesh.h"  // ESP-NOW — disabled until device gains traction
 #include "api.h"       // REST API endpoint handlers
 #include "dashboard.h" // PROGMEM gzipped HTML dashboard
 
@@ -204,7 +207,7 @@ int g_nextCount = 0, g_prevCount = 0;
 AsyncWebServer server(80);
 
 // ── WiFi AP Config ───────────────────────────────────────────
-const char* AP_PASSWORD = "dpa12345";
+const char* AP_PASSWORD = NULL;  // Open network — no password
 const int   AP_CHANNEL  = 6;
 const int   AP_MAX_CONN = 4;
 
@@ -229,6 +232,8 @@ void loadOrGenerateDUID() {
 }
 
 // ── Scan all WAV paths into g_wavPaths[] ─────────────────────
+// Only includes files with valid WAV headers so indices match
+// the dashboard's REAL_WAVS array exactly (from /api/audio/wavs)
 void scanWavList() {
   g_wavCount = 0;
   File dir = SD.open("/tracks");
@@ -239,13 +244,21 @@ void scanWavList() {
     String name = String(f.name());
     if (name.endsWith(".wav") || name.endsWith(".WAV")) {
       String fullPath = name.startsWith("/") ? name : ("/tracks/" + name);
-      g_wavPaths[g_wavCount++] = fullPath;
-      Serial.printf("[SCAN] Track %d: %s\n", g_wavCount, fullPath.c_str());
+      // Validate WAV header — skip corrupt/invalid files
+      // This keeps g_wavPaths[] in sync with audioListWavsJson()
+      WavInfo info = audioParseWav(f);
+      if (info.valid) {
+        g_wavPaths[g_wavCount++] = fullPath;
+        Serial.printf("[SCAN] Track %d: %s (%luHz %u-bit)\n", g_wavCount, fullPath.c_str(),
+                      (unsigned long)info.sampleRate, info.bitsPerSample);
+      } else {
+        Serial.printf("[SCAN] SKIP invalid WAV: %s\n", fullPath.c_str());
+      }
     }
     f.close();
   }
   dir.close();
-  Serial.printf("[SCAN] Found %d WAV files\n", g_wavCount);
+  Serial.printf("[SCAN] Found %d valid WAV files\n", g_wavCount);
   if (g_wavCount > 0) g_firstPlayableWav = g_wavPaths[0];
 }
 
@@ -348,7 +361,6 @@ void playTrackByIndex(int idx) {
     g_playCount++;
     ledSetMode(LED_PLAYBACK);
     analyticsOnPlay(idx, audioGetDurationMs());
-    meshSendPlaySync(0x01, idx);  // Broadcast play to mesh followers
     Serial.printf("[PLAY] Track %d: %s\n", idx, g_wavPaths[idx].c_str());
   }
 }
@@ -409,7 +421,7 @@ void buttonsTick() {
       g_buttons[b].lastState = btn;
     }
 
-    if ((millis() - g_buttons[b].lastDebounce) > 50) {
+    if ((millis() - g_buttons[b].lastDebounce) > 30) {
       if (btn == LOW && !g_buttons[b].handled) {
         g_buttons[b].handled = true;
 
@@ -420,12 +432,12 @@ void buttonsTick() {
           if (g_audioPlaying) {
             Serial.println("[BTN] Pause");
             g_playing = false;   // Set BEFORE audioStop to close race window
-            audioStop();
             g_pauseCount++;
-            ledNotify("#ff6b35", "fade_out", 500);  // Warm orange fade = stop
+            ledNotify("#ff6b35", "fade_out", 500);  // LED fires FIRST — instant feedback
+            audioStop();  // Then stop audio (may block briefly)
           } else if (g_wavCount > 0) {
             Serial.printf("[BTN] Play track %d\n", g_trackIndex);
-            ledNotify("#00ff88", "comet", 700);  // Green comet spin = play
+            ledNotify("#00ff88", "comet", 700);  // LED fires FIRST — instant feedback
             playTrackByIndex(g_trackIndex);
           } else {
             Serial.println("[BTN] No tracks");
@@ -453,15 +465,15 @@ void buttonsTick() {
         }
         // ── HEART (GP4) ──
         else if (pin == BTN_HEART_PIN) {
-          if (g_audioPlaying && g_trackIndex >= 0 && g_trackIndex < g_wavCount) {
+          if (g_trackIndex >= 0 && g_trackIndex < g_wavCount) {
             String path = g_wavPaths[g_trackIndex];
             bool wasLiked = isFavorite(path);
             toggleFavorite(path);
-            // Red heart pulse on LED (500ms)
-            ledNotify(wasLiked ? "#444444" : "#ff1744", "heartbeat", 700);
+            // Red heart pulse on LED (700ms)
+            ledNotify(wasLiked ? "#444444" : "#cc0040", "heartbeat", 700);
             Serial.printf("[BTN] Heart %s: %s\n", wasLiked ? "removed" : "added", path.c_str());
           } else {
-            Serial.println("[BTN] Heart — nothing playing");
+            Serial.println("[BTN] Heart — no track selected");
           }
         }
       }
@@ -545,36 +557,68 @@ void setup() {
   // 6. Start WiFi (AP always on + STA if credentials stored)
   wifiInit(AP_PASSWORD, AP_CHANNEL, AP_MAX_CONN);
 
-  // 6b. Start captive portal (DNS hijack → auto-open dashboard on phone)
+  // 6b. Captive portal (DNS hijack — phones auto-open dashboard on WiFi connect)
   captiveInit();
-
-  // 6c. Start ESP-NOW mesh (if enabled in NVS)
-  espnowInit();
-
-  // 7. Register captive portal probe redirects (before server.begin)
   captiveRegisterProbes(server);
+  Serial.println("[BOOT] Captive portal active (DNS hijack → 192.168.4.1)");
 
-  // 8. Serve dashboard (gzipped HTML from PROGMEM)
+  // 6c. ESP-NOW mesh — disabled until device gains traction
+  // espnowInit();
+  Serial.println("[BOOT] ESP-NOW mesh: disabled (not compiled)");
+
+  // 7. Serve dashboard (gzipped HTML from PROGMEM)
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
     AsyncWebServerResponse* response = req->beginResponse_P(
       200, "text/html", DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN
     );
     response->addHeader("Content-Encoding", "gzip");
-    response->addHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-    response->addHeader("Pragma", "no-cache");
-    response->addHeader("Expires", "0");
+    response->addHeader("Cache-Control", "max-age=3600");
+    response->addHeader("ETag", "\"" + g_fwVersion + "\"");
     req->send(response);
   });
 
   // 9. Register API routes (all /api/* endpoints)
   registerApiRoutes(server);
 
-  // 10. CORS headers for development
+  // 10. CORS headers + Connection: close (free sockets faster on ESP32)
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
+  DefaultHeaders::Instance().addHeader("Connection", "close");
 
-  // 11. Start web server
+  // 11. Catch-all: handle captive portal probes + 404
+  server.onNotFound([](AsyncWebServerRequest* req) {
+    String host = req->host();
+    String url = req->url();
+    // iOS/macOS captive portal probes from foreign hosts
+    if (url == "/hotspot-detect.html" || url == "/library/test/success.html") {
+      req->send(200, "text/html",
+        "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>");
+      return;
+    }
+    // Android probes from foreign hosts
+    if (url == "/generate_204" || url == "/gen_204") {
+      req->send(204);
+      return;
+    }
+    // Windows probes
+    if (url == "/connecttest.txt") {
+      req->send(200, "text/plain", "Microsoft Connect Test");
+      return;
+    }
+    if (url == "/ncsi.txt") {
+      req->send(200, "text/plain", "Microsoft NCSI");
+      return;
+    }
+    // Any foreign host → redirect to dashboard
+    if (host.length() > 0 && host != "192.168.4.1" && host != WiFi.softAPIP().toString()) {
+      req->redirect("http://192.168.4.1/");
+      return;
+    }
+    req->send(404, "text/plain", "Not Found");
+  });
+
+  // 12. Start web server
   server.begin();
   Serial.println("[HTTP] Server started on port 80");
 
@@ -594,9 +638,7 @@ void setup() {
   Serial.println();
   Serial.printf("[BOOT] Audio DAC: %s\n", g_audioReady ? "ready (ws_inv=true)" : "not detected");
   Serial.printf("[BOOT] Buttons: BOOT+GP1=play/pause, GP2=next, GP3=prev, GP4=heart\n");
-  Serial.printf("[BOOT] Captive portal: active (DNS hijack + probe redirects)\n");
   Serial.printf("[BOOT] Admin mode: HEART+NEXT 3s hold, or GET /api/admin/unlock?key=<DUID>\n");
-  Serial.printf("[BOOT] ESP-NOW mesh: %s (role=%s)\n", g_meshEnabled ? "enabled" : "disabled", g_meshRole.c_str());
   Serial.printf("[BOOT] Tracks: %d | Favorites: %d\n", g_wavCount, g_favCount);
   if (g_firstPlayableWav.length() > 0) {
     Serial.println("[BOOT] Press PLAY to start: " + g_firstPlayableWav);
@@ -618,16 +660,8 @@ void loop() {
   // Admin button combo (HEART + NEXT held 3s)
   adminComboTick();
 
-  // Captive portal DNS hijack (process DNS requests)
-  captiveTick();
-
-  // ESP-NOW mesh (beacons + audio feature broadcast)
-  espnowTick();
-
-  // Auto-switch LED mode based on playback state
-  if (g_audioPlaying && g_ledMode != LED_PLAYBACK && g_ledMode != LED_NOTIFICATION) {
-    ledSetMode(LED_PLAYBACK);
-  } else if (!g_audioPlaying && g_playing) {
+  // Detect when audio task finishes
+  if (!g_audioPlaying && g_playing) {
     // Audio task finished — but WHY?
     // g_audioStopRequested = user/API pressed stop → do NOT advance
     // g_audioStopRequested = false → track ended naturally → advance
@@ -641,9 +675,7 @@ void loop() {
     } else {
       // User stopped playback — stay idle
       analyticsOnStop(g_trackIndex);
-      meshSendPlaySync(0x02, g_trackIndex);  // Broadcast pause to mesh
       g_audioStopRequested = false;  // reset for next play
-      ledSetMode(LED_IDLE);
       Serial.println("[STOP] Playback stopped by user");
     }
   }
@@ -658,6 +690,12 @@ void loop() {
   if (!g_audioPlaying) {
     wifiDoScan();
   }
+
+  // Captive portal DNS processing (resolves all queries to AP IP)
+  captiveTick();
+
+  // ESP-NOW mesh tick — disabled
+  // espnowTick();
 
   // Monitor STA connection — skip during playback
   static unsigned long lastWifiCheck = 0;

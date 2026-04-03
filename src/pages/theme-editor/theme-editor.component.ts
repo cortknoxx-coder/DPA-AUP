@@ -4,8 +4,9 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { DataService } from '../../services/data.service';
-import { Theme } from '../../types';
+import { Theme, DcnpEventType } from '../../types';
 import { DeviceConnectionService } from '../../services/device-connection.service';
+import { LedNotificationService } from '../../services/led-notification.service';
 
 @Component({
   selector: 'app-theme-editor',
@@ -19,12 +20,17 @@ export class ThemeEditorComponent {
   private fb: FormBuilder = inject(FormBuilder);
   
   connectionService = inject(DeviceConnectionService);
+  private ledNotification = inject(LedNotificationService);
 
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
 
   // Visualizer State
   previewMode = signal<'idle' | 'playback' | 'charging'>('idle');
+  notificationPreviewActive = signal<DcnpEventType | null>(null);
+  glowOverride = signal<{ cssClass: string; color: string; customDuration?: string } | null>(null);
+
+  readonly dcnpTypes: DcnpEventType[] = ['concert', 'video', 'merch', 'signing', 'remix', 'other'];
 
   form = this.fb.group({
     albumColor: this.fb.group({
@@ -43,14 +49,19 @@ export class ThemeEditorComponent {
       concert: [''],
       video: [''],
       merch: [''],
-      signing: ['']
+      signing: [''],
+      remix: [''],
+      other: ['']
     })
   });
+
+  private formPatched = false;
 
   constructor() {
     effect(() => {
       const a = this.album();
-      if (a && a.themeJson) {
+      if (a && a.themeJson && !this.formPatched) {
+        this.formPatched = true;
         const themeData = {
           ...a.themeJson,
           skinType: a.themeJson.skinType || 'partial'
@@ -85,6 +96,26 @@ export class ThemeEditorComponent {
 
   removeSkin() {
     this.form.patchValue({ skinImage: '' });
+  }
+
+  async previewNotification(type: DcnpEventType) {
+    if (this.notificationPreviewActive()) return;
+    this.notificationPreviewActive.set(type);
+
+    const dcnpValues = this.form.value.dcnp as Record<string, string>;
+    const color = dcnpValues?.[type] || '#ffffff';
+
+    await this.ledNotification.playNotification(
+      type,
+      color,
+      (cssClass, c, customDuration) => {
+        this.glowOverride.set({ cssClass, color: c, customDuration });
+      },
+      () => {
+        this.glowOverride.set(null);
+        this.notificationPreviewActive.set(null);
+      }
+    );
   }
 
   save() {

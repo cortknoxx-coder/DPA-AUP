@@ -18,7 +18,7 @@ export class DataService {
         playback: { color: '#00f1df', pattern: 'pulse' },
         charging: { color: '#ffcc33', pattern: 'breathing' }
       },
-      dcnp: { concert: '#ff4bcb', video: '#00f1df', merch: '#ffcc33', signing: '#7d29ff' }
+      dcnp: { concert: '#ff4bcb', video: '#00f1df', merch: '#ffcc33', signing: '#7d29ff', remix: '#ff4500', other: '#ffffff' }
     };
   }
 
@@ -185,13 +185,13 @@ export class DataService {
           {
             id: 'v1',
             title: 'Studio Diaries: Episode 1',
-            url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            url: '/assets/videos/sample-1.mp4',
             poster: 'https://picsum.photos/seed/video1/800/450'
           },
           {
             id: 'v2',
             title: 'Cyber Heart (Live Rehearsal)',
-            url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+            url: '/assets/videos/sample-2.mp4',
             poster: 'https://picsum.photos/seed/video2/800/450'
           }
         ]

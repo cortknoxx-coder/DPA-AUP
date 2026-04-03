@@ -23,10 +23,6 @@
 #ifndef DPA_AUDIO_REACTIVE_H
 #define DPA_AUDIO_REACTIVE_H
 
-// Forward declare EQ state (defined in audio.h, included before this compiles)
-struct BiquadState;
-extern BiquadState g_eqStateL[];
-
 // ── Audio Features (written by Core 1, read by Core 0) ──────
 struct AudioFeatures {
   volatile float peakL;       // 0.0–1.0, per-buffer peak left
@@ -54,6 +50,12 @@ static const unsigned long BEAT_LOCKOUT_MS = 200;
 
 // ── Envelope state ──
 static float g_prevEnvelope = 0.0f;
+
+// ── Bass energy from EQ (set by audio.h after eqApply) ──
+static volatile float g_bassFilterOutput = 0.0f;
+static inline void audioReactiveSetBass(float y1) {
+  g_bassFilterOutput = y1;
+}
 
 // ── Call per-sample inside the conversion loop (after eqApply) ──
 // This adds ~4-5 float ops per sample — well within budget
@@ -85,9 +87,8 @@ static void audioReactiveCompute() {
   }
   g_prevEnvelope = env;
 
-  // Bass energy: read EQ bass band filter state (already computed by eqApply)
-  // g_eqStateL[0].y1 holds the last output of the bass band filter
-  float bassRaw = fabsf(g_eqStateL[0].y1 / 2147483648.0f);
+  // Bass energy: read cached EQ bass band filter output (set by audioReactiveSetBass)
+  float bassRaw = fabsf(g_bassFilterOutput / 2147483648.0f);
   float bass = (bassRaw > 1.0f) ? 1.0f : bassRaw;
 
   // Beat detection: peak > 2× moving average, with lockout
@@ -100,12 +101,16 @@ static void audioReactiveCompute() {
     g_lastBeatMs = nowMs;
   }
 
+  // Scale features by volume so VU meters reflect actual output level
+  extern int g_volume;  // 0-100
+  float volScale = g_volume / 100.0f;
+
   // Write to volatile struct (atomic-enough for LED reads on ESP32-S3)
-  g_audioFeatures.peakL = peakL;
-  g_audioFeatures.peakR = peakR;
-  g_audioFeatures.rms = rms;
-  g_audioFeatures.envelope = env;
-  g_audioFeatures.bassEnergy = bass;
+  g_audioFeatures.peakL = peakL * volScale;
+  g_audioFeatures.peakR = peakR * volScale;
+  g_audioFeatures.rms = rms * volScale;
+  g_audioFeatures.envelope = env * volScale;
+  g_audioFeatures.bassEnergy = bass * volScale;
   g_audioFeatures.beatFlag = beat;
   g_audioFeatures.active = true;
 

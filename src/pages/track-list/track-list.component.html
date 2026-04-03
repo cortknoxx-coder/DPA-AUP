@@ -50,16 +50,27 @@
               <div class="text-sm font-medium text-slate-200 truncate">{{ upload.filename }}</div>
               <div class="text-xs text-slate-500">{{ upload.status === 'done' ? 'Complete' : upload.progress + '%' }}</div>
             </div>
-            
+
             <!-- Progress Bar -->
             <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-              <div class="h-full bg-teal-500 transition-all duration-300 ease-out" [style.width.%]="upload.progress"></div>
+              <div class="h-full transition-all duration-300 ease-out"
+                [class.bg-teal-500]="upload.status === 'uploading' || upload.status === 'done'"
+                [class.bg-indigo-500]="upload.status === 'encrypting'"
+                [class.bg-amber-500]="upload.status === 'transferring'"
+                [class.bg-cyan-500]="upload.status === 'processing'"
+                [style.width.%]="upload.progress"></div>
             </div>
-            
+
             <div class="flex justify-between mt-1">
               <div class="text-[10px] text-slate-500">{{ upload.size }}</div>
               @if (upload.status === 'processing') {
-                <div class="text-[10px] text-teal-400 font-mono">Processing Audio...</div>
+                <div class="text-[10px] text-cyan-400 font-mono">Processing Audio...</div>
+              }
+              @if (upload.status === 'encrypting') {
+                <div class="text-[10px] text-indigo-400 font-mono">Encrypting to .dpa...</div>
+              }
+              @if (upload.status === 'transferring') {
+                <div class="text-[10px] text-amber-400 font-mono">Transferring to Device...</div>
               }
             </div>
           </div>

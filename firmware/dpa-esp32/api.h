@@ -17,7 +17,6 @@
 #include "audio.h"
 #include "audio_reactive.h"
 #include "intelligence.h"
-#include "espnow_mesh.h"
 
 // ── Extern Globals (defined in .ino) ─────────────────────────
 extern String g_duid, g_fwVersion;
@@ -224,7 +223,7 @@ String buildStatusJson() {
 
   String j;
   j.reserve(1400);
-  j += "{\"name\":\"dpa-device\",\"ver\":\"" + g_fwVersion + "\",";
+  j += "{\"name\":\"" + escJson(g_duid) + "\",\"ver\":\"" + g_fwVersion + "\",";
   j += "\"env\":\"dev\",\"duid\":\"" + g_duid + "\",";
   j += "\"admin\":" + String(g_adminMode ? "true" : "false") + ",";
   j += "\"ble\":false,\"wifi\":true,\"ip\":\"192.168.4.1\",";
@@ -249,10 +248,6 @@ String buildStatusJson() {
   j += "\"trackCount\":" + String(g_wavCount) + ",";
   j += "\"capsuleCount\":" + String(NUM_CAPSULES) + ",\"videoCount\":1,";
   j += "\"sdMounted\":" + String(g_sdMounted ? "true" : "false") + "},";
-  j += "\"espnow\":{\"active\":" + String(g_meshInited ? "true" : "false");
-  j += ",\"enabled\":" + String(g_meshEnabled ? "true" : "false");
-  j += ",\"role\":\"" + g_meshRole + "\"";
-  j += ",\"peers\":" + String(meshPeerCount()) + ",\"peerList\":[]},";
   j += "\"player\":{\"trackIndex\":" + String(g_trackIndex) + ",";
   j += "\"trackId\":\"" + escJson(currentPath) + "\",";
   j += "\"trackTitle\":\"" + escJson(currentTitle) + "\",";
@@ -270,7 +265,8 @@ String buildStatusJson() {
   j += "\"led\":{";
   j += "\"idle\":{\"color\":\"" + g_ledIdle + "\",\"pattern\":\"" + g_ledIdlePat + "\"},";
   j += "\"playback\":{\"color\":\"" + g_ledPlay + "\",\"pattern\":\"" + g_ledPlayPat + "\"},";
-  j += "\"charging\":{\"color\":\"" + g_ledCharge + "\",\"pattern\":\"" + g_ledChargePat + "\"}},";
+  j += "\"charging\":{\"color\":\"" + g_ledCharge + "\",\"pattern\":\"" + g_ledChargePat + "\"},";
+  j += "\"gradEnd\":\"" + g_ledGradEnd + "\"},";
   j += "\"favorites\":{\"count\":" + String(g_favCount) + ",\"items\":" + favItems + ",\"current\":" + String(isFavorite(currentPath) ? "true" : "false") + "},";
   j += "\"dcnp\":{";
   j += "\"concert\":\"" + g_dcnpConcert + "\",";
@@ -406,6 +402,7 @@ void registerApiRoutes(AsyncWebServer& server) {
           g_trackIndex = idx;
           g_playing = true;
           g_playCount++;
+          ledSetMode(LED_PLAYBACK);
           ledNotify("#00ff88", "comet", 700);  // Green comet spin = play
           Serial.printf("[API] Play track %d: %s\n", idx, path.c_str());
         }
@@ -430,19 +427,88 @@ void registerApiRoutes(AsyncWebServer& server) {
     if (req->hasParam("preset")) {
       String preset = req->getParam("preset")->value();
       g_eq = preset;
-      // If currently playing, re-apply EQ at current sample rate
       if (g_audioPlaying && g_wavSampleRate > 0) {
         eqSetPreset(preset, g_wavSampleRate);
       }
       Serial.printf("[API] EQ -> %s\n", preset.c_str());
       req->send(200, "application/json", "{\"ok\":true,\"eq\":\"" + escJson(preset) + "\"}");
     } else {
-      // Return current EQ and available presets
       String j = "{\"eq\":\"" + escJson(g_eq) + "\",\"presets\":[";
       j += "\"flat\",\"bass_boost\",\"vocal\",\"warm\"";
       j += "]}";
       req->send(200, "application/json", j);
     }
+  });
+
+  // ── GET /api/eq/custom?bass=X&mid=X&treble=X (dB, ±6 range) ──
+  server.on("/api/eq/custom", HTTP_GET, [](AsyncWebServerRequest* req) {
+    float bass = req->hasParam("bass") ? req->getParam("bass")->value().toFloat() : 0;
+    float mid = req->hasParam("mid") ? req->getParam("mid")->value().toFloat() : 0;
+    float treble = req->hasParam("treble") ? req->getParam("treble")->value().toFloat() : 0;
+    g_eq = "custom";
+    uint32_t sr = (g_audioPlaying && g_wavSampleRate > 0) ? g_wavSampleRate : 44100;
+    eqSetCustom(bass, mid, treble, sr);
+    Serial.printf("[API] EQ custom: bass=%.1f mid=%.1f treble=%.1f\n", bass, mid, treble);
+    String j = "{\"ok\":true,\"eq\":\"custom\",\"bass\":" + String(bass,1) + ",\"mid\":" + String(mid,1) + ",\"treble\":" + String(treble,1) + "}";
+    req->send(200, "application/json", j);
+  });
+
+  // ── GET /api/favorites/set?file=/tracks/x.wav&state=true|false ──
+  // NOTE: Must be registered BEFORE /api/favorites to avoid prefix match
+  // Idempotent — always sets to desired state, safe to retry
+  server.on("/api/favorites/set", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (!req->hasParam("file") || !req->hasParam("state")) {
+      req->send(400, "application/json", "{\"error\":\"file and state params required\"}");
+      return;
+    }
+    String path = req->getParam("file")->value();
+    bool want = (req->getParam("state")->value() == "true");
+    bool have = isFavorite(path);
+    if (want && !have) {
+      // Add
+      if (g_favCount < 32) {
+        int trackIdx = -1;
+        for (int i = 0; i < g_wavCount; i++) { if (g_wavPaths[i] == path) { trackIdx = i; break; } }
+        g_favorites[g_favCount++] = path;
+        saveFavorites();
+        analyticsSyncFavorite(trackIdx, true);
+        Serial.println("[FAV] Set added: " + path);
+      }
+    } else if (!want && have) {
+      // Remove
+      int trackIdx = -1;
+      for (int i = 0; i < g_wavCount; i++) { if (g_wavPaths[i] == path) { trackIdx = i; break; } }
+      for (int i = 0; i < g_favCount; i++) {
+        if (g_favorites[i] == path) {
+          for (int j = i; j < g_favCount - 1; j++) g_favorites[j] = g_favorites[j + 1];
+          g_favCount--;
+          break;
+        }
+      }
+      saveFavorites();
+      analyticsSyncFavorite(trackIdx, false);
+      Serial.println("[FAV] Set removed: " + path);
+    }
+    bool nowLiked = isFavorite(path);
+    ledNotify(nowLiked ? "#cc0040" : "#444444", "heartbeat", 700);
+    String j = "{\"ok\":true,\"file\":\"" + escJson(path) + "\",\"favorite\":" + String(nowLiked ? "true" : "false") + "}";
+    req->send(200, "application/json", j);
+  });
+
+  // ── GET /api/favorites/toggle?file=/tracks/x.wav (legacy) ───
+  // NOTE: Must be registered BEFORE /api/favorites to avoid prefix match
+  server.on("/api/favorites/toggle", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (!req->hasParam("file")) {
+      req->send(400, "application/json", "{\"error\":\"file param required\"}");
+      return;
+    }
+    String path = req->getParam("file")->value();
+    bool wasLiked = isFavorite(path);
+    toggleFavorite(path);
+    bool nowLiked = !wasLiked;
+    ledNotify(nowLiked ? "#cc0040" : "#444444", "heartbeat", 700);
+    String j = "{\"ok\":true,\"file\":\"" + escJson(path) + "\",\"favorite\":" + String(nowLiked ? "true" : "false") + "}";
+    req->send(200, "application/json", j);
   });
 
   // ── GET /api/favorites ──────────────────────────────────────
@@ -453,21 +519,6 @@ void registerApiRoutes(AsyncWebServer& server) {
       j += "\"" + escJson(g_favorites[i]) + "\"";
     }
     j += "]}";
-    req->send(200, "application/json", j);
-  });
-
-  // ── GET /api/favorites/toggle?file=/tracks/x.wav ───────────
-  server.on("/api/favorites/toggle", HTTP_GET, [](AsyncWebServerRequest* req) {
-    if (!req->hasParam("file")) {
-      req->send(400, "application/json", "{\"error\":\"file param required\"}");
-      return;
-    }
-    String path = req->getParam("file")->value();
-    bool wasLiked = isFavorite(path);
-    toggleFavorite(path);
-    bool nowLiked = !wasLiked;
-    ledNotify(nowLiked ? "#ff1744" : "#444444", "heartbeat", 700);
-    String j = "{\"ok\":true,\"file\":\"" + escJson(path) + "\",\"favorite\":" + String(nowLiked ? "true" : "false") + "}";
     req->send(200, "application/json", j);
   });
 
@@ -498,6 +549,7 @@ void registerApiRoutes(AsyncWebServer& server) {
       return;
     }
     String path = req->getParam("file")->value();
+    Serial.printf("[API] /api/audio/play request: '%s'\n", path.c_str());
 
     // Remount SD at fast speed for playback
     if (g_sdCurrentHz != SD_FAST_HZ) {
@@ -505,14 +557,20 @@ void registerApiRoutes(AsyncWebServer& server) {
     }
 
     // Find the index so hardware buttons can track position
+    bool foundIdx = false;
     for (int i = 0; i < g_wavCount; i++) {
-      if (g_wavPaths[i] == path) { g_trackIndex = i; break; }
+      if (g_wavPaths[i] == path) { g_trackIndex = i; foundIdx = true; break; }
+    }
+    Serial.printf("[API] Track index: %d (found=%s, total=%d)\n", g_trackIndex, foundIdx ? "yes" : "NO", g_wavCount);
+    for (int i = 0; i < g_wavCount; i++) {
+      Serial.printf("[API]   g_wavPaths[%d] = '%s' %s\n", i, g_wavPaths[i].c_str(), g_wavPaths[i] == path ? "<-- MATCH" : "");
     }
 
     bool ok = audioPlayFile(path.c_str());
     if (ok) {
       g_playing = true;
       g_playCount++;
+      ledSetMode(LED_PLAYBACK);
       ledNotify("#00ff88", "comet", 700);  // Green comet spin = play
     }
     String j = "{\"ok\":" + String(ok ? "true" : "false") + ",\"file\":\"" + escJson(path) + "\"}";
@@ -539,15 +597,13 @@ void registerApiRoutes(AsyncWebServer& server) {
     req->send(200, "application/json", analyticsToJson());
   });
 
-  // ── GET /api/playlist/mode?mode=smart ────────────────────────
-  // Switch playlist mode: normal, smart, smart_shuffle, repeat_one
+  // ── GET /api/playlist/mode?mode=normal|repeat|repeat_one ─────
   server.on("/api/playlist/mode", HTTP_GET, [](AsyncWebServerRequest* req) {
     if (req->hasParam("mode")) {
       String mode = req->getParam("mode")->value();
-      if (mode == "normal" || mode == "smart" || mode == "smart_shuffle" || mode == "repeat_one") {
+      if (mode == "normal" || mode == "repeat" || mode == "repeat_one") {
         g_playlistMode = mode;
         g_playMode = mode;
-        playlistBuild();
         Serial.printf("[INTEL] Playlist mode -> %s\n", mode.c_str());
       }
     }
@@ -886,71 +942,52 @@ void registerApiRoutes(AsyncWebServer& server) {
     req->send(200, "application/json", j);
   });
 
-  // ── GET /api/espnow/status ──────────────────────────────────
-  server.on("/api/espnow/status", HTTP_GET, [](AsyncWebServerRequest* req) {
-    req->send(200, "application/json", meshStatusToJson());
-  });
-
-  // ── GET /api/espnow/enable ───────────────────────────────
-  server.on("/api/espnow/enable", HTTP_GET, [](AsyncWebServerRequest* req) {
-    bool ok = espnowEnable();
-    req->send(200, "application/json", "{\"ok\":" + String(ok ? "true" : "false") + ",\"active\":" + String(g_meshInited ? "true" : "false") + "}");
-  });
-
-  // ── GET /api/espnow/disable ──────────────────────────────
-  server.on("/api/espnow/disable", HTTP_GET, [](AsyncWebServerRequest* req) {
-    espnowDisable();
-    req->send(200, "application/json", "{\"ok\":true,\"active\":false}");
-  });
-
-  // ── GET /api/espnow/role?role=master ─────────────────────
-  server.on("/api/espnow/role", HTTP_GET, [](AsyncWebServerRequest* req) {
-    if (req->hasParam("role")) {
-      String role = req->getParam("role")->value();
-      if (role == "auto" || role == "master" || role == "follower") {
-        g_meshRole = role;
-        meshSaveToNVS();
-        Serial.printf("[MESH] Role -> %s\n", role.c_str());
-      }
-    }
-    req->send(200, "application/json", "{\"ok\":true,\"role\":\"" + g_meshRole + "\",\"isMaster\":" + String(meshIsMaster() ? "true" : "false") + "}");
-  });
-
-  // ── GET /api/espnow/peers ────────────────────────────────
-  server.on("/api/espnow/peers", HTTP_GET, [](AsyncWebServerRequest* req) {
-    req->send(200, "application/json", meshStatusToJson());
-  });
-
   // ── GET /api/led/preview ─────────────────────────────────────
+  // Sets color/pattern and switches the active LED mode to match
   server.on("/api/led/preview", HTTP_GET, [](AsyncWebServerRequest* req) {
+    LedMode targetMode = LED_IDLE;
+    if (req->hasParam("mode")) {
+      String mode = req->getParam("mode")->value();
+      if (mode == "playback") targetMode = LED_PLAYBACK;
+      else if (mode == "charging") targetMode = LED_CHARGING;
+    }
     if (req->hasParam("color")) {
       String color = req->getParam("color")->value();
       color.replace("%23", "#");
-      if (req->hasParam("mode")) {
-        String mode = req->getParam("mode")->value();
-        if (mode == "idle")     g_ledIdle = color;
-        else if (mode == "playback") g_ledPlay = color;
-        else if (mode == "charging") g_ledCharge = color;
-      } else {
-        g_ledIdle = color;
+      switch (targetMode) {
+        case LED_PLAYBACK: g_ledPlay = color; break;
+        case LED_CHARGING: g_ledCharge = color; break;
+        default:           g_ledIdle = color; break;
       }
     }
     if (req->hasParam("pattern")) {
       String pattern = req->getParam("pattern")->value();
-      if (req->hasParam("mode")) {
-        String mode = req->getParam("mode")->value();
-        if (mode == "idle")     g_ledIdlePat = pattern;
-        else if (mode == "playback") g_ledPlayPat = pattern;
-        else if (mode == "charging") g_ledChargePat = pattern;
-      } else {
-        g_ledIdlePat = pattern;
+      switch (targetMode) {
+        case LED_PLAYBACK: g_ledPlayPat = pattern; break;
+        case LED_CHARGING: g_ledChargePat = pattern; break;
+        default:           g_ledIdlePat = pattern; break;
       }
     }
     if (req->hasParam("brightness")) {
       g_brightness = constrain(req->getParam("brightness")->value().toInt(), 0, 100);
     }
-    Serial.printf("[LED PREVIEW] mode=%s color=%s pat=%s bright=%d\n",
-      req->hasParam("mode") ? req->getParam("mode")->value().c_str() : "idle",
+    if (req->hasParam("gradEnd")) {
+      String gc = req->getParam("gradEnd")->value();
+      gc.replace("%23", "#");
+      g_ledGradEnd = gc;
+    }
+    // Only switch LED mode when pattern is explicitly changed (avoids
+    // "shock" flicker when color picker sends to both idle+playback modes)
+    if (req->hasParam("pattern")) {
+      ledSetMode(targetMode);
+      ledSaveToNVS();  // Pattern changes are infrequent — safe to save immediately
+    }
+    // Save colors/brightness/grad to NVS (JS debounces these at 200ms)
+    if (req->hasParam("color") || req->hasParam("gradEnd") || req->hasParam("brightness")) {
+      ledSaveToNVS();
+    }
+    Serial.printf("[LED PREVIEW] mode=%d color=%s pat=%s bright=%d\n",
+      targetMode,
       req->hasParam("color") ? req->getParam("color")->value().c_str() : "-",
       req->hasParam("pattern") ? req->getParam("pattern")->value().c_str() : "-",
       g_brightness);
