@@ -228,6 +228,16 @@ export class DeviceWifiService {
     }
   }
 
+  async getAnalytics(): Promise<{ idx: number; plays: number; skips: number; listenMs: number; rating: number }[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/analytics`);
+      const data = await response.json();
+      return data.tracks ?? [];
+    } catch {
+      return [];
+    }
+  }
+
   async getFavorites(): Promise<string[]> {
     try {
       const response = await fetch(`${this.baseUrl}/api/favorites`);

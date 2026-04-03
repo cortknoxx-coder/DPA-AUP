@@ -40,9 +40,8 @@ export class DeviceConnectionService {
   private isSimulated = signal(false);
 
   constructor() {
-    // Start in simulator mode by default for a better demo experience,
-    // ensuring the device mockup is visible immediately.
-    this.toggleSimulator();
+    // Simulator is opt-in only — user must explicitly click "Use Simulator"
+    // on the fan auth page. No auto-activation to avoid mock fallback in live paths.
   }
 
   // --- USB Bridge Connection ---

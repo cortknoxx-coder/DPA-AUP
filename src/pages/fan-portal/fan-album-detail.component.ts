@@ -30,7 +30,6 @@ export class FanAlbumDetailComponent {
 
   activeSection = signal('tracks');
 
-  /** Mock play counts per trackId (random 12–500), generated once */
   trackPlayCounts = signal<Record<string, number>>({});
 
   /** Set of trackIds the fan has hearted */
@@ -38,15 +37,18 @@ export class FanAlbumDetailComponent {
   private firmwarePathByTrackId = signal<Record<string, string>>({});
 
   constructor() {
-    // Seed play counts once the manifest loads
     effect(() => {
       const m = this.manifest();
       if (m) {
-        const counts: Record<string, number> = {};
-        for (const t of m.tracks) {
-          counts[t.trackId] = Math.floor(Math.random() * 489) + 12; // 12–500
+        if (this.connectionService.connectionStatus() === 'wifi') {
+          this.refreshAnalyticsFromDevice(m);
+        } else {
+          const counts: Record<string, number> = {};
+          for (const t of m.tracks) {
+            counts[t.trackId] = 0;
+          }
+          this.trackPlayCounts.set(counts);
         }
-        this.trackPlayCounts.set(counts);
       }
     }, { allowSignalWrites: true });
     effect(() => {
@@ -241,5 +243,17 @@ export class FanAlbumDetailComponent {
       if (paths.includes(path)) next.add(trackId);
     }
     this.favorites.set(next);
+  }
+
+  private async refreshAnalyticsFromDevice(m: Manifest) {
+    const analytics = await this.wifi.getAnalytics();
+    const counts: Record<string, number> = {};
+    for (const t of m.tracks) {
+      const match = t.trackId.match(/^fw-(\d+)$/);
+      const fwIdx = match ? Number(match[1]) : -1;
+      const stat = analytics.find(a => a.idx === fwIdx);
+      counts[t.trackId] = stat?.plays ?? 0;
+    }
+    this.trackPlayCounts.set(counts);
   }
 }

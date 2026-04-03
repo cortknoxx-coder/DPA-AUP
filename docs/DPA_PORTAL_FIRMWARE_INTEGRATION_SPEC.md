@@ -248,16 +248,16 @@ Rule:
 
 ## Phase 1: Foundation alignment
 
-- [ ] Update portal service endpoints to firmware-implemented routes.
-- [ ] Normalize command op encoding for firmware parser expectations.
-- [ ] Add enum adapters for EQ/mode compatibility.
-- [ ] Replace fan/creator track source with `/api/audio/wavs` where device-bound.
+- [x] Update portal service endpoints to firmware-implemented routes.
+- [x] Normalize command op encoding for firmware parser expectations.
+- [x] Add enum adapters for EQ/mode compatibility.
+- [x] Replace fan/creator track source with `/api/audio/wavs` where device-bound.
 
 ## Phase 2: Capsule delivery
 
-- [ ] Implement firmware `POST /api/capsule`.
-- [ ] Persist in-memory list (and optional SD/NVS persistence).
-- [ ] Return pushed capsules via `GET /api/capsules`.
+- [x] Implement firmware `POST /api/capsule`.
+- [x] Persist in-memory list (and optional SD/NVS persistence).
+- [x] Return pushed capsules via `GET /api/capsules`.
 - [ ] Add unread/read state handling in fan portal.
 
 ## Phase 3: Creator push wiring
@@ -268,9 +268,9 @@ Rule:
 
 ## Phase 4: Data replacement
 
-- [ ] Remove mock library injection in live transport paths.
-- [ ] Replace random fan play counts with firmware analytics endpoint.
-- [ ] Keep simulator mode only as explicit opt-in.
+- [x] Remove mock library injection in live transport paths.
+- [x] Replace random fan play counts with firmware analytics endpoint.
+- [x] Keep simulator mode only as explicit opt-in.
 
 ## Phase 5: Validation
 
