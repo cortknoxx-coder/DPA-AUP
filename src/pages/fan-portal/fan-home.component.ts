@@ -40,10 +40,8 @@ export class FanHomeComponent {
 
   private async refreshLiveCapsules() {
     try {
-      const res = await fetch(`http://${this.wifi.deviceIp()}/api/capsules`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const normalized = (data.capsules ?? []).map((c: any) => ({
+      const raw = await this.wifi.getCapsules();
+      const normalized = raw.map((c: any) => ({
         ...c,
         payload: {
           title: c.title ?? 'Untitled Capsule',

@@ -64,7 +64,7 @@
       <div class="text-left flex-1">
         <h3 class="font-semibold text-white">WiFi Direct</h3>
         @if (connectingVia() === 'wifi') {
-          <p class="text-xs text-emerald-400">Probing device at 192.168.4.1...</p>
+          <p class="text-xs text-emerald-400">Probing device at {{ deviceService.wifi.deviceIp() }}...</p>
         } @else {
           <p class="text-xs text-slate-400">Join the DPA WiFi network first, then connect.</p>
         }

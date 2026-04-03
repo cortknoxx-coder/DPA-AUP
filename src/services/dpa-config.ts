@@ -1,8 +1,21 @@
 
+function resolveBridgeUrl(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname || 'localhost';
+    return `ws://${host}:8787`;
+  }
+  return 'ws://localhost:8787';
+}
+
+function resolveApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname || 'localhost';
+    return `http://${host}:8080/api/v1`;
+  }
+  return 'http://localhost:8080/api/v1';
+}
+
 export const DPA_CONFIG = {
-  // Pointing to the local desktop bridge which proxies USB/BLE devices
-  bridgeWsUrl: 'ws://localhost:8787',
-  
-  // Backend API for metadata/registry (no audio served here)
-  apiBaseUrl: 'http://localhost:8080/api/v1'
+  get bridgeWsUrl() { return resolveBridgeUrl(); },
+  get apiBaseUrl() { return resolveApiUrl(); },
 };
