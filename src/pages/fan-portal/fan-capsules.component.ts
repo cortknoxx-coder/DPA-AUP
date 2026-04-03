@@ -189,11 +189,12 @@ export class FanCapsulesComponent {
           }));
 
           const dpaData = await this.cryptoService.encryptToDpa(contentData.buffer as ArrayBuffer, duid, 'capsule');
-          const dpaFile = new File([dpaData], `capsule-${capsule.id}.dpa`, { type: 'application/octet-stream' });
+          const dpaFilename = `capsule-${capsule.id}.dpa`;
+          const dpaFile = new File([dpaData], dpaFilename, { type: 'application/octet-stream' });
 
           this.updateState(capsule.id, 85);
 
-          await this.connectionService.wifi.uploadDpaFile(dpaFile, (percent) => {
+          await this.connectionService.wifi.uploadFileToPath(dpaFile, `/capsules/${dpaFilename}`, (percent) => {
             this.updateState(capsule.id, 85 + Math.round(percent * 0.15));
           });
         }

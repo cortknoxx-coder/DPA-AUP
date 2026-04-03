@@ -100,7 +100,7 @@ export class DeviceConnectionService {
           pubkeyB64: '',
         });
         this.registrationStatus.set('registered');
-        this.populateMockLibrary();
+        await this.refreshWifiLibrary();
       }
       return true;
     }
@@ -188,6 +188,28 @@ export class DeviceConnectionService {
       }))
     };
     this.deviceLibrary.set(libraryIndex);
+  }
+
+  private async refreshWifiLibrary() {
+    const tracks = await this.wifi.getDeviceTracks();
+    const duid = this.deviceInfo()?.serial ?? 'DPA';
+    this.deviceLibrary.set({
+      albums: [
+        {
+          id: duid,
+          title: `${duid} Library`,
+          artworkUrl: `https://picsum.photos/seed/${duid}/400/400`,
+        },
+      ],
+      tracks: tracks.map(t => ({
+        id: `${duid}:${t.index}`,
+        albumId: duid,
+        title: t.title,
+        durationSec: Math.max(0, Math.round(t.durationMs / 1000)),
+        trackNo: t.index + 1,
+        codec: 'audio/wav',
+      })),
+    });
   }
 
   async registerDevice(deviceId: string): Promise<boolean> {

@@ -85,7 +85,7 @@ export class PlayerService {
       artist: albumInfo.artist,
       album: albumInfo.title,
       duration: t.durationSec,
-      coverUrl: `https://picsum.photos/seed/${manifest.albumId}/300/300`,
+      coverUrl: '/assets/dpa-default-cover.png',
       blobId: t.blobId
     }));
     this.queue.set(newQueue);
@@ -115,6 +115,14 @@ export class PlayerService {
         this.currentTrack.set(track);
         this.progress.set(0);
         this.currentTime.set(0);
+        // Prefer indexed track selection for direct firmware WiFi playback.
+        const idx = this.queue().findIndex(t => t.id === track.id);
+        if (idx >= 0) {
+          await this.deviceService.wifi.selectTrack(idx);
+          this.isPlaying.set(true);
+          this.startTimer();
+          return;
+        }
       }
       await this.deviceService.wifi.sendCommand(BLE_CMD.PLAY);
       this.isPlaying.set(true);

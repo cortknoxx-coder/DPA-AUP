@@ -1,5 +1,5 @@
 
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { RouterLink, Router } from '@angular/router';
@@ -17,13 +17,44 @@ export class FanHomeComponent {
   playerService = inject(PlayerService);
   private dataService = inject(DataService);
   private router = inject(Router);
+  private wifi = this.connectionService.wifi;
 
   // Use backend-sourced capsule data
   allCapsules = this.dataService.getAllCapsules();
-  latestCapsule = computed(() => this.allCapsules()?.[0]);
 
   // Use device-sourced library data
   library = computed(() => this.connectionService.deviceLibrary());
+  liveCapsules = signal<any[]>([]);
+  capsules = computed(() => this.liveCapsules().length > 0 ? this.liveCapsules() : this.allCapsules());
+  latestCapsule = computed(() => this.capsules()?.[0]);
+
+  constructor() {
+    effect(() => {
+      if (this.connectionService.connectionStatus() === 'wifi') {
+        this.refreshLiveCapsules();
+      } else {
+        this.liveCapsules.set([]);
+      }
+    }, { allowSignalWrites: true });
+  }
+
+  private async refreshLiveCapsules() {
+    try {
+      const res = await fetch(`http://${this.wifi.deviceIp()}/api/capsules`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const normalized = (data.capsules ?? []).map((c: any) => ({
+        ...c,
+        payload: {
+          title: c.title ?? 'Untitled Capsule',
+          description: c.desc ?? '',
+        }
+      }));
+      this.liveCapsules.set(normalized);
+    } catch {
+      // keep DataService fallback
+    }
+  }
 
   logout() {
     this.router.navigate(['/login']);

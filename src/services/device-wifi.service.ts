@@ -19,6 +19,7 @@ export interface WifiStatus {
 @Injectable({ providedIn: 'root' })
 export class DeviceWifiService {
   private baseUrl = `http://${DEFAULT_DEVICE_IP}`;
+  private isAdminUnlocked = false;
 
   isConnected = signal(false);
   lastStatus = signal<FirmwareStatus | null>(null);
@@ -99,7 +100,9 @@ export class DeviceWifiService {
 
   async sendCommand(opCode: number): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/cmd?op=${opCode}`);
+      // Firmware parses "op" as hexadecimal string (base 16).
+      const opHex = opCode.toString(16).padStart(2, '0');
+      const response = await fetch(`${this.baseUrl}/api/cmd?op=${opHex}`);
       const result = await response.json();
       return result.ok === true;
     } catch {
@@ -118,8 +121,8 @@ export class DeviceWifiService {
   }
 
   async getMeshPeers(): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/mesh`);
-    return response.json();
+    // Mesh endpoint not implemented in current firmware build.
+    return { active: false, peers: 0, peerList: [] };
   }
 
   // --- POST endpoints (new firmware additions) ---
@@ -169,17 +172,9 @@ export class DeviceWifiService {
   }
 
   async pushManifest(manifest: any): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/manifest`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(manifest),
-      });
-      const result = await response.json();
-      return result.ok === true;
-    } catch {
-      return false;
-    }
+    // Manifest ingest endpoint is not implemented in current firmware.
+    // Keep method for API compatibility while returning false explicitly.
+    return false;
   }
 
   // --- Storage & Tracks ---
@@ -193,16 +188,35 @@ export class DeviceWifiService {
 
   async getDeviceTracks(): Promise<DeviceTrack[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/tracks`);
+      // Use live SD-backed WAV scan endpoint as canonical source.
+      const response = await fetch(`${this.baseUrl}/api/audio/wavs`);
       const data = await response.json();
-      return data.tracks ?? [];
+      const wavs = data.wavs ?? [];
+      return wavs.map((w: any, i: number) => {
+        const path: string = w.path || '';
+        const title = path.split('/').pop()?.replace(/\.(wav)$/i, '').replace(/_/g, ' ') || `Track ${i + 1}`;
+        const sizeBytes = Number(w.size || 0);
+        return {
+          index: Number(w.idx ?? i),
+          filename: path,
+          title,
+          sizeMB: Number((sizeBytes / (1024 * 1024)).toFixed(2)),
+          plays: 0,
+          durationMs: Number(w.durationMs || 0),
+        } as DeviceTrack;
+      });
     } catch { return []; }
   }
 
   // --- .dpa File Upload ---
 
   async uploadDpaFile(file: File, onProgress?: (percent: number) => void): Promise<boolean> {
+    return this.uploadFileToPath(file, `/tracks/${file.name}`, onProgress);
+  }
+
+  async uploadFileToPath(file: File, path: string, onProgress?: (percent: number) => void): Promise<boolean> {
     try {
+      await this.ensureAdminUnlocked();
       const formData = new FormData();
       formData.append('file', file, file.name);
 
@@ -215,7 +229,8 @@ export class DeviceWifiService {
         });
         xhr.addEventListener('load', () => resolve(xhr.status === 200));
         xhr.addEventListener('error', () => resolve(false));
-        xhr.open('POST', `${this.baseUrl}/api/upload`);
+        // Firmware supports SD multipart uploads at /api/sd/upload.
+        xhr.open('POST', `${this.baseUrl}/api/sd/upload?path=${encodeURIComponent(path)}`);
         xhr.send(formData);
       });
     } catch { return false; }
@@ -233,7 +248,9 @@ export class DeviceWifiService {
 
   async setEqPreset(preset: EqPreset): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/eq?preset=${preset}`);
+      // Portal UI alias -> firmware canonical preset
+      const mapped = preset === 'bass' ? 'bass_boost' : preset;
+      const response = await fetch(`${this.baseUrl}/api/eq?preset=${mapped}`);
       const result = await response.json();
       return result.ok === true;
     } catch { return false; }
@@ -241,6 +258,8 @@ export class DeviceWifiService {
 
   async setPlaybackMode(mode: PlaybackMode): Promise<boolean> {
     try {
+      // Firmware currently supports only normal/repeat_one.
+      if (mode !== 'normal' && mode !== 'repeat_one') return false;
       const response = await fetch(`${this.baseUrl}/api/mode?mode=${mode}`);
       const result = await response.json();
       return result.ok === true;
@@ -250,35 +269,23 @@ export class DeviceWifiService {
   // --- Bluetooth A2DP Audio ---
 
   async scanA2dpDevices(): Promise<A2dpDevice[]> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/a2dp/scan`);
-      const data = await response.json();
-      return data.devices ?? [];
-    } catch { return []; }
+    // A2DP scan endpoint is not implemented in current firmware.
+    return [];
   }
 
   async connectA2dp(addr: string): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/a2dp/connect?addr=${encodeURIComponent(addr)}`);
-      const result = await response.json();
-      return result.ok === true;
-    } catch { return false; }
+    // A2DP connect endpoint is not implemented in current firmware.
+    return false;
   }
 
   async disconnectA2dp(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/a2dp/disconnect`);
-      const result = await response.json();
-      return result.ok === true;
-    } catch { return false; }
+    // A2DP disconnect endpoint is not implemented in current firmware.
+    return false;
   }
 
   async getA2dpDevices(): Promise<A2dpDevice[]> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/a2dp/devices`);
-      const data = await response.json();
-      return data.devices ?? [];
-    } catch { return []; }
+    // A2DP devices endpoint is not implemented in current firmware.
+    return [];
   }
 
   // --- WiFi Station Management ---
@@ -294,6 +301,7 @@ export class DeviceWifiService {
 
   async scanWifiNetworks(): Promise<WifiNetwork[]> {
     try {
+      await this.ensureAdminUnlocked();
       const response = await fetch(`${this.baseUrl}/api/wifi/scan`, {
         signal: AbortSignal.timeout(12000),
       });
@@ -304,6 +312,7 @@ export class DeviceWifiService {
 
   async connectToWifi(ssid: string, password: string): Promise<{ ok: boolean; ip: string }> {
     try {
+      await this.ensureAdminUnlocked();
       const url = `${this.baseUrl}/api/wifi/connect?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(password)}`;
       const response = await fetch(url, {
         signal: AbortSignal.timeout(15000),
@@ -322,6 +331,7 @@ export class DeviceWifiService {
 
   async disconnectWifi(): Promise<boolean> {
     try {
+      await this.ensureAdminUnlocked();
       const response = await fetch(`${this.baseUrl}/api/wifi/disconnect`);
       const data = await response.json();
       this.staConnected.set(false);
@@ -336,5 +346,19 @@ export class DeviceWifiService {
     this.lastStatus.set(null);
     this.staConnected.set(false);
     this.staIp.set('');
+    this.isAdminUnlocked = false;
+  }
+
+  private async ensureAdminUnlocked(): Promise<void> {
+    if (this.isAdminUnlocked) return;
+    const status = this.lastStatus();
+    const duid = status?.duid;
+    if (!duid) return;
+    try {
+      const res = await fetch(`${this.baseUrl}/api/admin/unlock?key=${encodeURIComponent(duid)}`);
+      if (res.ok) this.isAdminUnlocked = true;
+    } catch {
+      // best effort; endpoint callers will fail naturally if still locked
+    }
   }
 }

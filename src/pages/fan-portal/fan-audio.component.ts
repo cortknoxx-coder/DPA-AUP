@@ -185,16 +185,14 @@ export class FanAudioComponent {
 
   eqPresets = [
     { id: 'flat' as EqPreset, label: 'Flat', icon: '🎵' },
-    { id: 'bass' as EqPreset, label: 'Bass', icon: '🔊' },
+    { id: 'bass_boost' as EqPreset, label: 'Bass', icon: '🔊' },
     { id: 'vocal' as EqPreset, label: 'Vocal', icon: '🎤' },
     { id: 'warm' as EqPreset, label: 'Warm', icon: '🔥' },
   ];
 
   playbackModes = [
     { id: 'normal' as PlaybackMode, label: 'Normal', icon: '▶️' },
-    { id: 'repeat_all' as PlaybackMode, label: 'Repeat', icon: '🔁' },
     { id: 'repeat_one' as PlaybackMode, label: 'Repeat 1', icon: '🔂' },
-    { id: 'shuffle' as PlaybackMode, label: 'Shuffle', icon: '🔀' },
   ];
 
   private status = computed(() => this.wifiService.lastStatus());

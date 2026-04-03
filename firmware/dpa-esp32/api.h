@@ -88,6 +88,18 @@ static const CapsuleInfo CAPSULES[] = {
 };
 static const int NUM_CAPSULES = 4;
 
+// ── Runtime Capsule Store (creator-pushed over Wi-Fi) ───────
+struct RuntimeCapsule {
+  String id;
+  String type;
+  String title;
+  String desc;
+  String date;
+  bool delivered;
+};
+static RuntimeCapsule g_runtimeCapsules[24];
+static int g_runtimeCapsuleCount = 0;
+
 // ── JSON Helpers ─────────────────────────────────────────────
 String escJson(const String& s) {
   String out;
@@ -305,6 +317,43 @@ String jsonVal(const String& body, const String& key) {
   int qEnd = body.indexOf('"', qStart + 1);
   if (qEnd < 0) return "";
   return body.substring(qStart + 1, qEnd);
+}
+
+bool jsonBool(const String& body, const String& key, bool fallback = false) {
+  String search = "\"" + key + "\"";
+  int idx = body.indexOf(search);
+  if (idx < 0) return fallback;
+  int colon = body.indexOf(':', idx + search.length());
+  if (colon < 0) return fallback;
+  for (int i = colon + 1; i < (int)body.length(); i++) {
+    char c = body.charAt(i);
+    if (c == ' ' || c == '\n' || c == '\r' || c == '\t') continue;
+    if (body.startsWith("true", i)) return true;
+    if (body.startsWith("false", i)) return false;
+    break;
+  }
+  return fallback;
+}
+
+void upsertRuntimeCapsule(const String& id, const String& type, const String& title, const String& desc, const String& date, bool delivered) {
+  for (int i = 0; i < g_runtimeCapsuleCount; i++) {
+    if (g_runtimeCapsules[i].id == id) {
+      g_runtimeCapsules[i].type = type;
+      g_runtimeCapsules[i].title = title;
+      g_runtimeCapsules[i].desc = desc;
+      g_runtimeCapsules[i].date = date;
+      g_runtimeCapsules[i].delivered = delivered;
+      return;
+    }
+  }
+  if (g_runtimeCapsuleCount < 24) {
+    g_runtimeCapsules[g_runtimeCapsuleCount++] = { id, type, title, desc, date, delivered };
+    return;
+  }
+  for (int i = 0; i < 23; i++) {
+    g_runtimeCapsules[i] = g_runtimeCapsules[i + 1];
+  }
+  g_runtimeCapsules[23] = { id, type, title, desc, date, delivered };
 }
 
 // ── Command Dispatch ─────────────────────────────────────────
@@ -919,18 +968,67 @@ void registerApiRoutes(AsyncWebServer& server) {
   // ── GET /api/capsules ──────────────────────────────────────
   server.on("/api/capsules", HTTP_GET, [](AsyncWebServerRequest* req) {
     String j = "{\"capsules\":[";
+    bool first = true;
+    for (int i = 0; i < g_runtimeCapsuleCount; i++) {
+      if (!first) j += ",";
+      j += "{\"id\":\"" + escJson(g_runtimeCapsules[i].id) + "\",";
+      j += "\"type\":\"" + escJson(g_runtimeCapsules[i].type) + "\",";
+      j += "\"title\":\"" + escJson(g_runtimeCapsules[i].title) + "\",";
+      j += "\"desc\":\"" + escJson(g_runtimeCapsules[i].desc) + "\",";
+      j += "\"date\":\"" + escJson(g_runtimeCapsules[i].date) + "\",";
+      j += "\"delivered\":" + String(g_runtimeCapsules[i].delivered ? "true" : "false") + "}";
+      first = false;
+    }
     for (int i = 0; i < NUM_CAPSULES; i++) {
-      if (i > 0) j += ",";
+      if (!first) j += ",";
       j += "{\"id\":\"" + String(CAPSULES[i].id) + "\",";
       j += "\"type\":\"" + String(CAPSULES[i].type) + "\",";
       j += "\"title\":\"" + String(CAPSULES[i].title) + "\",";
       j += "\"desc\":\"" + escJson(String(CAPSULES[i].desc)) + "\",";
       j += "\"date\":\"" + String(CAPSULES[i].date) + "\",";
       j += "\"delivered\":" + String(CAPSULES[i].delivered ? "true" : "false") + "}";
+      first = false;
     }
     j += "]}";
     req->send(200, "application/json", j);
   });
+
+  // ── POST /api/capsule ──────────────────────────────────────
+  server.on("/api/capsule", HTTP_POST,
+    [](AsyncWebServerRequest* req) {},
+    NULL,
+    [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+      String body = "";
+      body.reserve(len);
+      for (size_t i = 0; i < len; i++) body += (char)data[i];
+
+      String capsuleId = jsonVal(body, "capsuleId");
+      if (capsuleId.length() == 0) capsuleId = jsonVal(body, "id");
+      if (capsuleId.length() == 0) capsuleId = "cap-" + String(millis());
+
+      String eventType = jsonVal(body, "eventType");
+      if (eventType.length() == 0) eventType = jsonVal(body, "type");
+      if (eventType.length() == 0) eventType = "other";
+
+      String title = jsonVal(body, "title");
+      if (title.length() == 0) title = "Capsule";
+
+      String desc = jsonVal(body, "description");
+      if (desc.length() == 0) desc = jsonVal(body, "desc");
+
+      String date = jsonVal(body, "date");
+      if (date.length() == 0) date = String((unsigned long)(millis() / 1000));
+
+      bool delivered = jsonBool(body, "delivered", false);
+      upsertRuntimeCapsule(capsuleId, eventType, title, desc, date, delivered);
+
+      Serial.printf("[CAPSULE] Ingested id=%s type=%s title=%s\n",
+        capsuleId.c_str(), eventType.c_str(), title.c_str());
+
+      String j = "{\"ok\":true,\"id\":\"" + escJson(capsuleId) + "\"}";
+      req->send(200, "application/json", j);
+    }
+  );
 
   // ── GET /api/led/preview ─────────────────────────────────────
   // Sets color/pattern and switches the active LED mode to match

@@ -106,8 +106,8 @@ export interface LedNotificationStep {
 
 // --- Firmware Communication Types ---
 
-export type PlaybackMode = 'normal' | 'repeat_all' | 'repeat_one' | 'shuffle';
-export type EqPreset = 'flat' | 'bass' | 'vocal' | 'warm';
+export type PlaybackMode = 'normal' | 'repeat_one';
+export type EqPreset = 'flat' | 'bass' | 'bass_boost' | 'vocal' | 'warm';
 export type A2dpState = 'disconnected' | 'connecting' | 'connected' | 'playing';
 
 export interface BatteryStatus {
@@ -153,6 +153,7 @@ export interface FirmwareStatus {
   ver: string;
   env: string;
   duid: string;
+  admin?: boolean;
   ble: boolean;
   wifi: boolean;
   ip: string;
@@ -166,7 +167,7 @@ export interface FirmwareStatus {
   battery: BatteryStatus;
   audio: AudioStatus;
   storage: StorageStatus;
-  espnow: {
+  espnow?: {
     active: boolean;
     peers: number;
     peerList: Array<{ duid: string; age: number }>;
@@ -178,6 +179,29 @@ export interface FirmwareStatus {
     playing: boolean;
     posMs: number;
     durationMs: number;
+    audioReady?: boolean;
+    nowPlaying?: string;
+    trackCount?: number;
+    favorite?: boolean;
+  };
+  led?: {
+    idle?: { color: string; pattern: string };
+    playback?: { color: string; pattern: string };
+    charging?: { color: string; pattern: string };
+    gradEnd?: string;
+  };
+  favorites?: {
+    count: number;
+    items: string[];
+    current: boolean;
+  };
+  dcnp?: {
+    concert: string;
+    video: string;
+    merch: string;
+    signing: string;
+    remix: string;
+    other: string;
   };
   counts: {
     play: number;
