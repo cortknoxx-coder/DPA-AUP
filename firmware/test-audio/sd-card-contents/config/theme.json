@@ -1,0 +1,26 @@
+{
+  "led": {
+    "idle": {
+      "color": "#ff4bcb",
+      "pattern": "breathing"
+    },
+    "playback": {
+      "color": "#00f1df",
+      "pattern": "pulse"
+    },
+    "charging": {
+      "color": "#ffcc33",
+      "pattern": "breathing"
+    },
+    "brightness": 80
+  },
+  "dcnp": {
+    "concert": "#ff3366",
+    "video": "#3366ff",
+    "merch": "#33ff99",
+    "signing": "#ffcc00",
+    "remix": "#cc33ff",
+    "other": "#ffffff"
+  },
+  "skin": "midnight-horizons"
+}

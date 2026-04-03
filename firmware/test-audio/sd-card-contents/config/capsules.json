@@ -1,0 +1,40 @@
+{
+  "capsules": [
+    {
+      "id": "c1",
+      "type": "concert",
+      "title": "Midnight Tour - NYC",
+      "desc": "VIP meet & greet pass + backstage access for the Midnight Horizons world tour.",
+      "date": "2026-03-10",
+      "delivered": true,
+      "file": "/capsules/concert_announcement.wav"
+    },
+    {
+      "id": "c2",
+      "type": "video",
+      "title": "Behind the Synths",
+      "desc": "Exclusive studio session footage showing the making of Neon Rain.",
+      "date": "2026-03-08",
+      "delivered": true,
+      "file": null
+    },
+    {
+      "id": "c3",
+      "type": "merch",
+      "title": "Holographic Vinyl Drop",
+      "desc": "Limited edition holographic pressing, only 500 made worldwide.",
+      "date": "2026-03-05",
+      "delivered": true,
+      "file": null
+    },
+    {
+      "id": "c4",
+      "type": "remix",
+      "title": "Neon Rain (VIP Remix)",
+      "desc": "Unreleased VIP remix with extended outro. DPA exclusive.",
+      "date": "2026-03-01",
+      "delivered": false,
+      "file": "/capsules/remix_preview.wav"
+    }
+  ]
+}
