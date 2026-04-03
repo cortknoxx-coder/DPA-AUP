@@ -185,6 +185,13 @@ Contract rule:
   - response:
     - `{ "ok": true, "id": "<capsuleId>" }`
 
+Capsule payload caps (contract-locked for v1):
+
+- Max request body for `POST /api/capsule`: `12KB` UTF-8 JSON.
+- Max `payload.imageUrl` field: `8KB` UTF-8 string (prefer URL/file reference over inline base64 when larger).
+- On over-limit payloads, portal must block send client-side and show actionable error.
+- Firmware should reject oversized requests with non-`ok` response (recommended: `413` + `{ "ok": false, "error": "payload_too_large" }`).
+
 ---
 
 ## Type Alignment Rules
@@ -235,9 +242,9 @@ Rule:
 
 ## Phase 0: Contract lock
 
-- [ ] Finalize this spec and freeze endpoint names/payload keys.
-- [ ] Confirm admin unlock UX and DUID handling.
-- [ ] Confirm capsule payload size limits.
+- [x] Finalize this spec and freeze endpoint names/payload keys.
+- [x] Confirm admin unlock UX and DUID handling.
+- [x] Confirm capsule payload size limits.
 
 ## Phase 1: Foundation alignment
 
@@ -255,9 +262,9 @@ Rule:
 
 ## Phase 3: Creator push wiring
 
-- [ ] Wire creator Theme Editor push-to-device.
-- [ ] Wire creator Perks push success/error state to UI.
-- [ ] Add retry path for offline/unreachable device.
+- [x] Wire creator Theme Editor push-to-device.
+- [x] Wire creator Perks push success/error state to UI.
+- [x] Add retry path for offline/unreachable device.
 
 ## Phase 4: Data replacement
 

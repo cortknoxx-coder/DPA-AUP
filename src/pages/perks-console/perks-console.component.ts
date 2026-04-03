@@ -1,5 +1,5 @@
 
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
@@ -15,6 +15,9 @@ import { DcnpPayload, DcnpEventType } from '../../types';
   templateUrl: './perks-console.component.html'
 })
 export class PerksConsoleComponent {
+  private static readonly MAX_CAPSULE_PAYLOAD_BYTES = 12 * 1024;
+  private static readonly MAX_CAPSULE_IMAGE_BYTES = 8 * 1024;
+
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
   private fb: FormBuilder = inject(FormBuilder);
@@ -61,6 +64,9 @@ export class PerksConsoleComponent {
   
   // Signal to track current type for template conditional rendering
   selectedType = toSignal(this.form.get('eventType')!.valueChanges, { initialValue: 'concert' });
+  pushState = signal<'idle' | 'pushing' | 'ok' | 'error'>('idle');
+  pushMessage = signal<string>('');
+  private lastPushRequest = signal<{ eventType: DcnpEventType; capsuleId: string; payload: DcnpPayload } | null>(null);
 
   create() {
     if (this.form.invalid) return;
@@ -150,22 +156,22 @@ export class PerksConsoleComponent {
           break;
       }
 
+      if (!this.validatePayloadCaps(payload)) {
+        return;
+      }
+
       this.dataService.createDcnpEvent(a.albumId, {
         eventType: type as any,
         payload: payload
       });
 
-      // Push capsule notification to device if WiFi connected
-      if (this.connectionService.connectionStatus() === 'wifi') {
-        this.connectionService.wifi.pushCapsule(
-          type as DcnpEventType,
-          `cap-${Date.now().toString(36)}`,
-          payload
-        ).then(ok => {
-          if (ok) console.log('[Perks] Capsule pushed to device');
-          else console.warn('[Perks] Failed to push capsule to device');
-        });
-      }
+      const req = {
+        eventType: type as DcnpEventType,
+        capsuleId: `cap-${Date.now().toString(36)}`,
+        payload
+      };
+      this.lastPushRequest.set(req);
+      void this.pushToDevice(req, false);
 
       // Reset form but keep type for convenience
       const currentType = this.form.get('eventType')?.value;
@@ -178,6 +184,12 @@ export class PerksConsoleComponent {
         isExclusive: false
       });
     }
+  }
+
+  async retryLastPush() {
+    const req = this.lastPushRequest();
+    if (!req) return;
+    await this.pushToDevice(req, true);
   }
 
   onFileSelected(event: Event) {
@@ -194,5 +206,53 @@ export class PerksConsoleComponent {
 
   removeImage() {
     this.form.patchValue({ imageUrl: '' });
+  }
+
+  private validatePayloadCaps(payload: DcnpPayload): boolean {
+    const imageSize = payload.imageUrl ? this.byteLen(payload.imageUrl) : 0;
+    const payloadSize = this.byteLen(JSON.stringify(payload));
+
+    if (imageSize > PerksConsoleComponent.MAX_CAPSULE_IMAGE_BYTES) {
+      this.pushState.set('error');
+      this.pushMessage.set(
+        `Image too large for device capsule (${Math.round(imageSize / 1024)}KB). Max is ${Math.round(PerksConsoleComponent.MAX_CAPSULE_IMAGE_BYTES / 1024)}KB.`
+      );
+      return false;
+    }
+
+    if (payloadSize > PerksConsoleComponent.MAX_CAPSULE_PAYLOAD_BYTES) {
+      this.pushState.set('error');
+      this.pushMessage.set(
+        `Capsule payload too large (${Math.round(payloadSize / 1024)}KB). Max is ${Math.round(PerksConsoleComponent.MAX_CAPSULE_PAYLOAD_BYTES / 1024)}KB.`
+      );
+      return false;
+    }
+    return true;
+  }
+
+  private async pushToDevice(
+    req: { eventType: DcnpEventType; capsuleId: string; payload: DcnpPayload },
+    isRetry: boolean
+  ) {
+    if (this.connectionService.connectionStatus() !== 'wifi') {
+      this.pushState.set('error');
+      this.pushMessage.set('Device not connected on Wi-Fi. Connect and press Retry Push.');
+      return;
+    }
+
+    this.pushState.set('pushing');
+    this.pushMessage.set(isRetry ? 'Retrying capsule push...' : 'Pushing capsule to device...');
+    const ok = await this.connectionService.wifi.pushCapsule(req.eventType, req.capsuleId, req.payload);
+    if (ok) {
+      this.pushState.set('ok');
+      this.pushMessage.set('Capsule pushed to connected device.');
+    } else {
+      this.pushState.set('error');
+      this.pushMessage.set('Device push failed. Verify connectivity and retry.');
+    }
+  }
+
+  private byteLen(value: string): number {
+    return new TextEncoder().encode(value).length;
   }
 }

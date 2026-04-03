@@ -165,8 +165,32 @@
 
     </div>
 
-    <div class="p-4 flex justify-end">
-      <button type="submit" [disabled]="form.invalid" class="w-full sm:w-auto rounded bg-teal-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-teal-500 disabled:opacity-50 shadow-lg shadow-teal-900/20 transition-colors">
+    <div class="px-4 pt-4">
+      @if (pushMessage()) {
+        <div
+          class="rounded border px-3 py-2 text-xs mb-3"
+          [class.border-teal-500/40]="pushState() === 'ok'"
+          [class.text-teal-300]="pushState() === 'ok'"
+          [class.border-rose-500/40]="pushState() === 'error'"
+          [class.text-rose-300]="pushState() === 'error'"
+          [class.border-slate-700]="pushState() === 'pushing' || pushState() === 'idle'"
+          [class.text-slate-300]="pushState() === 'pushing' || pushState() === 'idle'"
+        >
+          {{ pushMessage() }}
+        </div>
+      }
+    </div>
+
+    <div class="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+      <button
+        type="button"
+        (click)="retryLastPush()"
+        [disabled]="pushState() === 'pushing' || !pushMessage()"
+        class="w-full sm:w-auto rounded border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-40 transition-colors"
+      >
+        Retry Push
+      </button>
+      <button type="submit" [disabled]="form.invalid || pushState() === 'pushing'" class="w-full sm:w-auto rounded bg-teal-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-teal-500 disabled:opacity-50 shadow-lg shadow-teal-900/20 transition-colors">
         Push Capsule to Devices
       </button>
     </div>
