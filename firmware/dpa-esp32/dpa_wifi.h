@@ -11,6 +11,11 @@
 #include <Preferences.h>
 #include <esp_wifi.h>
 
+// Hardcoded AP SSID for all devices (brand-facing network name)
+#ifndef DPA_AP_SSID
+#define DPA_AP_SSID "DPA-Portal"
+#endif
+
 // ── Extern Globals (defined in .ino) ─────────────────────────
 extern String g_duid;
 
@@ -168,7 +173,7 @@ void wifiInit(const char* apPassword, int apChannel, int apMaxConn) {
   // Disable WiFi power saving — prevents AP from dropping clients
   esp_wifi_set_ps(WIFI_PS_NONE);
 
-  WiFi.softAP(g_duid.c_str(), apPassword, apChannel, 0, apMaxConn);
+  WiFi.softAP(DPA_AP_SSID, apPassword, apChannel, 0, apMaxConn);
   delay(100);
 
   // Set long AP inactive timeout (default is too aggressive)
@@ -180,7 +185,7 @@ void wifiInit(const char* apPassword, int apChannel, int apMaxConn) {
 
   IPAddress apIP = WiFi.softAPIP();
   Serial.println("[WIFI] AP started!");
-  Serial.println("[WIFI] SSID: " + g_duid);
+  Serial.println("[WIFI] SSID: " + String(DPA_AP_SSID));
   Serial.println("[WIFI] Pass: " + String(apPassword));
   Serial.println("[WIFI] AP IP: " + apIP.toString());
 

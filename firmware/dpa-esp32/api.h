@@ -1084,7 +1084,7 @@ void registerApiRoutes(AsyncWebServer& server) {
 
   // ── GET /api/wifi/status ────────────────────────────────────
   server.on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest* req) {
-    String j = "{\"ap\":{\"ssid\":\"" + g_duid + "\",\"ip\":\"" + WiFi.softAPIP().toString() + "\",\"clients\":" + String(WiFi.softAPgetStationNum()) + "},";
+    String j = "{\"ap\":{\"ssid\":\"" + String(DPA_AP_SSID) + "\",\"ip\":\"" + WiFi.softAPIP().toString() + "\",\"clients\":" + String(WiFi.softAPgetStationNum()) + "},";
     j += "\"sta\":{\"connected\":" + String(g_staConnected ? "true" : "false");
     j += ",\"ssid\":\"" + escJson(g_staSSID) + "\"";
     j += ",\"ip\":\"" + g_staIP + "\"";
