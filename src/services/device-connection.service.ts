@@ -26,6 +26,7 @@ export class DeviceConnectionService {
   // --- Core State Signals ---
   connectionStatus = signal<ConnectionStatus>('disconnected');
   registrationStatus = signal<RegistrationStatus>('unregistered');
+  connectionError = signal<string>('');
 
   // --- Device-Sourced State ---
   deviceInfo = signal<DpaDeviceInfo | null>(null);
@@ -47,13 +48,14 @@ export class DeviceConnectionService {
   // --- USB Bridge Connection ---
 
   async connectToBridge() {
+    this.connectionError.set('');
     const connected = await this.bridge.connect();
     if (connected) {
       this.connectionStatus.set('usb');
       this.isSimulated.set(false);
       await this.checkDevice();
     } else {
-      alert('Failed to connect to DPA Desktop Bridge. Is the application running on your computer?');
+      this.connectionError.set('Failed to connect to DPA Desktop Bridge. Is the application running on your computer?');
       this.disconnectDevice();
     }
   }

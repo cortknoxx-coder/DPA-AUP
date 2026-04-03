@@ -39,6 +39,8 @@ export class FanDeviceRegistrationComponent {
   // LED Controls
   ledPreviewMode = signal<'idle' | 'playback' | 'charging'>('idle');
   isPushingTheme = signal(false);
+  pushStatus = signal<'idle' | 'pushing' | 'ok' | 'error'>('idle');
+  pushMessage = signal<string>('');
   realTimeMode = signal(false);
   brightness = signal(80);
 
@@ -101,23 +103,26 @@ export class FanDeviceRegistrationComponent {
   async pushThemeToDevice(silent = false) {
     if (this.deviceService.connectionStatus() !== 'wifi' && !this.deviceService.isSimulationMode()) {
       if (!silent) {
-        alert('Connect to your DPA via WiFi to push theme changes. Join the device WiFi network first.');
+        this.pushStatus.set('error');
+        this.pushMessage.set('Connect to your DPA via WiFi to push theme changes. Join the device WiFi network first.');
       }
       return;
     }
 
     this.isPushingTheme.set(true);
+    this.pushStatus.set('pushing');
+    if (!silent) this.pushMessage.set('Pushing theme to device...');
     const led = this.ledForm.value as Theme['led'];
     const dcnp = this.dcnpForm.value as Theme['dcnp'];
     const success = await this.deviceService.wifi.pushTheme({ led, dcnp } as Theme, this.brightness());
     this.isPushingTheme.set(false);
 
-    if (!silent) {
-      if (success) {
-        alert('Theme pushed to device!');
-      } else {
-        alert('Failed to push theme. Check your WiFi connection to the device.');
-      }
+    if (success) {
+      this.pushStatus.set('ok');
+      if (!silent) this.pushMessage.set('Theme pushed to device.');
+    } else {
+      this.pushStatus.set('error');
+      if (!silent) this.pushMessage.set('Failed to push theme. Verify device WiFi and retry.');
     }
   }
 
@@ -206,7 +211,8 @@ export class FanDeviceRegistrationComponent {
     await this.deviceService.sendDeviceIdReminder(this.authEmail());
     this.isProcessingAuth.set(false);
 
-    alert(`Device ID sent to ${this.authEmail()}. Check your inbox.`);
+    this.pushStatus.set('ok');
+    this.pushMessage.set(`Device ID sent to ${this.authEmail()}. Check your inbox.`);
   }
 
   completeUnregister() {
@@ -221,7 +227,8 @@ export class FanDeviceRegistrationComponent {
     // Success
     this.deviceService.unregisterDevice();
     this.viewState.set('dashboard'); // Will show registration form now
-    alert('Device successfully unregistered. Reverting to Snippet Mode.');
+    this.pushStatus.set('ok');
+    this.pushMessage.set('Device successfully unregistered. Reverting to Snippet Mode.');
   }
 
   // --- Lost Flow ---

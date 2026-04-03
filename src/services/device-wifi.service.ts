@@ -45,7 +45,7 @@ export class DeviceWifiService {
 
     try {
       const response = await fetch(`${this.baseUrl}/api/status`, {
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(5000),
       });
       if (!response.ok) return false;
 

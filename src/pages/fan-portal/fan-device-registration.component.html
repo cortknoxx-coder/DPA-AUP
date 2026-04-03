@@ -277,6 +277,21 @@
             </div>
           </label>
 
+          <!-- Push Status Banner -->
+          @if (pushMessage()) {
+            <div
+              class="rounded border px-3 py-2 text-xs"
+              [class.border-teal-500/40]="pushStatus() === 'ok'"
+              [class.text-teal-300]="pushStatus() === 'ok'"
+              [class.border-rose-500/40]="pushStatus() === 'error'"
+              [class.text-rose-300]="pushStatus() === 'error'"
+              [class.border-slate-700]="pushStatus() === 'pushing'"
+              [class.text-slate-300]="pushStatus() === 'pushing'"
+            >
+              {{ pushMessage() }}
+            </div>
+          }
+
           <!-- Push to Device Button -->
           <button type="button" (click)="pushThemeToDevice()" [disabled]="isPushingTheme()"
                   class="inline-flex items-center gap-2 justify-center rounded-lg border border-transparent bg-indigo-600 py-2.5 px-6 text-sm font-bold text-white shadow-lg shadow-indigo-900/30 hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 transition-all">

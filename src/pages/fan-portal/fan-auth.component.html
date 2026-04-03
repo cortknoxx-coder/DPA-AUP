@@ -97,10 +97,10 @@
   </div>
 
   <!-- Error message -->
-  @if (wifiError()) {
+  @if (wifiError() || deviceService.connectionError()) {
     <div class="mt-4 max-w-sm w-full z-10 p-3 rounded-lg bg-rose-900/20 border border-rose-900/50 text-rose-400 text-xs flex items-center gap-2 animate-fade-in-up">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-      {{ wifiError() }}
+      {{ wifiError() || deviceService.connectionError() }}
     </div>
   }
 
