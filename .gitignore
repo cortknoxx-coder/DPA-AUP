@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.angular/
+DPA-AUP.zip
+/dashboard.h
 
 # Editor directories and files
 .vscode/*
