@@ -22,11 +22,16 @@
       </svg>
     </div>
     
-    <h3 class="text-lg font-semibold text-slate-200">Upload Masters</h3>
+    <h3 class="text-lg font-semibold text-slate-200">Transfer Masters to Device</h3>
     <p class="text-sm text-slate-400 mt-2 max-w-md mx-auto">
-      Drag and drop your high-fidelity WAV or FLAC files here, or click to browse.
-      <br><span class="text-xs text-slate-500">Supported: 24-bit/96kHz WAV, FLAC, AIFF</span>
+      Drag and drop WAV/FLAC files to encrypt into `.dpa` and transfer directly to your connected device.
+      <br><span class="text-xs text-slate-500">No cloud streaming. Portal keeps no master file after successful transfer.</span>
     </p>
+    @if (uploadGateMessage()) {
+      <div class="mt-4 rounded border border-rose-500/40 bg-rose-900/20 px-3 py-2 text-xs text-rose-300">
+        {{ uploadGateMessage() }}
+      </div>
+    }
   </div>
 
   <!-- Active Upload Queue -->
@@ -71,6 +76,9 @@
               }
               @if (upload.status === 'transferring') {
                 <div class="text-[10px] text-amber-400 font-mono">Transferring to Device...</div>
+              }
+              @if (upload.status === 'error' && upload.error) {
+                <div class="text-[10px] text-rose-400 font-mono">{{ upload.error }}</div>
               }
             </div>
           </div>
@@ -136,10 +144,15 @@
           <label class="block text-xs text-slate-400 mb-1">Duration (s)</label>
           <input type="number" [ngModel]="newDuration()" (ngModelChange)="newDuration.set($event)" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none">
         </div>
-        <button (click)="addTrack()" [disabled]="!newTitle()" class="w-full md:w-auto shrink-0 rounded bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed">
+        <button (click)="addTrack()" [disabled]="!newTitle() || !canTransferToDevice()" class="w-full md:w-auto shrink-0 rounded bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed">
           Add Row
         </button>
       </div>
+      @if (!canTransferToDevice()) {
+        <p class="mt-3 text-[11px] text-amber-400">
+          Manual metadata is disabled until a real device is connected over WiFi.
+        </p>
+      }
     </div>
   </details>
 </div>

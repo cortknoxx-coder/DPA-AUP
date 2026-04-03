@@ -294,14 +294,14 @@ export class DataService {
     }));
   }
 
-  addTrack(albumId: string, title: string, durationSec: number) {
+  addTrack(albumId: string, title: string, durationSec: number, trackIdOverride?: string) {
     this.albumsSignal.update(list => list.map(a => {
       if (a.albumId === albumId) {
         const newTrack: Track = {
           id: Math.random().toString(36).substr(2, 9),
           albumId,
           trackIndex: a.tracks.length,
-          trackId: `TRK-${Math.floor(Math.random()*10000)}`,
+          trackId: trackIdOverride || `TRK-${Math.floor(Math.random()*10000)}`,
           title,
           durationSec
         };
