@@ -291,6 +291,7 @@ String buildStatusJson() {
   j += "\"idle\":{\"color\":\"" + g_ledIdle + "\",\"pattern\":\"" + g_ledIdlePat + "\"},";
   j += "\"playback\":{\"color\":\"" + g_ledPlay + "\",\"pattern\":\"" + g_ledPlayPat + "\"},";
   j += "\"charging\":{\"color\":\"" + g_ledCharge + "\",\"pattern\":\"" + g_ledChargePat + "\"},";
+  j += "\"brightness\":" + String(g_brightness) + ",";
   j += "\"gradEnd\":\"" + g_ledGradEnd + "\"},";
   j += "\"favorites\":{\"count\":" + String(g_favCount) + ",\"items\":" + favItems + ",\"current\":" + String(isFavorite(currentPath) ? "true" : "false") + "},";
   j += "\"dcnp\":{";
@@ -1181,6 +1182,11 @@ void registerApiRoutes(AsyncWebServer& server) {
       v = jsonVal(body, "play_pattern");   if (v.length()) g_ledPlayPat = v;
       v = jsonVal(body, "charge_color");   if (v.length()) g_ledCharge = v;
       v = jsonVal(body, "charge_pattern"); if (v.length()) g_ledChargePat = v;
+      v = jsonVal(body, "grad_end");       if (v.length()) g_ledGradEnd = v;
+      if (!v.length()) {
+        v = jsonVal(body, "gradEnd");
+        if (v.length()) g_ledGradEnd = v;
+      }
 
       int bIdx = body.indexOf("\"brightness\"");
       if (bIdx >= 0) {

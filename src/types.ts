@@ -188,6 +188,7 @@ export interface FirmwareStatus {
     idle?: { color: string; pattern: string };
     playback?: { color: string; pattern: string };
     charging?: { color: string; pattern: string };
+    brightness?: number;
     gradEnd?: string;
   };
   favorites?: {

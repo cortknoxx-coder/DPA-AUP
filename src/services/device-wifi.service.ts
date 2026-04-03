@@ -16,6 +16,15 @@ export interface WifiStatus {
   sta: { connected: boolean; ssid: string; ip: string; rssi: number };
 }
 
+export type LedPreviewMode = 'idle' | 'playback' | 'charging';
+
+export interface LedPreviewParams {
+  color?: string;
+  pattern?: string;
+  brightness?: number;
+  gradEnd?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class DeviceWifiService {
   private baseUrl = `http://${DEFAULT_DEVICE_IP}`;
@@ -137,11 +146,12 @@ export class DeviceWifiService {
 
   // --- POST endpoints (new firmware additions) ---
 
-  async pushTheme(theme: Theme, brightness?: number): Promise<boolean> {
+  async pushTheme(theme: Theme, brightness?: number, gradEnd?: string): Promise<boolean> {
     try {
       // Flatten nested Theme into the flat key format the firmware expects
       const payload: Record<string, any> = {};
       if (brightness !== undefined) payload.brightness = brightness;
+      if (gradEnd) payload.grad_end = gradEnd;
       if (theme.led) {
         if (theme.led.idle)     { payload.idle_color = theme.led.idle.color;     payload.idle_pattern = theme.led.idle.pattern; }
         if (theme.led.playback) { payload.play_color = theme.led.playback.color; payload.play_pattern = theme.led.playback.pattern; }
@@ -160,6 +170,24 @@ export class DeviceWifiService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      const result = await response.json();
+      return result.ok === true;
+    } catch {
+      return false;
+    }
+  }
+
+  async previewLed(mode: LedPreviewMode, params: LedPreviewParams): Promise<boolean> {
+    try {
+      const query = new URLSearchParams();
+      query.set('mode', mode);
+      if (params.color) query.set('color', params.color);
+      if (params.pattern) query.set('pattern', params.pattern);
+      if (params.gradEnd) query.set('gradEnd', params.gradEnd);
+      if (typeof params.brightness === 'number') {
+        query.set('brightness', String(Math.max(0, Math.min(100, Math.round(params.brightness)))));
+      }
+      const response = await fetch(`${this.baseUrl}/api/led/preview?${query.toString()}`);
       const result = await response.json();
       return result.ok === true;
     } catch {
