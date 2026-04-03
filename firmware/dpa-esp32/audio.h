@@ -401,22 +401,20 @@ static bool audioInitI2S(uint32_t sampleRate) {
     return false;
   }
 
-  i2s_std_config_t std_cfg = {
-    .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(sampleRate),
-    .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO),
-    .gpio_cfg = {
-      .mclk = I2S_GPIO_UNUSED,
-      .bclk = (gpio_num_t)I2S_BCK_PIN,
-      .ws   = (gpio_num_t)I2S_WS_PIN,
-      .dout = (gpio_num_t)I2S_DOUT_PIN,
-      .din  = I2S_GPIO_UNUSED,
-      .invert_flags = {
-        .mclk_inv = false,
-        .bclk_inv = false,
-        .ws_inv   = true,   // CRITICAL for PCM5122
-      },
-    },
-  };
+  i2s_std_config_t std_cfg;
+  memset(&std_cfg, 0, sizeof(std_cfg));
+  std_cfg.clk_cfg.sample_rate_hz = sampleRate;
+  std_cfg.clk_cfg.clk_src = I2S_CLK_SRC_DEFAULT;
+  std_cfg.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
+  std_cfg.slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO);
+  std_cfg.gpio_cfg.mclk = I2S_GPIO_UNUSED;
+  std_cfg.gpio_cfg.bclk = (gpio_num_t)I2S_BCK_PIN;
+  std_cfg.gpio_cfg.ws   = (gpio_num_t)I2S_WS_PIN;
+  std_cfg.gpio_cfg.dout = (gpio_num_t)I2S_DOUT_PIN;
+  std_cfg.gpio_cfg.din  = I2S_GPIO_UNUSED;
+  std_cfg.gpio_cfg.invert_flags.mclk_inv = false;
+  std_cfg.gpio_cfg.invert_flags.bclk_inv = false;
+  std_cfg.gpio_cfg.invert_flags.ws_inv   = true;   // CRITICAL for PCM5122
 
   if (i2s_channel_init_std_mode(g_i2sTxHandle, &std_cfg) != ESP_OK) {
     Serial.println("[AUDIO] Failed to init I2S std mode");

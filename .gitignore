@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 .angular
+.pio
 dist-ssr
 *.local
 .angular/
