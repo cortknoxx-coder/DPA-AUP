@@ -31,13 +31,14 @@ export class FanAlbumDetailComponent {
     const lib = this.connectionService.deviceLibrary();
     const libAlbum = lib?.albums?.find(a => a.id === this.id);
     if (libAlbum) {
+      const creatorAlbum = this.dataService.albums()?.[0];
       return {
         id: '0',
         albumId: libAlbum.id,
         title: libAlbum.title,
-        artistName: 'DPA Device',
-        genre: 'Audio',
-        releaseDate: new Date().toISOString(),
+        artistName: creatorAlbum?.artistName || 'Artist',
+        genre: creatorAlbum?.genre || 'Audio',
+        releaseDate: creatorAlbum?.releaseDate || new Date().toISOString(),
         tracks: [],
         artworkUrl: libAlbum.artworkUrl || '',
         status: 'published' as const,
