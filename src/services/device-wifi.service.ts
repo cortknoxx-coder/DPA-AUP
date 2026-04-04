@@ -321,7 +321,8 @@ export class DeviceWifiService {
     try {
       await this.ensureAdminUnlocked();
 
-      const url = `${this.baseUrl}/api/sd/upload-raw?path=${encodeURIComponent(path)}`;
+      const formData = new FormData();
+      formData.append('file', file, file.name);
 
       const xhr = new XMLHttpRequest();
       return new Promise((resolve) => {
@@ -340,9 +341,8 @@ export class DeviceWifiService {
           resolve(false);
         });
         xhr.timeout = 600000;
-        xhr.open('POST', url);
-        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-        xhr.send(file);
+        xhr.open('POST', `${this.baseUrl}/api/sd/upload?path=${encodeURIComponent(path)}`);
+        xhr.send(formData);
       });
     } catch (err) {
       console.error('[Upload] Transfer error:', err);

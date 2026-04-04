@@ -585,8 +585,13 @@ void setup() {
   DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
   DefaultHeaders::Instance().addHeader("Connection", "close");
 
-  // 11. Catch-all: handle captive portal probes + 404
+  // 11. Catch-all: handle captive portal probes + OPTIONS preflight + 404
   server.onNotFound([](AsyncWebServerRequest* req) {
+    // CORS preflight for browser cross-origin POSTs (upload-raw, theme, capsule, etc.)
+    if (req->method() == HTTP_OPTIONS) {
+      req->send(204);
+      return;
+    }
     String host = req->host();
     String url = req->url();
     // iOS/macOS captive portal probes from foreign hosts
