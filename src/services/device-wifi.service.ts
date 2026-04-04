@@ -226,24 +226,47 @@ export class DeviceWifiService {
 
   async getDeviceTracks(): Promise<DeviceTrack[]> {
     try {
-      // Use live SD-backed WAV scan endpoint as canonical source.
+      // Prefer neutral track endpoint for DPA/WAV mixed libraries.
+      const response = await fetch(`${this.baseUrl}/api/audio/tracks`);
+      if (response.ok) {
+        const data = await response.json();
+        const tracks = data.tracks ?? [];
+        return tracks.map((t: any, i: number) => this.mapTrackResponse(t, i));
+      }
+    } catch { return []; }
+    try {
+      // Legacy firmware fallback: WAV-only endpoint.
       const response = await fetch(`${this.baseUrl}/api/audio/wavs`);
       const data = await response.json();
       const wavs = data.wavs ?? [];
-      return wavs.map((w: any, i: number) => {
-        const path: string = w.path || '';
-        const title = path.split('/').pop()?.replace(/\.(wav)$/i, '').replace(/_/g, ' ') || `Track ${i + 1}`;
-        const sizeBytes = Number(w.size || 0);
-        return {
-          index: Number(w.idx ?? i),
-          filename: path,
-          title,
-          sizeMB: Number((sizeBytes / (1024 * 1024)).toFixed(2)),
-          plays: 0,
-          durationMs: Number(w.durationMs || 0),
-        } as DeviceTrack;
-      });
+      return wavs.map((w: any, i: number) => this.mapTrackResponse({ ...w, format: 'wav', codec: 'wav' }, i));
     } catch { return []; }
+  }
+
+  private mapTrackResponse(track: any, i: number): DeviceTrack {
+    const path: string = track.path || track.file || track.filename || '';
+    const title =
+      track.title ||
+      path
+        .split('/')
+        .pop()
+        ?.replace(/\.(wav|dpa)$/i, '')
+        .replace(/_/g, ' ') ||
+      `Track ${i + 1}`;
+    const sizeBytes = Number(track.size || 0);
+    return {
+      index: Number(track.idx ?? track.index ?? i),
+      filename: path,
+      title,
+      sizeMB: Number((sizeBytes / (1024 * 1024)).toFixed(2)),
+      plays: Number(track.plays || 0),
+      durationMs: Number(track.durationMs || 0),
+      format: track.format === 'dpa' ? 'dpa' : 'wav',
+      codec: track.codec || (track.format === 'dpa' ? 'wav' : 'wav'),
+      sampleRate: track.sampleRate ? Number(track.sampleRate) : undefined,
+      channels: track.channels ? Number(track.channels) : undefined,
+      bitsPerSample: track.bitsPerSample ? Number(track.bitsPerSample) : undefined,
+    } as DeviceTrack;
   }
 
   async getCapsules(): Promise<any[]> {

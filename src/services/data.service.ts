@@ -1,6 +1,6 @@
 
 
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, effect } from '@angular/core';
 import { Album, Track, DcnpEvent, Theme, ResaleTransaction, UnitEconomics, MarketplaceListing } from '../types';
 
 @Injectable({
@@ -8,6 +8,7 @@ import { Album, Track, DcnpEvent, Theme, ResaleTransaction, UnitEconomics, Marke
 })
 export class DataService {
   private readonly STORAGE_KEY = 'dpa_mock_data';
+  private readonly STORAGE_VERSION = 1;
 
   // Default theme factory
   private getDefaultTheme(): Theme {
@@ -238,7 +239,44 @@ export class DataService {
   public readonly albums = this.albumsSignal.asReadonly();
   public readonly marketplaceListings = this.marketplaceListingsSignal.asReadonly();
 
-  constructor() {}
+  constructor() {
+    this.hydrateFromStorage();
+
+    effect(() => {
+      if (typeof window === 'undefined') return;
+      try {
+        const payload = {
+          version: this.STORAGE_VERSION,
+          albums: this.albumsSignal(),
+          marketplaceListings: this.marketplaceListingsSignal(),
+        };
+        window.localStorage.setItem(this.STORAGE_KEY, JSON.stringify(payload));
+      } catch (err) {
+        console.warn('[DataService] Failed to persist local state', err);
+      }
+    });
+  }
+
+  private hydrateFromStorage() {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(this.STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        version?: number;
+        albums?: Album[];
+        marketplaceListings?: MarketplaceListing[];
+      };
+      if (Array.isArray(parsed.albums) && parsed.albums.length > 0) {
+        this.albumsSignal.set(parsed.albums);
+      }
+      if (Array.isArray(parsed.marketplaceListings)) {
+        this.marketplaceListingsSignal.set(parsed.marketplaceListings);
+      }
+    } catch (err) {
+      console.warn('[DataService] Failed to hydrate local state', err);
+    }
+  }
 
   getAlbum(id: string) {
     return computed(() => this.albumsSignal().find(a => a.id === id || a.albumId === id));

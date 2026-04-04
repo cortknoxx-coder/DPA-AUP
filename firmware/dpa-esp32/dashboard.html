@@ -1729,13 +1729,13 @@ S.tracks = [];
 S.capsules = MOCK_CAPSULES;
 S.favorites = [];
 
-// Fetch real tracks from device SD card — replaces mock data
+// Fetch real tracks from device SD card — DPA first, WAV legacy fallback
 let realTracksLoaded = false;
 let realTrackRetries = 0;
 
 function loadRealTracks() {
   if (realTracksLoaded) return;
-  fetch(API_BASE + '/api/audio/wavs')
+  fetch(API_BASE + '/api/audio/tracks')
     .then(r => r.json())
     .then(d => {
       if (d.error) {
@@ -1746,12 +1746,13 @@ function loadRealTracks() {
         }
         return;
       }
-      if (d.wavs && d.wavs.length > 0) {
+      const trackList = d.tracks || d.wavs || [];
+      if (trackList && trackList.length > 0) {
         realTracksLoaded = true;
-        S.tracks = d.wavs.map((w, i) => {
+        S.tracks = trackList.map((w, i) => {
           // Extract clean title from filename
-          const fname = w.path.split('/').pop().replace(/\.wav$/i, '');
-          const title = fname.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          const fname = (w.path || '').split('/').pop().replace(/\.(wav|dpa)$/i, '');
+          const title = (w.title || fname).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
           return {
             id: 't' + (i + 1),
             title: title,
@@ -1764,6 +1765,7 @@ function loadRealTracks() {
             channels: w.channels,
             bitsPerSample: w.bitsPerSample,
             sizeMB: (w.size / (1024 * 1024)).toFixed(1),
+            format: w.format || 'wav',
           };
         });
         // Load favorites from device, then rebuild UI

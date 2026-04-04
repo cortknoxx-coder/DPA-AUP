@@ -121,12 +121,12 @@ String escJson(const String& s) {
 }
 
 
-// ── Real WAV Helpers ─────────────────────────────────────────
+// ── Real Playable Track Helpers ──────────────────────────────
 
 String audioGetCurrentOrFirstPlayablePath() {
   if (g_audioNowPlaying.length() > 0) return g_audioNowPlaying;
   if (g_firstPlayableWav.length() > 0) return g_firstPlayableWav;
-  return audioFindFirstWav();
+  return audioFindFirstPlayable();
 }
 
 int audioGetWavCount() {
@@ -141,8 +141,9 @@ int audioGetWavCount() {
     File file = dir.openNextFile();
     if (!file) break;
     String name = String(file.name());
-    if (name.endsWith(".wav") || name.endsWith(".WAV")) {
-      WavInfo info = audioParseWav(file);
+    if (name.endsWith(".dpa") || name.endsWith(".DPA") || name.endsWith(".wav") || name.endsWith(".WAV")) {
+      String full = name.startsWith("/") ? name : ("/tracks/" + name);
+      WavInfo info = audioParsePlayable(file, full);
       if (info.valid) count++;
     }
     file.close();
@@ -164,11 +165,12 @@ String audioGetWavPathByIndex(int wanted) {
     File file = dir.openNextFile();
     if (!file) break;
     String name = String(file.name());
-    if (name.endsWith(".wav") || name.endsWith(".WAV")) {
-      WavInfo info = audioParseWav(file);
+    if (name.endsWith(".dpa") || name.endsWith(".DPA") || name.endsWith(".wav") || name.endsWith(".WAV")) {
+      String full = name.startsWith("/") ? name : ("/tracks/" + name);
+      WavInfo info = audioParsePlayable(file, full);
       if (info.valid) {
         if (idx == wanted) {
-          result = name.startsWith("/") ? name : ("/tracks/" + name);
+          result = full;
           file.close();
           break;
         }
@@ -196,10 +198,10 @@ int audioGetCurrentPlayableIndex() {
     File file = dir.openNextFile();
     if (!file) break;
     String name = String(file.name());
-    if (name.endsWith(".wav") || name.endsWith(".WAV")) {
-      WavInfo info = audioParseWav(file);
+    if (name.endsWith(".dpa") || name.endsWith(".DPA") || name.endsWith(".wav") || name.endsWith(".WAV")) {
+      String full = name.startsWith("/") ? name : ("/tracks/" + name);
+      WavInfo info = audioParsePlayable(file, full);
       if (info.valid) {
-        String full = name.startsWith("/") ? name : ("/tracks/" + name);
         if (full == current) {
           found = idx;
           file.close();
@@ -233,6 +235,8 @@ String buildStatusJson() {
   String currentTitle = "";
   if (currentPath.length() > 0) {
     currentTitle = currentPath.substring(currentPath.lastIndexOf('/') + 1);
+    currentTitle.replace(".dpa", "");
+    currentTitle.replace(".DPA", "");
     currentTitle.replace(".wav", "");
     currentTitle.replace(".WAV", "");
     currentTitle.replace("_", " ");
@@ -695,14 +699,25 @@ void registerApiRoutes(AsyncWebServer& server) {
     req->send(200, "application/json", "{\"ok\":true}");
   });
 
+  // ── GET /api/audio/tracks ──────────────────────────────────
+  // Lists all valid playable tracks (.dpa primary, .wav legacy fallback)
+  server.on("/api/audio/tracks", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (!g_sdMounted) {
+      req->send(503, "application/json", "{\"error\":\"sd not mounted\"}");
+      return;
+    }
+    String j = "{\"tracks\":" + audioListTracksJson() + "}";
+    req->send(200, "application/json", j);
+  });
+
   // ── GET /api/audio/wavs ────────────────────────────────────
-  // Lists all valid WAV files in /tracks with metadata
+  // Legacy alias for older clients — returns the same playable list payload.
   server.on("/api/audio/wavs", HTTP_GET, [](AsyncWebServerRequest* req) {
     if (!g_sdMounted) {
       req->send(503, "application/json", "{\"error\":\"sd not mounted\"}");
       return;
     }
-    String j = "{\"wavs\":" + audioListWavsJson() + "}";
+    String j = "{\"wavs\":" + audioListTracksJson() + "}";
     req->send(200, "application/json", j);
   });
 
@@ -750,7 +765,7 @@ void registerApiRoutes(AsyncWebServer& server) {
         req->_tempObject = nullptr;
       }
       sdRefreshStats();
-      // Rescan for playable WAVs
+      // Rescan playable track list (.dpa primary, .wav legacy fallback)
       scanWavList();
       String j = "{\"ok\":true,\"freeMB\":" + String(g_sdFreeMB, 0) + "}";
       req->send(200, "application/json", j);
@@ -848,7 +863,7 @@ void registerApiRoutes(AsyncWebServer& server) {
         }
         Serial.printf("[SD] Upload complete: %s\n", g_uploadPath.c_str());
         sdRefreshStats();
-        // Rescan for playable WAVs
+        // Rescan playable track list (.dpa primary, .wav legacy fallback)
         scanWavList();
       }
       String j = "{\"ok\":true,\"path\":\"" + escJson(g_uploadPath) + "\"}";
@@ -920,7 +935,7 @@ void registerApiRoutes(AsyncWebServer& server) {
     bool ok = SD.remove(path);
     Serial.printf("[SD] Delete %s: %s\n", path.c_str(), ok ? "ok" : "failed");
     sdRefreshStats();
-    // Rescan for playable WAVs if a track was deleted
+    // Rescan playable track list if a track was deleted
     if (path.startsWith("/tracks/")) {
       scanWavList();
     }

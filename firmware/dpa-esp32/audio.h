@@ -34,6 +34,7 @@
 extern int g_volume;
 extern String g_eq;
 #include <SD.h>
+#include "dpa_format.h"
 #include "audio_reactive.h"  // Audio feature extraction for LED reactivity
 
 // ── Software EQ (3-band biquad) ─────────────────────────────
@@ -273,7 +274,8 @@ volatile uint32_t g_wavBytesRead  = 0;
 // ── Forward Declarations ─────────────────────────────────────
 void audioStop();
 
-// ── WAV Info Struct ─────────────────────────────────────────
+// ── Playable PCM Info Struct ────────────────────────────────
+// Shared by raw WAV files and DPA1-wrapped WAV payloads.
 struct WavInfo {
   uint16_t audioFormat;
   uint32_t sampleRate;
@@ -282,6 +284,9 @@ struct WavInfo {
   uint16_t blockAlign;
   uint32_t dataOffset;
   uint32_t dataSize;
+  bool isDpa;
+  String format;
+  String title;
   bool valid;
 };
 
@@ -308,11 +313,11 @@ static uint32_t audioRd32(File& f) {
 }
 
 // ── Parse WAV Header (robust chunk-based parser) ────────────
-static WavInfo audioParseWav(File& f) {
-  WavInfo info = {0, 0, 0, 0, 0, 0, 0, false};
+static WavInfo audioParseWavAt(File& f, uint32_t startOffset) {
+  WavInfo info = {0, 0, 0, 0, 0, 0, 0, false, "wav", "", false};
   char id[5] = {0};
 
-  f.seek(0);
+  f.seek(startOffset);
 
   if (f.read((uint8_t*)id, 4) != 4) return info;
   if (memcmp(id, "RIFF", 4) != 0) return info;
@@ -363,6 +368,32 @@ static WavInfo audioParseWav(File& f) {
   }
 
   return info;
+}
+
+static WavInfo audioParseWav(File& f) {
+  return audioParseWavAt(f, 0);
+}
+
+static WavInfo audioParseDpa(File& f) {
+  WavInfo info = {0, 0, 0, 0, 0, 0, 0, false, "dpa", "", false};
+  DpaFileHeader header;
+  if (!dpaReadHeader(f, header) || !header.valid) return info;
+  if (header.payloadFormat != DPA_PAYLOAD_WAV) return info;
+
+  WavInfo embedded = audioParseWavAt(f, dpaPayloadOffset(header));
+  if (!embedded.valid) return info;
+
+  embedded.isDpa = true;
+  embedded.format = "dpa";
+  embedded.title = header.title;
+  return embedded;
+}
+
+static WavInfo audioParsePlayable(File& f, const String& path) {
+  if (path.endsWith(".dpa") || path.endsWith(".DPA")) {
+    return audioParseDpa(f);
+  }
+  return audioParseWav(f);
 }
 
 // ── I2S Init / Shutdown ─────────────────────────────────────
@@ -509,8 +540,8 @@ static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavIn
   return outSamples * sizeof(int32_t);
 }
 
-// ── Scan /tracks for First Valid WAV ────────────────────────
-String audioFindFirstWav() {
+// ── Scan /tracks for First Valid Playable Track ─────────────
+String audioFindFirstPlayable() {
   File dir = SD.open("/tracks");
   if (!dir) {
     Serial.println("[AUDIO] Failed to open /tracks");
@@ -527,22 +558,24 @@ String audioFindFirstWav() {
     if (!file) break;
 
     String name = String(file.name());
-    if (name.endsWith(".wav") || name.endsWith(".WAV")) {
-      Serial.printf("[AUDIO] Checking %s (%llu bytes)\n", name.c_str(), (unsigned long long)file.size());
-      WavInfo info = audioParseWav(file);
+    if (name.endsWith(".dpa") || name.endsWith(".DPA") ||
+        name.endsWith(".wav") || name.endsWith(".WAV")) {
+      String fullPath = name.startsWith("/") ? name : ("/tracks/" + name);
+      Serial.printf("[AUDIO] Checking %s (%llu bytes)\n", fullPath.c_str(), (unsigned long long)file.size());
+      WavInfo info = audioParsePlayable(file, fullPath);
       file.close();
 
       if (info.valid) {
-        String fullPath = name.startsWith("/") ? name : ("/tracks/" + name);
-        Serial.printf("[AUDIO] Valid WAV: %s | %lu Hz | %u ch | %u-bit\n",
-                      fullPath.c_str(), (unsigned long)info.sampleRate,
+        Serial.printf("[AUDIO] Valid %s: %s | %lu Hz | %u ch | %u-bit\n",
+                      info.format.c_str(), fullPath.c_str(), (unsigned long)info.sampleRate,
                       info.channels, info.bitsPerSample);
         dir.close();
         return fullPath;
       } else {
-        Serial.printf("[AUDIO] Skipping unsupported: %s\n", name.c_str());
+        Serial.printf("[AUDIO] Skipping unsupported: %s\n", fullPath.c_str());
       }
-    } else {
+    }
+    else {
       file.close();
     }
   }
@@ -551,11 +584,8 @@ String audioFindFirstWav() {
   return "";
 }
 
-// ── List All Valid WAVs in /tracks ──────────────────────────
-String audioListWavsJson() {
-  // Uses g_wavPaths[] from scanWavList() as canonical order.
-  // scanWavList() already validates headers, so indices match 1:1.
-  // Includes "idx" so dashboard can map firmware trackIndex directly.
+// ── List All Valid Playable Tracks in /tracks ───────────────
+String audioListTracksJson() {
   if (g_wavCount == 0) return "[]";
 
   String json = "[";
@@ -565,7 +595,7 @@ String audioListWavsJson() {
     if (!file) continue;
 
     size_t fsize = file.size();
-    WavInfo info = audioParseWav(file);
+    WavInfo info = audioParsePlayable(file, g_wavPaths[i]);
     file.close();
 
     if (!info.valid) continue;  // safety net — shouldn't happen
@@ -573,10 +603,13 @@ String audioListWavsJson() {
     if (json.length() > 1) json += ",";
     json += "{\"idx\":" + String(i) + ",";
     json += "\"path\":\"" + g_wavPaths[i] + "\",";
+    json += "\"format\":\"" + info.format + "\",";
+    json += "\"title\":\"" + info.title + "\",";
     json += "\"size\":" + String((unsigned long)fsize) + ",";
     json += "\"sampleRate\":" + String(info.sampleRate) + ",";
     json += "\"channels\":" + String(info.channels) + ",";
     json += "\"bitsPerSample\":" + String(info.bitsPerSample) + ",";
+    json += "\"codec\":\"wav\",";
     uint32_t bytesPerSample = (info.bitsPerSample / 8) * info.channels;
     uint32_t durationMs = 0;
     if (bytesPerSample > 0 && info.sampleRate > 0) {
@@ -605,9 +638,9 @@ static void audioPlaybackTask(void* param) {
     return;
   }
 
-  WavInfo info = audioParseWav(f);
+  WavInfo info = audioParsePlayable(f, path);
   if (!info.valid) {
-    Serial.printf("[AUDIO] Unsupported WAV: %s\n", path.c_str());
+    Serial.printf("[AUDIO] Unsupported track: %s\n", path.c_str());
     f.close();
     g_audioStopRequested = true;  // prevent auto-advance on error
     g_audioPlaying = false;
@@ -635,8 +668,8 @@ static void audioPlaybackTask(void* param) {
   g_wavDataOffset   = info.dataOffset;
   g_wavBytesRead    = 0;
 
-  Serial.printf("[AUDIO] Playing: %s | %lu Hz | %u ch | %u-bit | %lu bytes\n",
-                path.c_str(), (unsigned long)info.sampleRate,
+  Serial.printf("[AUDIO] Playing %s: %s | %lu Hz | %u ch | %u-bit | %lu bytes\n",
+                info.format.c_str(), path.c_str(), (unsigned long)info.sampleRate,
                 info.channels, info.bitsPerSample, (unsigned long)info.dataSize);
 
   f.seek(info.dataOffset);
@@ -727,7 +760,7 @@ bool audioInit() {
   return true;
 }
 
-// Start playback of a WAV file (launches FreeRTOS task)
+// Start playback of a playable track file (WAV or DPA1, launches FreeRTOS task)
 bool audioPlayFile(const char* path) {
   if (!g_audioReady) {
     Serial.println("[AUDIO] Not ready");

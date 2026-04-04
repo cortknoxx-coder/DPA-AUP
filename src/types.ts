@@ -133,6 +133,8 @@ export interface StorageStatus {
   videoCount: number;
 }
 
+export type DpaPayloadCodec = 'wav' | 'pcm' | 'flac' | 'opus' | 'json';
+
 export interface DeviceTrack {
   index: number;
   filename: string;
@@ -140,6 +142,11 @@ export interface DeviceTrack {
   sizeMB: number;
   plays: number;
   durationMs: number;
+  format?: 'dpa' | 'wav';
+  codec?: DpaPayloadCodec | string;
+  sampleRate?: number;
+  channels?: number;
+  bitsPerSample?: number;
 }
 
 export interface A2dpDevice {
@@ -407,19 +414,41 @@ export interface Manifest {
   };
 }
 
-// --- .dpa Encrypted Container Format ---
+// --- .dpa Media Container Format (v1) ---
+
+export type DpaAudioFormat = 1 | 2 | 3 | 4 | 5;
+
+export interface DpaPackagingMetadata {
+  format: DpaAudioFormat;
+  sampleRate: number;
+  channels: number;
+  bitsPerSample: number;
+  durationMs: number;
+  title?: string;
+  artistName?: string;
+  mime?: string;
+  originalFilename?: string;
+}
 
 export interface DpaFileHeader {
-  magic: 'DPA\x01';
+  magic: 'DPA1';
   version: number;
-  flags: number; // bit0=FLAC, bit1=video, bit2=capsule
-  duidHash: string; // SHA-256 hex of DUID + master key
-  ivHex: string; // 12-byte nonce as hex
+  flags: number;
+  headerSize: number;
+  payloadCodec: DpaAudioFormat;
+  contentType: 'audio' | 'video' | 'capsule';
+  sampleRate: number;
+  channels: number;
+  bitsPerSample: number;
+  durationMs: number;
+  payloadSize: number;
+  title: string;
+  originalFilename: string;
 }
 
 export interface DpaEncryptionConfig {
-  masterKey: string; // Compiled constant
-  duid: string; // Target device DUID
+  masterKey: string;
+  duid: string;
   contentType: 'audio' | 'video' | 'capsule';
 }
 

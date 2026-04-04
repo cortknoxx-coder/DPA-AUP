@@ -159,18 +159,24 @@ export class TrackListComponent {
     let dpaData: ArrayBuffer;
     let dpaFilename = '';
     try {
-      // Phase 2: Encrypt to .dpa format for this device only
-      dpaData = await this.cryptoService.encryptToDpa(arrayBuffer, duid, 'audio');
+      // Phase 2: Wrap the imported WAV into a DPA1 media container.
+      // The device treats the resulting .dpa as the primary playable asset.
+      const a = this.album();
+      dpaData = await this.cryptoService.packageWavAsDpa(arrayBuffer, {
+        format: 1,
+        title: file.name.replace(/\.[^/.]+$/, ''),
+        artistName: a?.artistName || '',
+      });
       dpaFilename = file.name.replace(/\.[^/.]+$/, '.dpa');
       console.log(
-        `[Upload] Encrypted ${file.name} → ${dpaFilename} (${(dpaData.byteLength / (1024 * 1024)).toFixed(2)} MB) for device ${duid}`
+        `[Upload] Packaged ${file.name} → ${dpaFilename} (${(dpaData.byteLength / (1024 * 1024)).toFixed(2)} MB) for device ${duid}`
       );
     } catch (err) {
-      console.error('[Upload] Encryption failed:', err);
-      this.failUpload(item.id, 'Encryption to .dpa failed.');
+      console.error('[Upload] DPA packaging failed:', err);
+      this.failUpload(item.id, 'Packaging to .dpa failed.');
       return;
     } finally {
-      // Scrub plain master bytes from memory after encryption attempt.
+      // Scrub imported master bytes from memory after packaging attempt.
       const plainBytes = new Uint8Array(arrayBuffer);
       plainBytes.fill(0);
     }
@@ -188,7 +194,7 @@ export class TrackListComponent {
     } catch {
       transferOk = false;
     } finally {
-      // Scrub encrypted payload bytes after transfer attempt.
+      // Scrub packaged payload bytes after transfer attempt.
       const encBytes = new Uint8Array(dpaData);
       encBytes.fill(0);
     }

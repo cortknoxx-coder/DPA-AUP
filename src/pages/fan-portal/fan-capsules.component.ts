@@ -188,7 +188,7 @@ export class FanCapsulesComponent {
             downloadedAt: new Date().toISOString()
           }));
 
-          const dpaData = await this.cryptoService.encryptToDpa(contentData.buffer as ArrayBuffer, duid, 'capsule');
+          const dpaData = await this.cryptoService.encryptForDevice(contentData.buffer as ArrayBuffer, duid, 'capsule');
           const dpaFilename = `capsule-${capsule.id}.dpa`;
           const dpaFile = new File([dpaData], dpaFilename, { type: 'application/octet-stream' });
 
