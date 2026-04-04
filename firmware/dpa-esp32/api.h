@@ -783,6 +783,9 @@ void registerApiRoutes(AsyncWebServer& server) {
           delay(100);
         }
 
+        // Writes are most reliable at the slow SD clock.
+        sdMountSlow();
+
         // Create parent directories if needed
         String dir = path.substring(0, path.lastIndexOf('/'));
         if (dir.length() > 0 && !SD.exists(dir)) {
@@ -880,6 +883,9 @@ void registerApiRoutes(AsyncWebServer& server) {
           audioStop();
           delay(100);
         }
+
+        // Writes are most reliable at the slow SD clock.
+        sdMountSlow();
 
         // First chunk — open .part file
         g_uploadPath = req->hasParam("path") ? req->getParam("path")->value() : "/upload.bin";

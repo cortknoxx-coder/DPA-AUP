@@ -231,9 +231,9 @@ void loadOrGenerateDUID() {
   prefs.end();
 }
 
-// ── Scan all WAV paths into g_wavPaths[] ─────────────────────
-// Only includes files with valid WAV headers so indices match
-// the dashboard's REAL_WAVS array exactly (from /api/audio/wavs)
+// ── Scan all playable track paths into g_wavPaths[] ──────────
+// Includes DPA1-wrapped WAV payloads first, then raw WAV legacy files.
+// g_wavPaths[] naming is kept for compatibility with existing analytics/favorites code.
 void scanWavList() {
   g_wavCount = 0;
   File dir = SD.open("/tracks");
@@ -242,23 +242,23 @@ void scanWavList() {
     File f = dir.openNextFile();
     if (!f) break;
     String name = String(f.name());
-    if (name.endsWith(".wav") || name.endsWith(".WAV")) {
+    if (name.endsWith(".dpa") || name.endsWith(".DPA") ||
+        name.endsWith(".wav") || name.endsWith(".WAV")) {
       String fullPath = name.startsWith("/") ? name : ("/tracks/" + name);
-      // Validate WAV header — skip corrupt/invalid files
-      // This keeps g_wavPaths[] in sync with audioListWavsJson()
-      WavInfo info = audioParseWav(f);
+      // Validate playable track header — skip corrupt/invalid assets.
+      WavInfo info = audioParsePlayable(f, fullPath);
       if (info.valid) {
         g_wavPaths[g_wavCount++] = fullPath;
-        Serial.printf("[SCAN] Track %d: %s (%luHz %u-bit)\n", g_wavCount, fullPath.c_str(),
-                      (unsigned long)info.sampleRate, info.bitsPerSample);
+        Serial.printf("[SCAN] Track %d: %s [%s] (%luHz %u-bit)\n", g_wavCount, fullPath.c_str(),
+                      info.format.c_str(), (unsigned long)info.sampleRate, info.bitsPerSample);
       } else {
-        Serial.printf("[SCAN] SKIP invalid WAV: %s\n", fullPath.c_str());
+        Serial.printf("[SCAN] SKIP invalid track: %s\n", fullPath.c_str());
       }
     }
     f.close();
   }
   dir.close();
-  Serial.printf("[SCAN] Found %d valid WAV files\n", g_wavCount);
+  Serial.printf("[SCAN] Found %d valid playable files\n", g_wavCount);
   if (g_wavCount > 0) g_firstPlayableWav = g_wavPaths[0];
 }
 
