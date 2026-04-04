@@ -213,12 +213,13 @@ export class DeviceConnectionService {
   private async refreshWifiLibrary() {
     const tracks = await this.wifi.getDeviceTracks();
     const duid = this.deviceInfo()?.serial ?? 'DPA';
+    const deviceName = this.deviceInfo()?.model || 'DPA Device';
     this.deviceLibrary.set({
       albums: [
         {
           id: duid,
-          title: `${duid} Library`,
-          artworkUrl: `https://picsum.photos/seed/${duid}/400/400`,
+          title: deviceName,
+          artworkUrl: '/assets/dpa-default-cover.png',
         },
       ],
       tracks: tracks.map(t => ({

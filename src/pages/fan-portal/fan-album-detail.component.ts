@@ -187,13 +187,15 @@ export class FanAlbumDetailComponent {
     const m = this.manifest();
     if (!m) return;
     
+    const albumMeta = this.albumMetadata();
+    const coverUrl = (albumMeta as any)?.artworkUrl || '/assets/dpa-default-cover.png';
     const playerTrack: PlayerTrack = {
       id: track.trackId,
       title: track.title,
-      artist: this.albumMetadata()?.artistName || 'Artist',
-      album: this.albumMetadata()?.title || 'Album',
+      artist: albumMeta?.artistName || 'Artist',
+      album: albumMeta?.title || 'Album',
       duration: track.durationSec,
-      coverUrl: `https://picsum.photos/seed/${m.albumId}/300/300`,
+      coverUrl,
       blobId: track.blobId
     };
     const conn = this.connectionService.connectionStatus();
@@ -205,6 +207,7 @@ export class FanAlbumDetailComponent {
           this.playerService.isPlaying.set(true);
           this.playerService.currentTime.set(0);
           this.playerService.progress.set(0);
+          this.playerService.startWifiPolling();
         }
       });
       return;

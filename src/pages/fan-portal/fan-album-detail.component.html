@@ -7,7 +7,7 @@
       <!-- Hero Header -->
       <header class="flex flex-col md:flex-row gap-8 items-end relative">
         <div class="relative group shrink-0">
-           <img [src]="'https://picsum.photos/seed/' + m.albumId + '/500/500'" 
+           <img [src]="$any(a).artworkUrl || '/assets/dpa-default-cover.png'" 
                 alt="Album Cover" 
                 class="w-64 h-64 md:w-80 md:h-80 rounded-lg shadow-2xl shadow-black/80 object-cover border border-white/10">
            

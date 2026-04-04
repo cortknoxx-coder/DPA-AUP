@@ -36,6 +36,7 @@ export class PlayerService {
   queue = signal<PlayerTrack[]>([]);
 
   private timer: any;
+  private wifiPollTimer: any;
   private readonly SNIPPET_LIMIT = 30; // seconds
 
   effectiveDuration = computed(() => {
@@ -197,6 +198,7 @@ export class PlayerService {
 
     this.isPlaying.set(false);
     this.stopTimer();
+    this.stopWifiPolling();
   }
 
   stop() {
@@ -207,6 +209,7 @@ export class PlayerService {
 
     this.isPlaying.set(false);
     this.stopTimer();
+    this.stopWifiPolling();
     this.currentTrack.set(null);
     this.progress.set(0);
     this.currentTime.set(0);
@@ -282,6 +285,52 @@ export class PlayerService {
     const conn = this.deviceService.connectionStatus();
     if (conn === 'wifi') {
       await this.deviceService.wifi.setVolume(vol);
+    }
+  }
+
+  startWifiPolling() {
+    this.stopWifiPolling();
+    this.wifiPollTimer = setInterval(async () => {
+      if (this.deviceService.connectionStatus() !== 'wifi') {
+        this.stopWifiPolling();
+        return;
+      }
+      try {
+        const status = await this.deviceService.wifi.getStatus();
+        if (!status?.player) return;
+
+        this.isPlaying.set(status.player.playing);
+        this.currentTime.set(Math.floor((status.player.posMs ?? 0) / 1000));
+
+        if (status.audio?.volume !== undefined) {
+          this.volume.set(status.audio.volume);
+        }
+
+        const duration = this.effectiveDuration();
+        if (duration > 0) {
+          this.progress.set(Math.min(100, (this.currentTime() / duration) * 100));
+        }
+
+        if (status.player.trackTitle && this.currentTrack()) {
+          const cur = this.currentTrack()!;
+          if (cur.title !== status.player.trackTitle) {
+            this.currentTrack.set({ ...cur, title: status.player.trackTitle });
+          }
+        }
+
+        if (!status.player.playing && this.isPlaying()) {
+          this.isPlaying.set(false);
+        }
+      } catch {
+        // network hiccup — keep polling
+      }
+    }, 1500);
+  }
+
+  private stopWifiPolling() {
+    if (this.wifiPollTimer) {
+      clearInterval(this.wifiPollTimer);
+      this.wifiPollTimer = null;
     }
   }
 
