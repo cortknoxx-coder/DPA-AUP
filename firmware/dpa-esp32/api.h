@@ -121,6 +121,18 @@ String escJson(const String& s) {
 }
 
 
+// ── Filename Sanitizer ───────────────────────────────────────
+static String sanitizePath(const String& path) {
+  String out = path;
+  out.replace(" ", "_");
+  out.replace("(", "");
+  out.replace(")", "");
+  out.replace("'", "");
+  out.replace("&", "_");
+  out.replace("#", "_");
+  return out;
+}
+
 // ── Real Playable Track Helpers ──────────────────────────────
 
 String audioGetCurrentOrFirstPlayablePath() {
@@ -774,7 +786,8 @@ void registerApiRoutes(AsyncWebServer& server) {
     [](AsyncWebServerRequest* req, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
       if (!g_sdMounted) return;
 
-      String path = req->hasParam("path") ? req->getParam("path")->value() : ("/tracks/" + filename);
+      String rawPath = req->hasParam("path") ? req->getParam("path")->value() : ("/tracks/" + filename);
+      String path = sanitizePath(rawPath);
 
       if (index == 0) {
         // Stop any playback before writing
@@ -888,7 +901,8 @@ void registerApiRoutes(AsyncWebServer& server) {
         sdMountSlow();
 
         // First chunk — open .part file
-        g_uploadPath = req->hasParam("path") ? req->getParam("path")->value() : "/upload.bin";
+        String rawPath = req->hasParam("path") ? req->getParam("path")->value() : "/upload.bin";
+        g_uploadPath = sanitizePath(rawPath);
         String dir = g_uploadPath.substring(0, g_uploadPath.lastIndexOf('/'));
         if (dir.length() > 0 && !SD.exists(dir)) SD.mkdir(dir);
 
