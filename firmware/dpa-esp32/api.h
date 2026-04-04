@@ -749,110 +749,115 @@ void registerApiRoutes(AsyncWebServer& server) {
   });
 
   // ── POST /api/sd/upload?path=/tracks/song.wav ──── [ADMIN]
-  // Multipart upload with .part temp file for reliability
+  // Multipart upload — persistent file handle + 8KB buffered writes (matches DPAC uploader pattern)
+  static File g_mpUploadFile;
+  static String g_mpUploadFinalPath;
+  static String g_mpUploadTempPath;
+  static size_t g_mpBytesWritten = 0;
+  static bool g_mpWriteError = false;
+  static const size_t MP_STAGE_SIZE = 8192;
+  static uint8_t g_mpStageBuf[MP_STAGE_SIZE];
+  static size_t g_mpStageUsed = 0;
+
   server.on("/api/sd/upload", HTTP_POST,
-    // Request complete handler — rename .part file and send response
     [](AsyncWebServerRequest* req) {
-      if (!g_adminMode) {
-        req->send(403, "application/json", "{\"error\":\"admin mode required\"}");
-        return;
+      // Flush remaining staged bytes
+      if (g_mpUploadFile && g_mpStageUsed > 0 && !g_mpWriteError) {
+        size_t w = g_mpUploadFile.write(g_mpStageBuf, g_mpStageUsed);
+        if (w == g_mpStageUsed) g_mpBytesWritten += w;
+        else g_mpWriteError = true;
+        g_mpStageUsed = 0;
       }
-      if (!g_sdMounted) {
-        req->send(503, "application/json", "{\"error\":\"sd not mounted\"}");
-        return;
+      if (g_mpUploadFile) {
+        g_mpUploadFile.flush();
+        g_mpUploadFile.close();
       }
-      // Rename .part to final path
-      String* storedPath = (String*)req->_tempObject;
-      if (storedPath) {
-        String partPath = *storedPath + ".part";
-        if (SD.exists(partPath)) {
-          // Remove old file if exists
-          if (SD.exists(*storedPath)) {
-            SD.remove(*storedPath);
-          }
-          SD.rename(partPath, *storedPath);
-          Serial.printf("[SD] Upload finalized: %s\n", storedPath->c_str());
-        }
-        delete storedPath;
-        req->_tempObject = nullptr;
+
+      bool ok = false;
+      if (!g_mpWriteError && g_mpBytesWritten > 0 && SD.exists(g_mpUploadTempPath)) {
+        if (SD.exists(g_mpUploadFinalPath)) SD.remove(g_mpUploadFinalPath);
+        ok = SD.rename(g_mpUploadTempPath, g_mpUploadFinalPath);
+        Serial.printf("[SD] Upload finalized: %s (%u bytes, rename=%s)\n",
+          g_mpUploadFinalPath.c_str(), (unsigned)g_mpBytesWritten, ok ? "OK" : "FAIL");
+      } else {
+        Serial.printf("[SD] Upload FAILED: writeErr=%d bytes=%u\n",
+          g_mpWriteError, (unsigned)g_mpBytesWritten);
+        if (SD.exists(g_mpUploadTempPath)) SD.remove(g_mpUploadTempPath);
       }
+
+      // Remount fast for playback + rescan
+      sdMountFast();
       sdRefreshStats();
-      // Rescan playable track list (.dpa primary, .wav legacy fallback)
       scanWavList();
-      String j = "{\"ok\":true,\"freeMB\":" + String(g_sdFreeMB, 0) + "}";
+      String j = "{\"ok\":" + String(ok ? "true" : "false") + ",\"freeMB\":" + String(g_sdFreeMB, 0) + "}";
       req->send(200, "application/json", j);
     },
-    // File upload handler (multipart)
     [](AsyncWebServerRequest* req, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
       if (!g_sdMounted) return;
 
-      String rawPath = req->hasParam("path") ? req->getParam("path")->value() : ("/tracks/" + filename);
-      String path = sanitizePath(rawPath);
-
       if (index == 0) {
-        // Stop any playback before writing
-        if (g_audioPlaying) {
-          audioStop();
-          delay(100);
-        }
-
-        // Writes are most reliable at the slow SD clock.
+        if (g_audioPlaying) { audioStop(); delay(100); }
         sdMountSlow();
 
-        // Create parent directories if needed
-        String dir = path.substring(0, path.lastIndexOf('/'));
-        if (dir.length() > 0 && !SD.exists(dir)) {
-          SD.mkdir(dir);
-        }
+        String rawPath = req->hasParam("path") ? req->getParam("path")->value() : ("/tracks/" + filename);
+        g_mpUploadFinalPath = sanitizePath(rawPath);
+        g_mpUploadTempPath = g_mpUploadFinalPath + ".part";
 
-        // Store path for subsequent chunks
-        req->_tempObject = (void*) new String(path);
+        String dir = g_mpUploadFinalPath.substring(0, g_mpUploadFinalPath.lastIndexOf('/'));
+        if (dir.length() > 0 && !SD.exists(dir)) SD.mkdir(dir);
 
-        // Write to .part file
-        String partPath = path + ".part";
-        if (SD.exists(partPath)) SD.remove(partPath);
-        Serial.printf("[SD] Upload start: %s (%s)\n", path.c_str(), filename.c_str());
-        File f = SD.open(partPath, FILE_WRITE);
-        if (f) {
-          f.write(data, len);
-          f.close();
-        }
-      } else {
-        // Append subsequent chunks
-        String* storedPath = (String*)req->_tempObject;
-        if (storedPath) {
-          String partPath = *storedPath + ".part";
-          File f = SD.open(partPath, FILE_APPEND);
-          if (f) {
-            // Buffered write with retry
-            size_t written = 0;
-            int retries = 0;
-            while (written < len && retries < 4) {
-              size_t chunk = min(len - written, (size_t)8192);
-              size_t w = f.write(data + written, chunk);
-              if (w > 0) {
-                written += w;
-                retries = 0;
-              } else {
-                retries++;
-                delay(10);
-              }
-            }
-            f.close();
+        if (SD.exists(g_mpUploadTempPath)) SD.remove(g_mpUploadTempPath);
+        if (SD.exists(g_mpUploadFinalPath)) SD.remove(g_mpUploadFinalPath);
 
-            // Progress every 100KB
-            if ((index + len) % 102400 < len) {
-              Serial.printf("[SD] Upload progress: %u bytes\n", (unsigned int)(index + len));
-            }
-          }
+        g_mpUploadFile = SD.open(g_mpUploadTempPath, FILE_WRITE);
+        g_mpBytesWritten = 0;
+        g_mpWriteError = false;
+        g_mpStageUsed = 0;
+
+        if (!g_mpUploadFile) {
+          g_mpWriteError = true;
+          Serial.printf("[SD] Upload OPEN FAILED: %s\n", g_mpUploadTempPath.c_str());
+        } else {
+          Serial.printf("[SD] Upload start: %s (%s)\n", g_mpUploadFinalPath.c_str(), filename.c_str());
         }
       }
 
-      if (final) {
-        String* storedPath = (String*)req->_tempObject;
-        if (storedPath) {
-          Serial.printf("[SD] Upload received: %s (%u bytes total)\n", storedPath->c_str(), (unsigned int)(index + len));
+      if (g_mpUploadFile && !g_mpWriteError) {
+        size_t offset = 0;
+        while (offset < len) {
+          size_t space = MP_STAGE_SIZE - g_mpStageUsed;
+          size_t toCopy = min(space, len - offset);
+          memcpy(g_mpStageBuf + g_mpStageUsed, data + offset, toCopy);
+          g_mpStageUsed += toCopy;
+          offset += toCopy;
+
+          if (g_mpStageUsed == MP_STAGE_SIZE) {
+            size_t w = 0;
+            int retries = 0;
+            while (w < MP_STAGE_SIZE && retries < 4) {
+              size_t chunk = min(MP_STAGE_SIZE - w, (size_t)8192);
+              size_t wrote = g_mpUploadFile.write(g_mpStageBuf + w, chunk);
+              if (wrote > 0) { w += wrote; retries = 0; }
+              else { retries++; delay(10); }
+            }
+            if (w == MP_STAGE_SIZE) {
+              g_mpBytesWritten += w;
+            } else {
+              g_mpWriteError = true;
+              Serial.printf("[SD] Upload WRITE FAILED at %u bytes\n", (unsigned)g_mpBytesWritten);
+            }
+            g_mpStageUsed = 0;
+          }
         }
+
+        if ((index + len) % 524288 < len) {
+          Serial.printf("[SD] Upload: %u bytes written\n", (unsigned)(g_mpBytesWritten + g_mpStageUsed));
+        }
+      }
+
+      if (final && g_mpUploadFile) {
+        Serial.printf("[SD] Upload received: %u bytes total (staged=%u)\n",
+          (unsigned)(index + len), (unsigned)g_mpStageUsed);
       }
     }
   );
