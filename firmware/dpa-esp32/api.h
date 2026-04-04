@@ -785,6 +785,10 @@ void registerApiRoutes(AsyncWebServer& server) {
         if (SD.exists(g_mpUploadTempPath)) SD.remove(g_mpUploadTempPath);
       }
 
+      // Upload done — resume background tasks
+      extern volatile bool g_uploadInProgress;
+      g_uploadInProgress = false;
+
       // Remount fast for playback + rescan
       sdMountFast();
       sdRefreshStats();
@@ -797,6 +801,10 @@ void registerApiRoutes(AsyncWebServer& server) {
 
       if (index == 0) {
         if (g_audioPlaying) { audioStop(); delay(100); }
+
+        // Match DPAC uploader: disable WiFi sleep to prevent SPI bus contention
+        WiFi.setSleep(false);
+
         sdMountSlow();
 
         String rawPath = req->hasParam("path") ? req->getParam("path")->value() : ("/tracks/" + filename);
@@ -818,6 +826,8 @@ void registerApiRoutes(AsyncWebServer& server) {
           g_mpWriteError = true;
           Serial.printf("[SD] Upload OPEN FAILED: %s\n", g_mpUploadTempPath.c_str());
         } else {
+          extern volatile bool g_uploadInProgress;
+          g_uploadInProgress = true;
           Serial.printf("[SD] Upload start: %s (%s)\n", g_mpUploadFinalPath.c_str(), filename.c_str());
         }
       }

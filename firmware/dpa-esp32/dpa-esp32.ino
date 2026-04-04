@@ -82,6 +82,9 @@ String g_fwVersion  = "2.3.0";
 // Admin mode (consumer-only by default, unlocked via button combo or API)
 bool   g_adminMode  = false;
 
+// Upload in progress — pauses background SPI tasks in loop()
+volatile bool g_uploadInProgress = false;
+
 // Playback state
 int    g_trackIndex = 0;
 bool   g_playing    = false;
@@ -555,6 +558,7 @@ void setup() {
 
   // 6. Start WiFi (AP always on + STA if credentials stored)
   wifiInit(AP_PASSWORD, AP_CHANNEL, AP_MAX_CONN);
+  WiFi.setSleep(false);  // Prevent WiFi power management from disrupting SPI bus during SD writes
 
   // 6b. Captive portal (DNS hijack — phones auto-open dashboard on WiFi connect)
   captiveInit();
@@ -684,28 +688,28 @@ void loop() {
     }
   }
 
-  // Flush deferred saves when not playing (safe: no SPI contention)
-  if (!g_audioPlaying) {
+  // Flush deferred saves when not playing and not uploading (safe: no SPI contention)
+  if (!g_audioPlaying && !g_uploadInProgress) {
     analyticsFlushIfDirty();
     favoritesFlushIfDirty();
   }
 
-  // Run WiFi scan if requested by API — skip during playback (blocks SPI)
-  if (!g_audioPlaying) {
-    wifiDoScan();
-  }
+  // Skip all background SPI-touching tasks during upload (prevents SD bus contention)
+  if (!g_uploadInProgress) {
+    // Run WiFi scan if requested by API — skip during playback (blocks SPI)
+    if (!g_audioPlaying) {
+      wifiDoScan();
+    }
 
-  // Captive portal DNS processing (resolves all queries to AP IP)
-  captiveTick();
+    // Captive portal DNS processing (resolves all queries to AP IP)
+    captiveTick();
 
-  // ESP-NOW mesh tick — disabled
-  // espnowTick();
-
-  // Monitor STA connection — skip during playback
-  static unsigned long lastWifiCheck = 0;
-  if (!g_audioPlaying && millis() - lastWifiCheck > 5000) {
-    wifiTick();
-    lastWifiCheck = millis();
+    // Monitor STA connection — skip during playback
+    static unsigned long lastWifiCheck = 0;
+    if (!g_audioPlaying && millis() - lastWifiCheck > 5000) {
+      wifiTick();
+      lastWifiCheck = millis();
+    }
   }
 
   // Periodic battery read (every 10s)
