@@ -343,7 +343,9 @@ export class DeviceWifiService {
         xhr.timeout = 600000;
         const formData = new FormData();
         formData.append('file', file, file.name);
-        xhr.open('POST', `${this.baseUrl}/api/sd/upload?path=${encodeURIComponent(path)}`);
+        // Use port 81 sync upload server for reliable large file transfers.
+        const uploadUrl = this.baseUrl.replace(/:80\b/, ':81').replace(/^(http:\/\/[^:/]+)$/, '$1:81');
+        xhr.open('POST', `${uploadUrl}/api/sd/upload?path=${encodeURIComponent(path)}`);
         xhr.send(formData);
       });
     } catch (err) {

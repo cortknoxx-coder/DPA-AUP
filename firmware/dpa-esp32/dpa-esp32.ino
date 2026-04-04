@@ -38,6 +38,7 @@
  */
 
 #include <WiFi.h>
+#include <WebServer.h>
 #include <Preferences.h>
 
 // ── Pin Definitions ─────────────────────────────────────────
@@ -206,8 +207,9 @@ int g_nextCount = 0, g_prevCount = 0;
 #include "api.h"       // REST API endpoint handlers
 #include "dashboard.h" // PROGMEM gzipped HTML dashboard
 
-// ── Web Server ───────────────────────────────────────────────
-AsyncWebServer server(80);
+// ── Web Servers ──────────────────────────────────────────────
+AsyncWebServer server(80);      // Async: dashboard, API, captive portal
+WebServer uploadServer(81);     // Sync: reliable large file uploads (matches DPAC uploader pattern)
 
 // ── WiFi AP Config ───────────────────────────────────────────
 const char* AP_PASSWORD = NULL;  // Open network — no password
@@ -488,6 +490,156 @@ void buttonsTick() {
   }
 }
 
+// ── Synchronous Upload Server (port 81) ──────────────────────
+// Mirrors the proven DPAC uploader pattern: synchronous WebServer,
+// persistent file handle, 8KB staging buffer, 4-retry writes.
+// ESPAsyncWebServer (port 80) has known bugs with large file uploads.
+
+static File g_syncUploadFile;
+static String g_syncFinalPath;
+static String g_syncTempPath;
+static size_t g_syncBytesWritten = 0;
+static bool g_syncWriteError = false;
+static bool g_syncCompleted = false;
+static const size_t SYNC_STAGE_SIZE = 8192;
+static uint8_t g_syncStageBuf[SYNC_STAGE_SIZE];
+static size_t g_syncStageUsed = 0;
+
+static bool syncFlushStage() {
+  if (g_syncStageUsed == 0) return true;
+  size_t w = 0;
+  int retries = 0;
+  while (w < g_syncStageUsed && retries < 4) {
+    size_t chunk = min(g_syncStageUsed - w, (size_t)8192);
+    size_t wrote = g_syncUploadFile.write(g_syncStageBuf + w, chunk);
+    if (wrote > 0) { w += wrote; retries = 0; }
+    else { retries++; delay(10); }
+  }
+  if (w == g_syncStageUsed) {
+    g_syncBytesWritten += w;
+    g_syncStageUsed = 0;
+    return true;
+  }
+  return false;
+}
+
+static bool syncStageData(const uint8_t* data, size_t len) {
+  size_t offset = 0;
+  while (offset < len) {
+    size_t space = SYNC_STAGE_SIZE - g_syncStageUsed;
+    size_t toCopy = min(space, len - offset);
+    memcpy(g_syncStageBuf + g_syncStageUsed, data + offset, toCopy);
+    g_syncStageUsed += toCopy;
+    offset += toCopy;
+    if (g_syncStageUsed == SYNC_STAGE_SIZE) {
+      if (!syncFlushStage()) return false;
+    }
+  }
+  return true;
+}
+
+void handleSyncUploadDone() {
+  String j;
+  if (g_syncCompleted) {
+    j = "{\"ok\":true,\"path\":\"" + escJson(g_syncFinalPath) + "\",\"bytes\":" + String((unsigned long)g_syncBytesWritten) + "}";
+  } else {
+    j = "{\"ok\":false,\"error\":\"upload failed\"}";
+  }
+  uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+  uploadServer.send(200, "application/json", j);
+}
+
+void handleSyncFileUpload() {
+  HTTPUpload& upload = uploadServer.upload();
+
+  if (upload.status == UPLOAD_FILE_START) {
+    if (g_audioPlaying) { audioStop(); delay(100); }
+    WiFi.setSleep(false);
+    g_uploadInProgress = true;
+    sdMountSlow();
+
+    String safeName = sanitizePath("/tracks/" + String(upload.filename));
+    g_syncFinalPath = safeName;
+    g_syncTempPath = safeName + ".part";
+
+    if (SD.exists(g_syncTempPath)) SD.remove(g_syncTempPath);
+    if (SD.exists(g_syncFinalPath)) SD.remove(g_syncFinalPath);
+
+    g_syncUploadFile = SD.open(g_syncTempPath, FILE_WRITE);
+    g_syncBytesWritten = 0;
+    g_syncWriteError = false;
+    g_syncCompleted = false;
+    g_syncStageUsed = 0;
+
+    if (!g_syncUploadFile) {
+      g_syncWriteError = true;
+      Serial.printf("[UPLOAD] OPEN FAILED: %s\n", g_syncTempPath.c_str());
+    } else {
+      Serial.printf("[UPLOAD] Start: %s (%s)\n", g_syncFinalPath.c_str(), upload.filename.c_str());
+    }
+  }
+  else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (g_syncUploadFile && !g_syncWriteError) {
+      if (!syncStageData(upload.buf, upload.currentSize)) {
+        g_syncWriteError = true;
+        Serial.printf("[UPLOAD] WRITE FAILED at %u bytes\n", (unsigned)g_syncBytesWritten);
+      }
+      if ((g_syncBytesWritten + g_syncStageUsed) % 524288 < upload.currentSize) {
+        Serial.printf("[UPLOAD] Progress: %u bytes\n", (unsigned)(g_syncBytesWritten + g_syncStageUsed));
+      }
+    }
+  }
+  else if (upload.status == UPLOAD_FILE_END) {
+    if (g_syncUploadFile && !g_syncWriteError) {
+      if (!syncFlushStage()) g_syncWriteError = true;
+    }
+    if (g_syncUploadFile) {
+      g_syncUploadFile.flush();
+      g_syncUploadFile.close();
+    }
+
+    bool renamed = false;
+    if (!g_syncWriteError && g_syncBytesWritten > 0) {
+      if (SD.exists(g_syncFinalPath)) SD.remove(g_syncFinalPath);
+      renamed = SD.rename(g_syncTempPath, g_syncFinalPath);
+    }
+    if (!renamed && SD.exists(g_syncTempPath)) SD.remove(g_syncTempPath);
+
+    g_syncCompleted = renamed;
+    g_uploadInProgress = false;
+
+    sdMountFast();
+    sdRefreshStats();
+    scanWavList();
+
+    Serial.printf("[UPLOAD] End: wrote=%u renamed=%s path=%s\n",
+      (unsigned)g_syncBytesWritten, renamed ? "YES" : "NO", g_syncFinalPath.c_str());
+  }
+  else if (upload.status == UPLOAD_FILE_ABORTED) {
+    if (g_syncUploadFile) g_syncUploadFile.close();
+    if (g_syncTempPath.length() && SD.exists(g_syncTempPath)) SD.remove(g_syncTempPath);
+    g_uploadInProgress = false;
+    g_syncWriteError = true;
+    g_syncCompleted = false;
+    g_syncStageUsed = 0;
+    Serial.println("[UPLOAD] Aborted");
+  }
+}
+
+void handleSyncOptions() {
+  uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+  uploadServer.sendHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
+  uploadServer.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+  uploadServer.send(204);
+}
+
+void setupSyncUploadServer() {
+  uploadServer.on("/api/sd/upload", HTTP_POST, handleSyncUploadDone, handleSyncFileUpload);
+  uploadServer.on("/api/sd/upload", HTTP_OPTIONS, handleSyncOptions);
+  uploadServer.begin();
+  Serial.println("[HTTP] Upload server started on port 81");
+}
+
 // ── Setup ────────────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
@@ -626,9 +778,12 @@ void setup() {
     req->send(404, "text/plain", "Not Found");
   });
 
-  // 12. Start web server
+  // 12. Start web servers
   server.begin();
   Serial.println("[HTTP] Server started on port 80");
+
+  // 12b. Start synchronous upload server (port 81) — reliable for large files
+  setupSyncUploadServer();
 
   // 13. Record boot time for uptime calculation
   g_bootTime = millis();
@@ -656,6 +811,9 @@ void setup() {
 
 // ── Loop ─────────────────────────────────────────────────────
 void loop() {
+  // Handle synchronous upload server (port 81) — must run in loop
+  uploadServer.handleClient();
+
   // Run LED animation engine (non-blocking, millis-based)
   ledTick();
 
