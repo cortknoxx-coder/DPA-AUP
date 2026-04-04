@@ -114,15 +114,27 @@ export class DeviceConnectionService {
     return false;
   }
 
-  // --- NFC Tap (initiates BLE connection) ---
+  // --- NFC Tap (reads DUID, then connects via WiFi or BLE) ---
 
   async connectViaNfc(): Promise<boolean> {
+    this.connectionError.set('');
     const duid = await this.nfc.startScan();
-    if (duid) {
-      // NFC gives us the DUID, now try BLE connection
-      const bleSuccess = await this.connectViaBle();
-      return bleSuccess;
+    if (!duid) {
+      if (this.nfc.lastError()) {
+        this.connectionError.set(this.nfc.lastError()!);
+      }
+      return false;
     }
+
+    // NFC tag read succeeded — try WiFi first (device AP), then BLE fallback
+    const wifiOk = await this.connectViaWifi();
+    if (wifiOk) return true;
+
+    // WiFi failed, try BLE
+    const bleOk = await this.connectViaBle();
+    if (bleOk) return true;
+
+    this.connectionError.set(`Found device ${duid} via NFC but could not connect. Join the DPA-Portal WiFi network and retry.`);
     return false;
   }
 

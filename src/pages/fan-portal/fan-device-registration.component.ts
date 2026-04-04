@@ -49,6 +49,7 @@ export class FanDeviceRegistrationComponent {
   brightness = signal(80);
   gradEnd = signal('#ff6600');
   isSyncingLed = signal(false);
+  nfcWriting = signal(false);
   private isHydratingFromFirmware = false;
 
   readonly ledModes: LedMode[] = ['idle', 'playback', 'charging'];
@@ -443,6 +444,27 @@ export class FanDeviceRegistrationComponent {
     const confirmMsg = "WARNING: Reporting your device as lost will immediately revoke its digital certificates. The device will revert to 'Snippet Mode' and cannot play encrypted content until verified by support.\n\nAre you sure?";
     if (confirm(confirmMsg)) {
       this.deviceService.reportLost();
+    }
+  }
+
+  async writeNfcTag() {
+    const duid = this.deviceService.registeredDeviceId();
+    if (!duid) {
+      this.pushStatus.set('error');
+      this.pushMessage.set('No registered device to write to tag.');
+      return;
+    }
+    this.nfcWriting.set(true);
+    this.pushStatus.set('pushing');
+    this.pushMessage.set('Hold an NFC tag near your phone...');
+    const ok = await this.deviceService.nfc.writeTag(duid);
+    this.nfcWriting.set(false);
+    if (ok) {
+      this.pushStatus.set('ok');
+      this.pushMessage.set(`NFC tag written with ${duid}. Tap it to auto-connect.`);
+    } else {
+      this.pushStatus.set('error');
+      this.pushMessage.set(this.deviceService.nfc.lastError() || 'Failed to write NFC tag.');
     }
   }
 

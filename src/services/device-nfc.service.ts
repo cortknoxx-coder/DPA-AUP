@@ -86,4 +86,32 @@ export class DeviceNfcService {
     }
     this.isScanning.set(false);
   }
+
+  /**
+   * Write a DPA device URL to an NFC tag for provisioning.
+   * Tag will contain an NDEF URL record: https://dpa.audio/d/<DUID>
+   * and a text record with the raw DUID as fallback.
+   * Requires Android Chrome with Web NFC.
+   */
+  async writeTag(duid: string): Promise<boolean> {
+    if (!this.isSupported()) {
+      this.lastError.set('Web NFC is not supported in this browser. Use Chrome on Android.');
+      return false;
+    }
+
+    try {
+      const writer = new (window as any).NDEFReader();
+      await writer.write({
+        records: [
+          { recordType: 'url', data: `${DPA_URL_PREFIX}${duid}` },
+          { recordType: 'text', data: duid },
+        ],
+      });
+      this.lastError.set(null);
+      return true;
+    } catch (e: any) {
+      this.lastError.set(e.message || 'Failed to write NFC tag');
+      return false;
+    }
+  }
 }
