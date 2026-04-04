@@ -341,8 +341,9 @@ export class DeviceWifiService {
           resolve(false);
         });
         xhr.timeout = 600000;
-        xhr.open('POST', `${this.baseUrl}/api/sd/upload?path=${encodeURIComponent(path)}`);
-        xhr.send(formData);
+        xhr.open('POST', `${this.baseUrl}/api/sd/upload-raw?path=${encodeURIComponent(path)}`);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.send(file);
       });
     } catch (err) {
       console.error('[Upload] Transfer error:', err);
