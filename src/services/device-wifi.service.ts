@@ -320,8 +320,8 @@ export class DeviceWifiService {
   async uploadFileToPath(file: File, path: string, onProgress?: (percent: number) => void): Promise<boolean> {
     try {
       await this.ensureAdminUnlocked();
-      const formData = new FormData();
-      formData.append('file', file, file.name);
+
+      const url = `${this.baseUrl}/api/sd/upload-raw?path=${encodeURIComponent(path)}`;
 
       const xhr = new XMLHttpRequest();
       return new Promise((resolve) => {
@@ -331,12 +331,23 @@ export class DeviceWifiService {
           }
         });
         xhr.addEventListener('load', () => resolve(xhr.status === 200));
-        xhr.addEventListener('error', () => resolve(false));
-        // Firmware supports SD multipart uploads at /api/sd/upload.
-        xhr.open('POST', `${this.baseUrl}/api/sd/upload?path=${encodeURIComponent(path)}`);
-        xhr.send(formData);
+        xhr.addEventListener('error', () => {
+          console.error('[Upload] XHR error event');
+          resolve(false);
+        });
+        xhr.addEventListener('timeout', () => {
+          console.error('[Upload] XHR timeout');
+          resolve(false);
+        });
+        xhr.timeout = 600000;
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.send(file);
       });
-    } catch { return false; }
+    } catch (err) {
+      console.error('[Upload] Transfer error:', err);
+      return false;
+    }
   }
 
   // --- Volume & EQ ---
