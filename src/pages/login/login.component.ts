@@ -15,7 +15,7 @@ import { Router } from '@angular/router';
 
       <div class="mb-12 text-center z-10">
         <div class="inline-flex items-center justify-center h-16 w-16 rounded-xl bg-gradient-to-br from-teal-500 to-indigo-600 shadow-[0_0_30px_rgba(20,184,166,0.3)] mb-6">
-          <span class="text-3xl font-bold text-white">DPA</span>
+          <span class="text-3xl font-bold text-white">DPA™</span>
         </div>
         <h1 class="text-3xl font-bold text-slate-100 tracking-tight">Welcome to DPA™ Ecosystem</h1>
         <p class="text-slate-400 mt-2">Digital Playback Asset Management & Experience</p>
