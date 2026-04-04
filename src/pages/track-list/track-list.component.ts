@@ -155,49 +155,22 @@ export class TrackListComponent {
       return;
     }
 
-    this.updateItemStatus(item.id, 'encrypting', 0);
-    let dpaData: ArrayBuffer;
-    let dpaFilename = '';
-    try {
-      // Phase 2: Wrap the imported WAV into a DPA1 media container.
-      // The device treats the resulting .dpa as the primary playable asset.
-      const a = this.album();
-      dpaData = await this.cryptoService.packageWavAsDpa(arrayBuffer, {
-        format: 1,
-        title: file.name.replace(/\.[^/.]+$/, ''),
-        artistName: a?.artistName || '',
-      });
-      dpaFilename = file.name.replace(/\.[^/.]+$/, '.dpa');
-      console.log(
-        `[Upload] Packaged ${file.name} → ${dpaFilename} (${(dpaData.byteLength / (1024 * 1024)).toFixed(2)} MB) for device ${duid}`
-      );
-    } catch (err) {
-      console.error('[Upload] DPA packaging failed:', err);
-      this.failUpload(item.id, 'Packaging to .dpa failed.');
-      return;
-    } finally {
-      // Scrub imported master bytes from memory after packaging attempt.
-      const plainBytes = new Uint8Array(arrayBuffer);
-      plainBytes.fill(0);
-    }
-
     this.updateItemStatus(item.id, 'transferring', 0);
-    const dpaFile = new File([dpaData], dpaFilename, { type: 'application/octet-stream' });
 
     let transferOk = false;
     try {
-      transferOk = await this.connectionService.wifi.uploadDpaFile(dpaFile, (percent) => {
+      transferOk = await this.connectionService.wifi.uploadFileToPath(file, `/tracks/${file.name}`, (percent) => {
         this.uploads.update(items => items.map(u =>
           u.id === item.id ? { ...u, progress: percent } : u
         ));
       });
     } catch {
       transferOk = false;
-    } finally {
-      // Scrub packaged payload bytes after transfer attempt.
-      const encBytes = new Uint8Array(dpaData);
-      encBytes.fill(0);
     }
+
+    // Release the read buffer now that transfer is done or failed.
+    const plainBytes = new Uint8Array(arrayBuffer);
+    plainBytes.fill(0);
 
     if (!transferOk) {
       this.failUpload(item.id, 'Transfer to device failed. Nothing stored in portal.');
@@ -214,7 +187,7 @@ export class TrackListComponent {
     if (a) {
       const title = file.name.replace(/\.[^/.]+$/, '');
       const duration = await this.getAudioDuration(file);
-      this.dataService.addTrack(a.albumId, title, duration, `device://${duid}/${dpaFilename}`);
+      this.dataService.addTrack(a.albumId, title, duration, `device://${duid}/${file.name}`);
     }
 
     setTimeout(() => {
