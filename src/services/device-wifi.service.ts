@@ -340,7 +340,7 @@ export class DeviceWifiService {
           console.error('[Upload] XHR timeout');
           resolve(false);
         });
-        xhr.timeout = 600000;
+        xhr.timeout = 0;  // No timeout — large files over ESP32 AP WiFi can take 30+ minutes
         const formData = new FormData();
         formData.append('file', file, file.name);
         // Use port 81 sync upload server for reliable large file transfers.
