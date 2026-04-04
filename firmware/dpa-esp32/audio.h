@@ -347,7 +347,7 @@ static WavInfo audioParseWavAt(File& f, uint32_t startOffset) {
         f.seek(f.position() + (chunkSize - 16));
       }
 
-      if (info.audioFormat == 1) gotFmt = true;
+      if (info.audioFormat == 1 || info.audioFormat == 3) gotFmt = true;  // 1=PCM int, 3=IEEE float
     } else if (memcmp(id, "data", 4) == 0) {
       info.dataOffset = f.position();
       info.dataSize = chunkSize;
@@ -473,6 +473,14 @@ static inline int32_t audioRead32le(const uint8_t* q) {
   return (int32_t)(q[0] | (q[1] << 8) | (q[2] << 16) | (q[3] << 24));
 }
 
+static inline int32_t audioReadFloat32le(const uint8_t* q) {
+  float f;
+  memcpy(&f, q, 4);
+  if (f > 1.0f) f = 1.0f;
+  if (f < -1.0f) f = -1.0f;
+  return (int32_t)(f * 2147483647.0f);
+}
+
 // Convert any supported WAV format to 32-bit stereo interleaved
 static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavInfo& info, int32_t* outBuf) {
   size_t outSamples = 0;
@@ -516,13 +524,29 @@ static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavIn
       outBuf[outSamples++] = r;
       p += info.blockAlign;
     }
+  } else if (info.audioFormat == 3 && info.bitsPerSample == 32 && bytesPerChan == 4) {
+    // IEEE 754 float WAV (audioFormat == 3)
+    const bool stereo = (info.channels == 2);
+    for (size_t i = 0; i < frames; i++) {
+      int32_t l, r;
+      l = audioReadFloat32le(p);
+      if (stereo) { r = audioReadFloat32le(p + 4); } else { r = l; }
+      audioReactiveAccumulate(l, r);
+      l = (int32_t)(((int64_t)l * volScale) >> 8);
+      r = (int32_t)(((int64_t)r * volScale) >> 8);
+      eqApply(l, r);
+      outBuf[outSamples++] = l;
+      outBuf[outSamples++] = r;
+      p += info.blockAlign;
+    }
   } else if ((info.bitsPerSample == 24 || info.bitsPerSample == 32) && bytesPerChan == 4) {
+    // PCM integer 24-in-32 or 32-bit
     const bool stereo = (info.channels == 2);
     for (size_t i = 0; i < frames; i++) {
       int32_t l, r;
       l = audioRead32le(p);
       if (stereo) { r = audioRead32le(p + 4); } else { r = l; }
-      audioReactiveAccumulate(l, r);  // BEFORE volume
+      audioReactiveAccumulate(l, r);
       l = (int32_t)(((int64_t)l * volScale) >> 8);
       r = (int32_t)(((int64_t)r * volScale) >> 8);
       eqApply(l, r);
