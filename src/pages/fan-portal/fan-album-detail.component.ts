@@ -23,12 +23,34 @@ export class FanAlbumDetailComponent {
 
   @Input() id!: string;
 
-  // Use dataService for metadata fallback
-  albumMetadata = computed(() => this.dataService.getAlbum(this.id)());
+  // Use dataService for metadata, fall back to deviceLibrary info for firmware albums
+  albumMetadata = computed(() => {
+    const fromData = this.dataService.getAlbum(this.id)();
+    if (fromData) return fromData;
+
+    const lib = this.connectionService.deviceLibrary();
+    const libAlbum = lib?.albums?.find(a => a.id === this.id);
+    if (libAlbum) {
+      return {
+        id: '0',
+        albumId: libAlbum.id,
+        title: libAlbum.title,
+        artistName: 'DPA Device',
+        genre: 'Audio',
+        releaseDate: new Date().toISOString(),
+        tracks: [],
+        artworkUrl: libAlbum.artworkUrl || '',
+        status: 'published' as const,
+        version: 1,
+      };
+    }
+    return null;
+  });
   manifest = signal<Manifest | null>(null);
   isLoading = signal(true);
 
   activeSection = signal('tracks');
+  usingLiveDeviceTracks = computed(() => this.connectionService.connectionStatus() === 'wifi');
 
   trackPlayCounts = signal<Record<string, number>>({});
 

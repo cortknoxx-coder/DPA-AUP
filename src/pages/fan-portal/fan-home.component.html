@@ -85,6 +85,31 @@
              </div>
            }
         </div>
+
+        <!-- Device Track List (when WiFi connected) -->
+        @if (library(); as lib) {
+          @if (lib.tracks.length > 0) {
+            <div class="mt-8">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider">On Device Storage</h3>
+                <span class="text-xs font-mono text-teal-400">{{ lib.tracks.length }} track(s)</span>
+              </div>
+              <div class="rounded-xl border border-slate-800 bg-slate-900/30 overflow-hidden divide-y divide-slate-800/60">
+                @for (track of lib.tracks; track track.id) {
+                  <a [routerLink]="['/fan/app/album', lib.albums[0]?.id || 'device']"
+                     class="flex items-center gap-4 px-4 py-3 hover:bg-white/5 transition-colors cursor-pointer">
+                    <div class="w-8 text-center font-mono text-sm text-slate-500">{{ track.trackNo }}</div>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-sm font-semibold text-slate-200 truncate">{{ track.title }}</div>
+                      <div class="text-xs text-slate-500">{{ track.codec }}</div>
+                    </div>
+                    <div class="text-xs font-mono text-slate-500 shrink-0">{{ formatTrackDuration(track.durationSec) }}</div>
+                  </a>
+                }
+              </div>
+            </div>
+          }
+        }
       </section>
       
       <!-- Capsules -->
