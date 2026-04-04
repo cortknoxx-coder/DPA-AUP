@@ -556,6 +556,11 @@ void handleSyncFileUpload() {
     if (g_audioPlaying) { audioStop(); delay(100); }
     WiFi.setSleep(false);
     g_uploadInProgress = true;
+
+    // Stop the async server to eliminate SPI bus contention during SD writes
+    server.end();
+    delay(50);
+
     sdMountSlow();
 
     String safeName = sanitizePath("/tracks/" + String(upload.filename));
@@ -612,6 +617,10 @@ void handleSyncFileUpload() {
     sdRefreshStats();
     scanWavList();
 
+    // Restart the async server now that upload is done
+    server.begin();
+    Serial.println("[HTTP] Async server restarted on port 80");
+
     Serial.printf("[UPLOAD] End: wrote=%u renamed=%s path=%s\n",
       (unsigned)g_syncBytesWritten, renamed ? "YES" : "NO", g_syncFinalPath.c_str());
   }
@@ -622,6 +631,9 @@ void handleSyncFileUpload() {
     g_syncWriteError = true;
     g_syncCompleted = false;
     g_syncStageUsed = 0;
+    // Restart the async server
+    server.begin();
+    Serial.println("[HTTP] Async server restarted on port 80");
     Serial.println("[UPLOAD] Aborted");
   }
 }
