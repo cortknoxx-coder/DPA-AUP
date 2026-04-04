@@ -179,7 +179,8 @@
     }
     
     <!-- Page Content -->
-    <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 relative">
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 relative"
+          [class.pb-28]="!!playerService.currentTrack()">
       <div class="max-w-7xl mx-auto">
         <router-outlet></router-outlet>
       </div>

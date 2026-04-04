@@ -11,7 +11,7 @@ import { A2dpDevice, A2dpState, EqPreset, PlaybackMode, FirmwareStatus } from '.
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="min-h-screen bg-slate-950 text-slate-50 p-4 space-y-6">
+    <div class="bg-slate-950 text-slate-50 p-4 space-y-6 pb-8">
       <h1 class="text-2xl font-extrabold tracking-tight">Audio Settings</h1>
 
       <!-- Connection Check -->
