@@ -199,6 +199,20 @@ export class PlayerService {
     this.stopTimer();
   }
 
+  stop() {
+    const conn = this.deviceService.connectionStatus();
+    if (conn === 'wifi') {
+      this.deviceService.wifi.sendCommand(0x05);
+    }
+
+    this.isPlaying.set(false);
+    this.stopTimer();
+    this.currentTrack.set(null);
+    this.progress.set(0);
+    this.currentTime.set(0);
+    this.sessionKey.set(null);
+  }
+
   togglePlay() {
     if (this.isPlaying()) this.pause();
     else this.play(this.currentTrack()!);
