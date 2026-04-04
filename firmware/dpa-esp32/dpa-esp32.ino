@@ -557,9 +557,10 @@ void handleSyncFileUpload() {
     WiFi.setSleep(false);
     g_uploadInProgress = true;
 
-    // Stop the async server to eliminate SPI bus contention during SD writes
-    server.end();
-    delay(50);
+    // Stop EVERYTHING that touches the network/SPI to eliminate bus contention
+    server.end();         // Stop async HTTP server
+    g_dnsServer.stop();   // Stop captive DNS server
+    delay(100);
 
     sdMountSlow();
 
@@ -617,9 +618,10 @@ void handleSyncFileUpload() {
     sdRefreshStats();
     scanWavList();
 
-    // Restart the async server now that upload is done
+    // Restart everything now that upload is done
+    captiveInit();
     server.begin();
-    Serial.println("[HTTP] Async server restarted on port 80");
+    Serial.println("[HTTP] Async server + DNS restarted");
 
     Serial.printf("[UPLOAD] End: wrote=%u renamed=%s path=%s\n",
       (unsigned)g_syncBytesWritten, renamed ? "YES" : "NO", g_syncFinalPath.c_str());
@@ -631,9 +633,9 @@ void handleSyncFileUpload() {
     g_syncWriteError = true;
     g_syncCompleted = false;
     g_syncStageUsed = 0;
-    // Restart the async server
+    captiveInit();
     server.begin();
-    Serial.println("[HTTP] Async server restarted on port 80");
+    Serial.println("[HTTP] Async server + DNS restarted");
     Serial.println("[UPLOAD] Aborted");
   }
 }
@@ -825,6 +827,12 @@ void setup() {
 void loop() {
   // Handle synchronous upload server (port 81) — must run in loop
   uploadServer.handleClient();
+
+  // During uploads: give max CPU to upload server, skip everything else
+  if (g_uploadInProgress) {
+    delay(1);
+    return;
+  }
 
   // Run LED animation engine (non-blocking, millis-based)
   ledTick();

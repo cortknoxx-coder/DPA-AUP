@@ -344,7 +344,9 @@ export class DeviceWifiService {
         const formData = new FormData();
         formData.append('file', file, file.name);
         // Use port 81 sync upload server for reliable large file transfers.
-        const uploadUrl = this.baseUrl.replace(/:80\b/, ':81').replace(/^(http:\/\/[^:/]+)$/, '$1:81');
+        // Strip any existing port, trailing slash, then append :81.
+        const host = this.baseUrl.replace(/^https?:\/\//, '').replace(/[:/].*$/, '');
+        const uploadUrl = `http://${host}:81`;
         xhr.open('POST', `${uploadUrl}/api/sd/upload?path=${encodeURIComponent(path)}`);
         xhr.send(formData);
       });
