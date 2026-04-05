@@ -78,7 +78,7 @@
 
 // Device identity
 String g_duid       = "DPA-AB12";
-String g_fwVersion  = "2.3.0";
+String g_fwVersion  = "2.4.0";
 
 // Admin mode (consumer-only by default, unlocked via button combo or API)
 bool   g_adminMode  = false;
@@ -743,7 +743,7 @@ void setup() {
       200, "text/html", DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN
     );
     response->addHeader("Content-Encoding", "gzip");
-    response->addHeader("Cache-Control", "max-age=3600");
+    response->addHeader("Cache-Control", "no-cache, must-revalidate");
     response->addHeader("ETag", "\"" + g_fwVersion + "\"");
     req->send(response);
   });
