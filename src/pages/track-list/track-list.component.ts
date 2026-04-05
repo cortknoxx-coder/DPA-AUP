@@ -1,10 +1,11 @@
-import { Component, inject, computed, signal } from '@angular/core';
+import { Component, inject, computed, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
 import { CryptoService } from '../../services/crypto.service';
 import { DeviceConnectionService } from '../../services/device-connection.service';
+import { DeviceTrack } from '../../types';
 
 interface UploadItem {
   id: string;
@@ -38,9 +39,63 @@ export class TrackListComponent {
   private readonly CLOUD_STREAM_BLOCK_MESSAGE =
     'No cloud streaming: connect your DPA over WiFi before uploading masters.';
 
+  // Device tracks (live from firmware when connected)
+  deviceTracks = signal<DeviceTrack[]>([]);
+  isConnected = computed(() => this.connectionService.connectionStatus() === 'wifi');
+
+  // Combined track list: device tracks when connected, DataService tracks when not
+  displayTracks = computed(() => {
+    if (this.isConnected() && this.deviceTracks().length > 0) {
+      return this.deviceTracks().map((t, i) => ({
+        index: i,
+        title: t.title,
+        id: t.filename,
+        durationSec: Math.round(t.durationMs / 1000),
+        filename: t.filename,
+        format: t.format || 'wav',
+        sampleRate: t.sampleRate,
+        bitsPerSample: t.bitsPerSample,
+        isDevice: true,
+      }));
+    }
+    const a = this.album();
+    if (!a) return [];
+    return a.tracks.map(t => ({
+      index: t.trackIndex,
+      title: t.title,
+      id: t.trackId,
+      durationSec: t.durationSec,
+      filename: '',
+      format: 'local',
+      sampleRate: undefined as number | undefined,
+      bitsPerSample: undefined as number | undefined,
+      isDevice: false,
+    }));
+  });
+
   // Simple Add Form State
   newTitle = signal('');
   newDuration = signal(180);
+
+  constructor() {
+    effect(() => {
+      if (this.connectionService.connectionStatus() === 'wifi') {
+        this.refreshDeviceTracks();
+      } else {
+        this.deviceTracks.set([]);
+      }
+    }, { allowSignalWrites: true });
+  }
+
+  private async refreshDeviceTracks() {
+    const tracks = await this.connectionService.wifi.getDeviceTracks();
+    this.deviceTracks.set(tracks);
+  }
+
+  async playOnDevice(filename: string) {
+    if (!this.isConnected()) return;
+    await this.connectionService.wifi.playFile(filename);
+  }
 
   formatTime(sec: number): string {
     const m = Math.floor(sec / 60);

@@ -89,34 +89,57 @@
 
   <!-- Track List Table -->
   <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+    @if (isConnected() && deviceTracks().length > 0) {
+      <div class="px-4 py-2 bg-teal-500/5 border-b border-teal-500/20 flex items-center gap-2">
+        <span class="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+        <span class="text-xs text-teal-300 font-semibold">Live from device storage</span>
+        <span class="text-xs text-teal-500 ml-auto font-mono">{{ deviceTracks().length }} track(s)</span>
+      </div>
+    }
     <div class="overflow-x-auto">
       <table class="min-w-full text-sm">
         <thead class="bg-slate-900 border-b border-slate-800">
           <tr>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider w-12">#</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider w-10"></th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Title</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">ID</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Format</th>
             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Duration</th>
             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-800/50">
-          @for (track of album()?.tracks; track track.id) {
+          @for (track of displayTracks(); track track.id) {
             <tr class="hover:bg-slate-800/30 transition-colors group">
-              <td class="px-4 py-3 text-slate-500 font-mono text-xs">{{ track.trackIndex + 1 }}</td>
+              <td class="px-4 py-3 text-slate-500 font-mono text-xs">{{ track.index + 1 }}</td>
+              <td class="px-4 py-3">
+                @if (track.isDevice) {
+                  <button (click)="playOnDevice(track.filename)" class="h-7 w-7 rounded-full bg-teal-600 hover:bg-teal-500 text-white flex items-center justify-center transition-colors" title="Play on device">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 ml-0.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+                  </button>
+                }
+              </td>
               <td class="px-4 py-3 text-slate-100 font-medium">{{ track.title }}</td>
-              <td class="px-4 py-3 text-slate-500 font-mono text-xs">{{ track.trackId }}</td>
+              <td class="px-4 py-3 text-slate-500 font-mono text-xs">
+                @if (track.isDevice && track.sampleRate) {
+                  {{ track.bitsPerSample }}-bit / {{ (track.sampleRate! / 1000).toFixed(1) }}kHz
+                } @else {
+                  {{ track.format }}
+                }
+              </td>
               <td class="px-4 py-3 text-right text-slate-400 font-mono text-xs">{{ formatTime(track.durationSec) }}</td>
               <td class="px-4 py-3 text-right">
-                <button (click)="deleteTrack(track.trackId)" class="text-rose-500 hover:text-rose-300 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                  Delete
-                </button>
+                @if (!track.isDevice) {
+                  <button (click)="deleteTrack(track.id)" class="text-rose-500 hover:text-rose-300 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                    Delete
+                  </button>
+                }
               </td>
             </tr>
           }
           @empty {
             <tr>
-              <td colspan="5" class="px-4 py-12 text-center text-slate-500 text-xs">
+              <td colspan="6" class="px-4 py-12 text-center text-slate-500 text-xs">
                 No tracks yet. Drag audio files above or add manually below.
               </td>
             </tr>
