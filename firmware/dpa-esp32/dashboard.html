@@ -1644,6 +1644,7 @@ const S = {
   playing: false,
   trackIndex: 0,
   trackTitle: '--',
+  _fwTrackTitle: '--',
   trackArtist: '',
   posMs: 0,
   durationMs: 0,
@@ -1905,7 +1906,7 @@ function pollStatus() {
       S.connected = true;
       S.playing = d.player?.playing ?? false;
       S.trackIndex = d.player?.trackIndex ?? 0;
-      S.trackTitle = d.player?.trackTitle ?? 'Unknown';
+      S._fwTrackTitle = d.player?.trackTitle ?? 'Unknown';
       S.trackArtist = 'DPAC Artist';
       S.posMs = d.player?.posMs ?? 0;
       S.durationMs = d.player?.durationMs ?? 0;
@@ -2126,7 +2127,22 @@ function updateTrackInfo() {
   if (track) {
     S.trackTitle = track.title;
     S.trackArtist = track.artist;
-    S.durationMs = track.durationMs;
+    if (track.durationMs > 0) S.durationMs = track.durationMs;
+  }
+  // If firmware reports a different track title (e.g. hardware next/prev), use it
+  if (S._fwTrackTitle && S._fwTrackTitle !== '--' && S._fwTrackTitle !== 'Unknown') {
+    // Try to find the matching track by title to sync the index
+    const fwIdx = S.tracks.findIndex(t => {
+      const clean = t.title.toLowerCase().replace(/[_\s]/g, '');
+      const fw = S._fwTrackTitle.toLowerCase().replace(/[_\s]/g, '');
+      return clean === fw || t.file.toLowerCase().includes(fw);
+    });
+    if (fwIdx >= 0 && fwIdx !== S.trackIndex) {
+      S.trackIndex = fwIdx;
+      S.trackTitle = S.tracks[fwIdx].title;
+      S.trackArtist = S.tracks[fwIdx].artist;
+      if (S.tracks[fwIdx].durationMs > 0) S.durationMs = S.tracks[fwIdx].durationMs;
+    }
   }
   // Expanded now-playing
   document.getElementById('homeTitle').textContent = S.trackTitle;
