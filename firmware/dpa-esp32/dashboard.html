@@ -42,14 +42,16 @@ body{
 }
 .bg-glow::before{
   width:600px;height:600px;
-  background:radial-gradient(circle,var(--pink),transparent 70%);
+  background:radial-gradient(circle,var(--track-accent, var(--pink)),transparent 70%);
   top:-200px;left:-100px;
+  transition:background 2s ease;
 }
 .bg-glow::after{
   width:500px;height:500px;
-  background:radial-gradient(circle,var(--cyan),transparent 70%);
+  background:radial-gradient(circle,var(--track-accent, var(--cyan)),transparent 70%);
   bottom:-150px;right:-100px;
   animation-name:drift2;animation-duration:25s;
+  transition:background 2s ease;
 }
 body.is-playing .bg-glow::before,
 body.is-playing .bg-glow::after{opacity:0.14;filter:blur(100px)}
@@ -164,7 +166,9 @@ body.is-playing .bg-glow::after{animation-duration:10s}
   position:relative;width:100%;max-width:360px;aspect-ratio:1;margin:0 auto;
   border-radius:24px;overflow:hidden;
   box-shadow:0 16px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
+  transition:box-shadow 1s ease,transform 0.3s ease;
 }
+.hero-art-wrap svg{transition:opacity 0.5s ease}
 .progress-ring{display:none}
 .hero-cover{
   width:100%;height:100%;
@@ -2121,7 +2125,22 @@ function makeHeroSvg(idx, title, artist) {
   );
 }
 
+// Per-track dominant colors for background tinting
+const TRACK_COLORS = ['#0088ff', '#e8651a', '#0088ff', '#0a1530', '#8b5cf6', '#ff4bcb', '#00d4ff', '#34d399'];
+
+function tintBackground(trackIdx) {
+  const color = TRACK_COLORS[trackIdx % TRACK_COLORS.length];
+  const glow = document.querySelector('.bg-glow');
+  if (glow) {
+    glow.style.setProperty('--track-color', color);
+    glow.style.transition = 'opacity 1s ease';
+  }
+  // Apply to CSS custom property for the before/after pseudo-elements
+  document.documentElement.style.setProperty('--track-accent', color);
+}
+
 function updateHeroCover() {
+  tintBackground(S.trackIndex);
   const cover = document.getElementById('heroCover');
   const track = S.tracks[S.trackIndex];
   if (track) {
@@ -3055,10 +3074,20 @@ function drawVizBars(w, h) {
     const x = i * (barW + BAR_GAP);
     const barH = Math.max(2, vizBars[i]);
 
+    // Glow effect on tall bars
+    if (barH > mainH * 0.5) {
+      vizCtx.shadowColor = '#0088ff';
+      vizCtx.shadowBlur = 8;
+    } else {
+      vizCtx.shadowBlur = 0;
+    }
+
     vizCtx.fillStyle = grad;
     vizCtx.beginPath();
     vizCtx.roundRect(x, mainH - barH, barW, barH, 1);
     vizCtx.fill();
+
+    vizCtx.shadowBlur = 0;
 
     const mirrorBarH = Math.min(barH * 0.4, mirrorH);
     vizCtx.fillStyle = mirrorGrad;
