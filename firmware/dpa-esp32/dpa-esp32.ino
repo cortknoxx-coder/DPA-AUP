@@ -662,7 +662,7 @@ void setup() {
   delay(500);
   Serial.println();
   Serial.println("========================================");
-  Serial.println("  DPA Portal -- Firmware v2.3.0");
+  Serial.println("  DPA Portal -- Firmware v2.4.0");
   Serial.println("========================================");
 
   // 0. Button pins init (all INPUT_PULLUP, active LOW)

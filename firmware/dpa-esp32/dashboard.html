@@ -1218,31 +1218,34 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
   </div>
 
   <!-- ── NOW PLAYING BAR (persistent, above tab bar) ─────── -->
-  <div class="now-playing-bar" id="nowPlayingBar" onclick="openNowPlaying()" style="display:none">
+  <div class="now-playing-bar" id="nowPlayingBar" style="display:none">
     <div class="np-progress"><div class="np-progress-fill" id="npProgressFill"></div></div>
     <div class="np-top-row">
-      <div class="np-art" id="npArt"></div>
-      <div class="np-info">
+      <div class="np-art" id="npArt" onclick="openNowPlaying()"></div>
+      <div class="np-info" onclick="openNowPlaying()">
         <div style="display:flex;align-items:center;gap:6px">
           <div class="np-title" id="npTitle">--</div>
           <div id="npEqAnim" style="width:24px;height:16px;flex-shrink:0"></div>
         </div>
         <div class="np-artist" id="npArtist"></div>
       </div>
-      <div class="np-controls" onclick="event.stopPropagation()">
-        <button class="np-btn" onclick="event.stopPropagation();apiCmd('prev')">
+      <div class="np-controls">
+        <button class="np-btn" id="npHeartBtn" onclick="if(S.trackIndex>=0)toggleHeart(S.trackIndex)" style="opacity:0.6">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </button>
+        <button class="np-btn" onclick="apiCmd('prev')">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6V6zm3.5 6 8.5 6V6l-8.5 6z"/></svg>
         </button>
-        <button class="np-btn np-play" id="npPlayBtn" onclick="event.stopPropagation();apiCmd('toggle')">
+        <button class="np-btn np-play" id="npPlayBtn" onclick="apiCmd('toggle')">
           <svg id="npPlayIcon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg>
           <svg id="npPauseIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
         </button>
-        <button class="np-btn" onclick="event.stopPropagation();apiCmd('next')">
+        <button class="np-btn" onclick="apiCmd('next')">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2V6zM4 18l8.5-6L4 6v12z"/></svg>
         </button>
       </div>
     </div>
-    <div class="np-vol-row" onclick="event.stopPropagation()">
+    <div class="np-vol-row">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor" opacity="0.4"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
       <input type="range" class="np-vol-slider" id="npVolSlider" min="0" max="100" value="50">
       <span class="np-vol-label" id="npVolLabel">50</span>
@@ -1250,13 +1253,14 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
   </div>
 
   <!-- ── EXPANDED NOW PLAYING (full overlay) ─────────────── -->
-  <div class="np-expanded" id="npExpanded">
-    <div class="np-expanded-inner">
+  <div class="np-expanded" id="npExpanded" onclick="closeNowPlaying()">
+    <div class="np-expanded-inner" onclick="event.stopPropagation()">
       <div class="np-collapse-bar" onclick="closeNowPlaying()">
         <div class="np-collapse-handle"></div>
+        <span style="font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:2px;margin-top:4px">TAP TO CLOSE</span>
       </div>
-      <button onclick="closeNowPlaying()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10" aria-label="Close">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      <button onclick="closeNowPlaying()" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.2);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;backdrop-filter:blur(8px)" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
       <!-- Cover Art -->
       <div class="np-exp-art" id="npExpArt"></div>
@@ -1280,6 +1284,9 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
         </button>
         <button class="t-btn" onclick="apiCmd('next')" aria-label="Next">
           <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M16 6h2v12h-2V6zM4 18l8.5-6L4 6v12z"/></svg>
+        </button>
+        <button class="t-btn" onclick="apiCmd('stop');closeNowPlaying()" aria-label="Stop" style="opacity:0.6">
+          <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
         </button>
       </div>
       <!-- Volume -->
@@ -2023,6 +2030,15 @@ function syncHeartStates() {
       if (svg) svg.setAttribute('fill', isFav ? 'currentColor' : 'none');
     });
   });
+  // Sync play bar heart
+  const npHeart = document.getElementById('npHeartBtn');
+  if (npHeart && S.tracks[S.trackIndex]) {
+    const npFav = S.favorites.includes(S.tracks[S.trackIndex].file);
+    npHeart.style.opacity = npFav ? '1' : '0.6';
+    const npSvg = npHeart.querySelector('svg path');
+    if (npSvg) npSvg.setAttribute('fill', npFav ? 'currentColor' : 'none');
+    npHeart.style.color = npFav ? '#f43f5e' : '#fff';
+  }
   // Also sync track detail heart if open
   if (typeof trackDetailIdx !== 'undefined' && trackDetailIdx >= 0 && S.tracks[trackDetailIdx]) {
     const heartBtn = document.getElementById('trackDetailHeart');

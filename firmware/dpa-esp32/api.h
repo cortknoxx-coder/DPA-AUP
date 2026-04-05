@@ -1135,7 +1135,7 @@ void registerApiRoutes(AsyncWebServer& server) {
 
   // ── GET /api/wifi/status ────────────────────────────────────
   server.on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest* req) {
-    String j = "{\"ap\":{\"ssid\":\"" + String(DPA_AP_SSID) + "\",\"ip\":\"" + WiFi.softAPIP().toString() + "\",\"clients\":" + String(WiFi.softAPgetStationNum()) + "},";
+    String j = "{\"ap\":{\"ssid\":\"" + escJson(g_apSSID) + "\",\"ip\":\"" + WiFi.softAPIP().toString() + "\",\"clients\":" + String(WiFi.softAPgetStationNum()) + "},";
     j += "\"sta\":{\"connected\":" + String(g_staConnected ? "true" : "false");
     j += ",\"ssid\":\"" + escJson(g_staSSID) + "\"";
     j += ",\"ip\":\"" + g_staIP + "\"";
@@ -1260,6 +1260,13 @@ void registerApiRoutes(AsyncWebServer& server) {
       v = jsonVal(body, "dcnp_signing"); if (v.length()) g_dcnpSigning = v;
       v = jsonVal(body, "dcnp_remix");   if (v.length()) g_dcnpRemix = v;
       v = jsonVal(body, "dcnp_other");   if (v.length()) g_dcnpOther = v;
+
+      // Update SSID metadata if artist/album provided
+      String artist = jsonVal(body, "artist");
+      String album = jsonVal(body, "album");
+      if (artist.length() > 0 || album.length() > 0) {
+        wifiSetMetadata(artist, album);
+      }
 
       ledSaveToNVS();
       Serial.println("[THEME] Applied & saved");

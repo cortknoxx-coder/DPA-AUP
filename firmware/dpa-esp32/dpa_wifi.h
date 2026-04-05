@@ -11,10 +11,11 @@
 #include <Preferences.h>
 #include <esp_wifi.h>
 
-// Hardcoded AP SSID for all devices (brand-facing network name)
-#ifndef DPA_AP_SSID
-#define DPA_AP_SSID "DPA-Portal"
-#endif
+// Default AP SSID fallback
+#define DPA_AP_SSID_DEFAULT "DPA-Portal"
+
+// Dynamic SSID built from artist-album metadata (max 32 chars)
+static String g_apSSID = DPA_AP_SSID_DEFAULT;
 
 // ── Extern Globals (defined in .ino) ─────────────────────────
 extern String g_duid;
@@ -162,10 +163,48 @@ void wifiTick() {
   }
 }
 
+// ── Build Dynamic SSID from NVS metadata ─────────────────────
+// Format: "Artist-Album-DPA" truncated to 32 chars
+void wifiBuildSSID() {
+  Preferences prefs;
+  prefs.begin("dpa_meta", true);  // read-only
+  String artist = prefs.getString("artist", "");
+  String album = prefs.getString("album", "");
+  prefs.end();
+
+  if (artist.length() > 0 && album.length() > 0) {
+    g_apSSID = artist + "-" + album + "-DPA";
+  } else if (artist.length() > 0) {
+    g_apSSID = artist + "-DPA";
+  } else {
+    g_apSSID = DPA_AP_SSID_DEFAULT;
+  }
+
+  // Truncate to 32 chars (WiFi SSID limit)
+  if (g_apSSID.length() > 32) {
+    g_apSSID = g_apSSID.substring(0, 29) + "DPA";
+  }
+}
+
+// ── Save artist/album metadata to NVS for SSID ──────────────
+void wifiSetMetadata(const String& artist, const String& album) {
+  Preferences prefs;
+  prefs.begin("dpa_meta", false);
+  prefs.putString("artist", artist);
+  prefs.putString("album", album);
+  prefs.end();
+  wifiBuildSSID();
+  Serial.printf("[WIFI] Metadata saved: artist=%s album=%s ssid=%s\n",
+    artist.c_str(), album.c_str(), g_apSSID.c_str());
+}
+
 // ── Init: Setup AP+STA ──────────────────────────────────────
 void wifiInit(const char* apPassword, int apChannel, int apMaxConn) {
   // Load saved STA credentials
   wifiLoadFromNVS();
+
+  // Build dynamic SSID from stored metadata
+  wifiBuildSSID();
 
   // Set dual mode: AP always on + STA for home network
   WiFi.mode(WIFI_AP_STA);
@@ -173,7 +212,7 @@ void wifiInit(const char* apPassword, int apChannel, int apMaxConn) {
   // Disable WiFi power saving — prevents AP from dropping clients
   esp_wifi_set_ps(WIFI_PS_NONE);
 
-  WiFi.softAP(DPA_AP_SSID, apPassword, apChannel, 0, apMaxConn);
+  WiFi.softAP(g_apSSID.c_str(), apPassword, apChannel, 0, apMaxConn);
   delay(100);
 
   // Set long AP inactive timeout (default is too aggressive)
@@ -185,7 +224,7 @@ void wifiInit(const char* apPassword, int apChannel, int apMaxConn) {
 
   IPAddress apIP = WiFi.softAPIP();
   Serial.println("[WIFI] AP started!");
-  Serial.println("[WIFI] SSID: " + String(DPA_AP_SSID));
+  Serial.println("[WIFI] SSID: " + g_apSSID);
   Serial.println("[WIFI] Pass: " + String(apPassword));
   Serial.println("[WIFI] AP IP: " + apIP.toString());
 
