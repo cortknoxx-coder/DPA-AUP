@@ -52,7 +52,9 @@ body{
   animation-name:drift2;animation-duration:25s;
 }
 body.is-playing .bg-glow::before,
-body.is-playing .bg-glow::after{opacity:0.09}
+body.is-playing .bg-glow::after{opacity:0.14;filter:blur(100px)}
+body.is-playing .bg-glow::before{animation-duration:8s}
+body.is-playing .bg-glow::after{animation-duration:10s}
 
 @keyframes drift1{
   0%{transform:translate(0,0)}
@@ -215,7 +217,8 @@ body.is-playing .hero-art-wrap{box-shadow:0 16px 64px rgba(0,136,255,0.15), 0 0 
 }
 .home-track-row:active{transform:scale(0.98);background:rgba(255,255,255,0.06)}
 .home-track-row.now-playing{
-  border-color:rgba(0,136,255,0.15);background:rgba(0,136,255,0.04);
+  border-color:rgba(0,136,255,0.25);background:rgba(0,136,255,0.06);
+  box-shadow:0 0 20px rgba(0,136,255,0.08),inset 0 0 20px rgba(0,136,255,0.03);
 }
 .home-track-num{
   width:22px;font-size:13px;font-weight:700;color:var(--dim);text-align:center;
@@ -262,7 +265,11 @@ body.is-playing .hero-art-wrap{box-shadow:0 16px 64px rgba(0,136,255,0.15), 0 0 
   background:linear-gradient(135deg, var(--pink), #0066cc);
   color:#fff;
   box-shadow:0 2px 12px rgba(0,136,255,0.3);
+  transition:transform 0.15s,box-shadow 0.15s;
 }
+.np-play:active{transform:scale(0.92)}
+body.is-playing .np-play{animation:playPulse 2s ease-in-out infinite}
+@keyframes playPulse{0%,100%{box-shadow:0 2px 12px rgba(0,136,255,0.3)}50%{box-shadow:0 2px 20px rgba(0,136,255,0.5)}}
 .np-play svg{width:20px;height:20px}
 .np-progress{
   position:absolute;top:0;left:0;right:0;height:2px;
@@ -1204,7 +1211,7 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
           <div class="album-meta-chip"><span class="amc-val" id="homeTotalDur">--</span></div>
           <div class="album-meta-chip"><span class="amc-val" id="homeFormat">24-bit Lossless</span></div>
         </div>
-        <div class="album-dpa-badge">DPA&trade; Exclusive &bull; Digital Physical Asset</div>
+        <div class="album-dpa-badge">DPA&trade; Exclusive &bull; PCM5122 DAC &bull; Analog Out</div>
       </div>
 
       <!-- Quick Track List -->
@@ -2184,8 +2191,8 @@ function updateTrackInfo() {
 function updateAlbumSummary() {
   if (S.tracks.length === 0) return;
   const first = S.tracks[0];
-  document.getElementById('homeAlbumTitle').textContent = first.title || 'DPA\u2122 Album';
-  document.getElementById('homeAlbumArtist').textContent = first.artist || 'Artist';
+  document.getElementById('homeAlbumTitle').textContent = S.tracks.length > 1 ? (first.artist || 'Cort Knoxx') : (first.title || 'DPA\u2122 Album');
+  document.getElementById('homeAlbumArtist').textContent = first.artist || 'Cort Knoxx';
   document.getElementById('homeTrackCount').textContent = S.tracks.length;
   // Total duration
   const totalMs = S.tracks.reduce((s, t) => s + (t.durationMs || 0), 0);
@@ -2206,7 +2213,7 @@ function buildHomeTrackList() {
       <div class="home-track-num">${i + 1}</div>
       <div class="home-track-info">
         <div class="home-track-name">${esc(t.title)}</div>
-        <div class="home-track-detail">${t.sampleRate ? (t.sampleRate/1000) + 'kHz' : ''} ${t.bitsPerSample ? t.bitsPerSample + '-bit' : ''}</div>
+        <div class="home-track-detail"><span style="background:rgba(99,102,241,0.15);color:#818cf8;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:0.5px">${t.bitsPerSample || 24}-bit / ${t.sampleRate ? (t.sampleRate/1000).toFixed(1) : '44.1'}kHz</span></div>
       </div>
       <button class="heart-btn ${isFav ? 'liked' : ''}" id="homeHeart${i}" onclick="event.stopPropagation();toggleHeart(${i})" style="background:none;border:none;padding:4px 8px;cursor:pointer">
         <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="${isFav ? 'currentColor' : 'none'}"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
