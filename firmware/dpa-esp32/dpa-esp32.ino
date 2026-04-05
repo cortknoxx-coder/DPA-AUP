@@ -619,6 +619,7 @@ void handleSyncFileUpload() {
     scanWavList();
 
     // Restart everything now that upload is done
+    WiFi.setSleep(true);  // Re-enable WiFi sleep to reduce DAC power rail noise
     captiveInit();
     server.begin();
     Serial.println("[HTTP] Async server + DNS restarted");
@@ -633,6 +634,7 @@ void handleSyncFileUpload() {
     g_syncWriteError = true;
     g_syncCompleted = false;
     g_syncStageUsed = 0;
+    WiFi.setSleep(true);  // Re-enable WiFi sleep
     captiveInit();
     server.begin();
     Serial.println("[HTTP] Async server + DNS restarted");
@@ -724,7 +726,7 @@ void setup() {
 
   // 6. Start WiFi (AP always on + STA if credentials stored)
   wifiInit(AP_PASSWORD, AP_CHANNEL, AP_MAX_CONN);
-  WiFi.setSleep(false);  // Prevent WiFi power management from disrupting SPI bus during SD writes
+  // WiFi.setSleep(false) is set only during uploads to avoid power rail noise on DAC line-out
 
   // 6b. Captive portal (DNS hijack — phones auto-open dashboard on WiFi connect)
   captiveInit();

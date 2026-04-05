@@ -1255,6 +1255,9 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
       <div class="np-collapse-bar" onclick="closeNowPlaying()">
         <div class="np-collapse-handle"></div>
       </div>
+      <button onclick="closeNowPlaying()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <!-- Cover Art -->
       <div class="np-exp-art" id="npExpArt"></div>
       <!-- Track Info -->
@@ -1371,7 +1374,7 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
                 <div class="booklet-credits glass">
                   <div class="credit-row">
                     <span class="credit-role">Produced by</span>
-                    <span class="credit-name">DPAC Artist</span>
+                    <span class="credit-name">Cort Knoxx</span>
                   </div>
                   <div class="credit-row">
                     <span class="credit-role">Engineered by</span>
@@ -1693,13 +1696,13 @@ const TRACK_ART = [
 const ALBUM_ART_SVG = `<svg viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="albumBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1a0033"/><stop offset="50%" stop-color="#001a2a"/><stop offset="100%" stop-color="#0a1a00"/></linearGradient><radialGradient id="albumGlow" cx="50%" cy="50%"><stop offset="0%" stop-color="#0088ff" stop-opacity="0.2"/><stop offset="100%" stop-color="transparent"/></radialGradient></defs><rect width="280" height="280" fill="url(#albumBg)" rx="16"/><rect width="280" height="280" fill="url(#albumGlow)"/><circle cx="140" cy="120" r="40" fill="none" stroke="#0088ff" stroke-width="1.5" opacity="0.3"/><circle cx="140" cy="120" r="60" fill="none" stroke="#e8651a" stroke-width="0.8" opacity="0.2"/><circle cx="140" cy="120" r="80" fill="none" stroke="#0088ff" stroke-width="0.5" opacity="0.1"/><path d="M60 200 Q140 160 220 200" fill="none" stroke="#e8651a" stroke-width="1" opacity="0.3"/><path d="M40 220 Q140 180 240 220" fill="none" stroke="#e8651a" stroke-width="0.8" opacity="0.2"/><text x="140" y="125" text-anchor="middle" font-size="18" fill="#ffffff" font-weight="800" opacity="0.9" font-family="sans-serif">NEON RAIN</text><text x="140" y="145" text-anchor="middle" font-size="10" fill="#0088ff" font-weight="600" opacity="0.7" font-family="sans-serif" letter-spacing="3">DPAC ARTIST</text><text x="140" y="260" text-anchor="middle" font-size="8" fill="#666" font-weight="600" font-family="sans-serif" letter-spacing="2">DPA™ EXCLUSIVE</text></svg>`;
 
 const MOCK_TRACKS = [
-  { id: 't1', title: 'Neon Rain', artist: 'DPAC Artist', durationMs: 234000, plays: 1247, file: '/tracks/neon_rain.wav', favorite: true },
-  { id: 't2', title: 'Cyber Heart', artist: 'DPAC Artist', durationMs: 198000, plays: 8432, file: '/tracks/cyber_heart.wav', favorite: false },
-  { id: 't3', title: 'Analog Dreams', artist: 'DPAC Artist', durationMs: 267000, plays: 3891, file: '/tracks/analog_dreams.wav', favorite: true },
-  { id: 't4', title: 'Digital Sunrise', artist: 'DPAC Artist', durationMs: 212000, plays: 562, file: '/tracks/digital_sunrise.wav', favorite: false },
-  { id: 't5', title: 'Phantom Wire', artist: 'DPAC Artist', durationMs: 289000, plays: 2104, file: '/tracks/phantom_wire.wav', favorite: false },
-  { id: 't6', title: 'Glass Highway', artist: 'DPAC Artist', durationMs: 245000, plays: 911, file: '/tracks/glass_highway.wav', favorite: true },
-  { id: 't7', title: 'Velvet Static', artist: 'DPAC Artist', durationMs: 203000, plays: 4201, file: '/tracks/velvet_static.wav', favorite: false },
+  { id: 't1', title: 'Neon Rain', artist: 'Cort Knoxx', durationMs: 234000, plays: 1247, file: '/tracks/neon_rain.wav', favorite: true },
+  { id: 't2', title: 'Cyber Heart', artist: 'Cort Knoxx', durationMs: 198000, plays: 8432, file: '/tracks/cyber_heart.wav', favorite: false },
+  { id: 't3', title: 'Analog Dreams', artist: 'Cort Knoxx', durationMs: 267000, plays: 3891, file: '/tracks/analog_dreams.wav', favorite: true },
+  { id: 't4', title: 'Digital Sunrise', artist: 'Cort Knoxx', durationMs: 212000, plays: 562, file: '/tracks/digital_sunrise.wav', favorite: false },
+  { id: 't5', title: 'Phantom Wire', artist: 'Cort Knoxx', durationMs: 289000, plays: 2104, file: '/tracks/phantom_wire.wav', favorite: false },
+  { id: 't6', title: 'Glass Highway', artist: 'Cort Knoxx', durationMs: 245000, plays: 911, file: '/tracks/glass_highway.wav', favorite: true },
+  { id: 't7', title: 'Velvet Static', artist: 'Cort Knoxx', durationMs: 203000, plays: 4201, file: '/tracks/velvet_static.wav', favorite: false },
 ];
 
 const MOCK_CAPSULES = [
@@ -1757,7 +1760,7 @@ function loadRealTracks() {
           return {
             id: 't' + (i + 1),
             title: title,
-            artist: 'DPAC Artist',
+            artist: 'Cort Knoxx',
             durationMs: w.durationMs || 0,
             plays: 0,
             file: w.path,
@@ -1907,7 +1910,7 @@ function pollStatus() {
       S.playing = d.player?.playing ?? false;
       S.trackIndex = d.player?.trackIndex ?? 0;
       S._fwTrackTitle = d.player?.trackTitle ?? 'Unknown';
-      S.trackArtist = 'DPAC Artist';
+      S.trackArtist = 'Cort Knoxx';
       S.posMs = d.player?.posMs ?? 0;
       S.durationMs = d.player?.durationMs ?? 0;
       S.volume = d.audio?.volume ?? 50;
@@ -2368,14 +2371,14 @@ function openTrackDetail(idx) {
     const titleSize = t.title.length > 20 ? 16 : 20;
     document.getElementById('trackDetailArt').innerHTML = heroSvg.replace('</svg>',
       `<text x="120" y="${titleY}" text-anchor="middle" font-size="${titleSize}" fill="#ffffff" font-weight="800" opacity="0.9" font-family="sans-serif">${escXml(t.title)}</text>` +
-      `<text x="120" y="${titleY + 20}" text-anchor="middle" font-size="9" fill="#aaa" font-weight="600" opacity="0.6" font-family="sans-serif" letter-spacing="2">${escXml(t.artist || 'DPAC Artist')}</text></svg>`
+      `<text x="120" y="${titleY + 20}" text-anchor="middle" font-size="9" fill="#aaa" font-weight="600" opacity="0.6" font-family="sans-serif" letter-spacing="2">${escXml(t.artist || 'Cort Knoxx')}</text></svg>`
     );
   } else {
-    document.getElementById('trackDetailArt').innerHTML = `<div style="width:100%;height:100%;background:var(--card);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px"><span style="font-size:20px;font-weight:800;color:var(--bright)">${esc(t.title)}</span><span style="font-size:11px;color:var(--dim);letter-spacing:2px">${esc(t.artist||'DPAC Artist')}</span></div>`;
+    document.getElementById('trackDetailArt').innerHTML = `<div style="width:100%;height:100%;background:var(--card);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px"><span style="font-size:20px;font-weight:800;color:var(--bright)">${esc(t.title)}</span><span style="font-size:11px;color:var(--dim);letter-spacing:2px">${esc(t.artist||'Cort Knoxx')}</span></div>`;
   }
 
   document.getElementById('trackDetailTitle').textContent = t.title;
-  document.getElementById('trackDetailArtist').textContent = t.artist || 'DPAC Artist';
+  document.getElementById('trackDetailArtist').textContent = t.artist || 'Cort Knoxx';
 
   // Meta grid
   const meta = [];
