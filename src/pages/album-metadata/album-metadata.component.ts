@@ -47,8 +47,13 @@ export type PricingTier = 'entry' | 'premium' | 'collector';
           </div>
           <div class="text-xs text-slate-400 space-y-2 pt-2">
             <p class="text-slate-300 font-semibold">Album cover artwork</p>
-            <p>Recommended: 3000x3000px, JPG or PNG.</p>
-            <p>This image appears on the device dashboard, fan portal, and marketplace.</p>
+            <ul class="list-disc list-inside space-y-1 text-slate-500">
+              <li><span class="text-slate-300">Size:</span> 3000 x 3000 px (1:1 square)</li>
+              <li><span class="text-slate-300">Format:</span> JPG or PNG, max 10 MB</li>
+              <li><span class="text-slate-300">Min:</span> 1400 x 1400 px for distribution compliance</li>
+              <li><span class="text-slate-300">Tip:</span> Use sRGB color space, no text in the bottom 10%</li>
+            </ul>
+            <p class="pt-1">Shows on the DPA™ device dashboard, fan portal, marketplace cards, and streaming platforms.</p>
             @if (coverArtPreview()) {
               <button type="button" (click)="removeCoverArt()" class="mt-2 text-rose-400 hover:text-rose-300 text-xs">Remove cover art</button>
             }
