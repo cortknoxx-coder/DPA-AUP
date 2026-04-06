@@ -864,12 +864,16 @@ void loop() {
     if (!g_audioStopRequested && g_wavCount > 1) {
       // Natural end of track — auto-advance using smart playlist
       analyticsOnComplete(g_trackIndex);
+      // Flush analytics NOW before starting next track
+      // (otherwise g_audioPlaying goes true again and the flush is skipped)
+      analyticsFlushIfDirty();
       int next = playlistNextTrack(g_trackIndex);
       Serial.printf("[AUTO] Next track -> %d\n", next);
       playTrackByIndex(next);
     } else {
       // User stopped playback — stay idle
       analyticsOnStop(g_trackIndex);
+      analyticsFlushIfDirty();
       g_audioStopRequested = false;  // reset for next play
       Serial.println("[STOP] Playback stopped by user");
     }
