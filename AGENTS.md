@@ -38,7 +38,7 @@ The Angular app runs standalone with mock data (no backend needed). The firmware
 | Phase 2 — Dashboard & Web API | **COMPLETE** | REST API (`api.h`), gzipped dashboard from PROGMEM, favorites, EQ, captive portal |
 | Phase 3 — Intelligence & Advanced Features | **COMPLETE** | Analytics engine, smart shuffle, audio-reactive LEDs, ESP-NOW scaffold, DCNP colors |
 | Phase 3.5 — Audit & Stability | **COMPLETE** | LED type system, theme editor fixes, dashboard caching, device preview component |
-| Phase 4 — Fan/Creator Portal Integration | **NOT STARTED** | Wire Angular portal to live device via WiFi/BLE/NFC |
+| Phase 4 — Fan/Creator Portal Integration | **IN PROGRESS** | NFC provisioning, live device tracks, upload server (port 81), DPA1 format, WiFi Direct, creator theme/capsule push |
 | Phase 5 — Encryption & Security | **NOT STARTED** | `.dpa` AES-GCM containers, DUID-bound keys, content protection |
 | Phase 6 — Production & Distribution | **NOT STARTED** | A2DP, OTA updates, fleet management, PCB design, manufacturing |
 
@@ -57,8 +57,10 @@ The Angular app runs standalone with mock data (no backend needed). The firmware
 
 | File | Purpose |
 |------|---------|
-| `dpa-esp32.ino` | Main entry — setup/loop, button handling, battery, track scanning, favorites |
-| `api.h` | REST API — status, playback, volume, EQ, favorites, LED preview, theme, WiFi, SD ops |
+| `dpa-esp32.ino` | Main entry — setup/loop, buttons, battery, favorites, sync upload server (port 81) |
+| `api.h` | REST API — status, playback, volume, EQ, favorites, LED preview, theme, WiFi, SD ops, raw upload, CORS |
+| `dpa_format.h` | DPA1 media container — header parsing, metadata persistence |
+| `platformio.ini` | PlatformIO build config for ESP32-S3 |
 | `audio.h` | I2S driver, WAV parser, FreeRTOS playback task (core 1), 3-band biquad EQ, seek |
 | `audio_reactive.h` | Real-time audio features — peak, RMS, envelope, bass energy, beat detection |
 | `led.h` | FastLED controller — 29 patterns (base, animated, notification, audio-reactive, VU) |
@@ -76,7 +78,7 @@ The Angular app runs standalone with mock data (no backend needed). The firmware
 - **Entry**: `index.tsx` → bootstraps `AppComponent` with zoneless change detection + hash routing
 - **Artist Portal** (`/artist/...`): Dashboard, album editor (metadata/tracks/theme/perks/pricing), fleet tracker
 - **Fan Portal** (`/fan/...`): Home, album detail, capsules, marketplace, devices, settings, audio
-- **Services**: `data.service.ts` (mock data via signals), `player.service.ts`, `device-connection.service.ts`, `device-ble.service.ts`, `device-wifi.service.ts`, `device-nfc.service.ts`, `crypto.service.ts`, `cart.service.ts`, `fleet.service.ts`, `led-notification.service.ts`, `user.service.ts`
+- **Services**: `data.service.ts` (mock data via signals), `player.service.ts`, `device-connection.service.ts`, `device-ble.service.ts`, `device-wifi.service.ts` (220+ lines, real API calls), `device-nfc.service.ts`, `crypto.service.ts`, `cart.service.ts`, `fleet.service.ts`, `led-notification.service.ts`, `user.service.ts`
 - **Key config**: `dpa-config.ts` — bridge WebSocket URL, API base URL
 
 ### Key REST API endpoints (firmware)
@@ -102,6 +104,10 @@ The Angular app runs standalone with mock data (no backend needed). The firmware
 | `/api/analytics` | GET | Per-track play/skip/listen stats |
 | `/api/sd/files?dir=/` | GET | SD file browser (admin) |
 | `/api/sd/upload?path=X` | POST | Upload file to SD (admin) |
+| `/api/sd/upload-raw?path=X` | POST | Raw body upload to SD (sync server port 81) |
+| `/api/dpa/ingest` | POST | Ingest DPA1 media container |
+
+**Upload server:** Dedicated synchronous WebServer on port 81 for reliable large file uploads. Uses 8KB staging buffer with 4-retry writes. Required because ESPAsyncWebServer has bugs with large multipart uploads.
 
 ### Documentation
 
