@@ -142,27 +142,27 @@
       </div>
     </section>
 
-    <!-- LED Behavior -->
-    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6" formGroupName="led">
+    <!-- DCNP / perk LED (creator). Strip idle/playback/charging is configured in the fan portal, not here. -->
+    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6" formGroupName="dcnp">
       <div class="flex flex-wrap items-start justify-between gap-3 mb-1">
         <div>
-          <h2 class="text-sm font-semibold text-slate-100">LED Behavior</h2>
-          <p class="text-xs text-slate-500 mt-1">Side-firing LED strip patterns.</p>
+          <h2 class="text-sm font-semibold text-slate-100">Perk & notification LED (DCNP)</h2>
+          <p class="text-xs text-slate-500 mt-1">Colors the device uses when you push perks / DCNP capsules. Idle, playback, and charging strip patterns stay with the fan experience — tune those under <span class="text-slate-400">My Devices</span> on the fan portal.</p>
         </div>
         @if (connectionService.connectionStatus() === 'wifi') {
           <button type="button"
-                  (click)="pullLedThemeFromDevice(true)"
+                  (click)="pullDcnpFromDevice(true)"
                   class="shrink-0 rounded border border-teal-600/50 bg-teal-950/30 px-3 py-1.5 text-xs font-semibold text-teal-300 hover:bg-teal-900/40 transition-colors">
-            Sync from device
+            Sync perk colors from device
           </button>
         }
       </div>
       @if (connectionService.connectionStatus() === 'wifi') {
         <p class="text-[11px] text-slate-500 mb-4">
-          While connected over WiFi, values mirror firmware NVS (same keys as the device dashboard). Adjustments send a debounced live preview to the strip via <span class="font-mono text-slate-400">/api/led/preview</span>. Use <strong class="text-slate-400">Save</strong> or <strong class="text-slate-400">Push Theme</strong> to persist everything with <span class="font-mono text-slate-400">/api/theme</span>.
+          Over WiFi we can read the device’s current DCNP palette from <span class="font-mono text-slate-400">/api/status</span>. Saving or pushing still sends the full capsule theme (including strip defaults from album data) via <span class="font-mono text-slate-400">/api/theme</span>.
         </p>
       } @else {
-        <p class="text-xs text-slate-500 mb-4">Connect over WiFi to mirror live LED settings from the DPA™ hardware.</p>
+        <p class="text-xs text-slate-500 mb-4">Connect over WiFi to pull perk colors already on hardware for reference.</p>
       }
       @if (deviceLedSyncMessage()) {
         <div class="mb-4 rounded border px-3 py-2 text-xs"
@@ -175,108 +175,6 @@
           {{ deviceLedSyncMessage() }}
         </div>
       }
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div formGroupName="idle" class="space-y-3 p-3 rounded hover:bg-slate-800/30 transition-colors cursor-pointer" 
-             [class.ring-1]="previewMode() === 'idle'"
-             [class.ring-teal-500]="previewMode() === 'idle'"
-             (click)="setPreviewMode('idle')">
-          <div class="flex justify-between items-center">
-            <span class="text-xs font-semibold text-slate-300 uppercase">Idle</span>
-            @if (previewMode() === 'idle') {
-              <span class="text-[10px] text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">PREVIEWING</span>
-            }
-          </div>
-          <div class="flex gap-2">
-            <input type="color" formControlName="color" class="h-8 w-8 rounded bg-transparent">
-            <input type="text" formControlName="color" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1 text-xs font-mono">
-          </div>
-          <select formControlName="pattern" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1.5 text-xs text-slate-300">
-            @for (group of ledPatternGroups; track group.label) {
-              <optgroup [attr.label]="group.label">
-                @for (opt of group.options; track opt.value) {
-                  <option [value]="opt.value">{{ opt.label }}</option>
-                }
-              </optgroup>
-            }
-          </select>
-        </div>
-
-        <div formGroupName="playback" class="space-y-3 p-3 rounded hover:bg-slate-800/30 transition-colors cursor-pointer"
-             [class.ring-1]="previewMode() === 'playback'"
-             [class.ring-teal-500]="previewMode() === 'playback'"
-             (click)="setPreviewMode('playback')">
-          <div class="flex justify-between items-center">
-            <span class="text-xs font-semibold text-slate-300 uppercase">Playback</span>
-            @if (previewMode() === 'playback') {
-              <span class="text-[10px] text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">PREVIEWING</span>
-            }
-          </div>
-          <div class="flex gap-2">
-            <input type="color" formControlName="color" class="h-8 w-8 rounded bg-transparent">
-            <input type="text" formControlName="color" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1 text-xs font-mono">
-          </div>
-          <select formControlName="pattern" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1.5 text-xs text-slate-300">
-            @for (group of ledPatternGroups; track group.label) {
-              <optgroup [attr.label]="group.label">
-                @for (opt of group.options; track opt.value) {
-                  <option [value]="opt.value">{{ opt.label }}</option>
-                }
-              </optgroup>
-            }
-          </select>
-        </div>
-
-        <div formGroupName="charging" class="space-y-3 p-3 rounded hover:bg-slate-800/30 transition-colors cursor-pointer"
-             [class.ring-1]="previewMode() === 'charging'"
-             [class.ring-teal-500]="previewMode() === 'charging'"
-             (click)="setPreviewMode('charging')">
-          <div class="flex justify-between items-center">
-            <span class="text-xs font-semibold text-slate-300 uppercase">Charging</span>
-            @if (previewMode() === 'charging') {
-              <span class="text-[10px] text-teal-400 bg-teal-900/30 px-1.5 py-0.5 rounded">PREVIEWING</span>
-            }
-          </div>
-          <div class="flex gap-2">
-            <input type="color" formControlName="color" class="h-8 w-8 rounded bg-transparent">
-            <input type="text" formControlName="color" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1 text-xs font-mono">
-          </div>
-          <select formControlName="pattern" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1.5 text-xs text-slate-300">
-            @for (group of ledPatternGroups; track group.label) {
-              <optgroup [attr.label]="group.label">
-                @for (opt of group.options; track opt.value) {
-                  <option [value]="opt.value">{{ opt.label }}</option>
-                }
-              </optgroup>
-            }
-          </select>
-        </div>
-      </div>
-
-      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 p-4 rounded-lg border border-slate-800 bg-slate-950/40">
-        <div>
-          <label class="block text-xs text-slate-400 mb-2">Strip brightness (0–100)</label>
-          <p class="text-[10px] text-slate-600 mb-2">Firmware key <span class="font-mono">bright</span>; applies to all modes.</p>
-          <div class="flex items-center gap-3">
-            <input type="range" formControlName="ledBrightness" min="0" max="100" step="1" class="flex-1 accent-teal-500">
-            <input type="number" formControlName="ledBrightness" min="0" max="100" class="w-16 rounded bg-slate-950 border border-slate-800 px-2 py-1 text-xs text-slate-300 font-mono">
-          </div>
-        </div>
-        <div>
-          <label class="block text-xs text-slate-400 mb-2">VU gradient end</label>
-          <p class="text-[10px] text-slate-600 mb-2">Firmware <span class="font-mono">grad_e</span>; blends from the mode color to this color on VU / audio_vu patterns.</p>
-          <div class="flex gap-2">
-            <input type="color" formControlName="ledGradEnd" class="h-9 w-12 rounded bg-transparent cursor-pointer shrink-0">
-            <input type="text" formControlName="ledGradEnd" class="flex-1 rounded bg-slate-950 border border-slate-800 px-3 py-1 text-xs text-slate-300 font-mono">
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- DCNP -->
-    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6" formGroupName="dcnp">
-      <h2 class="text-sm font-semibold text-slate-100 mb-1">Perk Colors (DCNP)</h2>
-      <p class="text-xs text-slate-500 mb-4">Notification colors for pushed events.</p>
 
       <div class="grid grid-cols-3 md:grid-cols-6 gap-4">
         <div>
@@ -302,6 +200,26 @@
         <div>
           <label class="block text-xs text-slate-400 mb-1">Other</label>
           <input type="color" formControlName="other" class="w-full h-8 rounded bg-transparent">
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <label class="block text-xs text-slate-400 mb-2">Mock device edge glow</label>
+        <p class="text-[10px] text-slate-600 mb-2">Pick which perk color to show on the preview chassis (static). Use “Preview notification” below for the full timed sequence.</p>
+        <div class="flex flex-wrap gap-1.5">
+          @for (type of dcnpTypes; track type) {
+            <button type="button"
+                    (click)="setPerkPreviewCategory(perkPreviewCategory() === type ? null : type)"
+                    class="rounded-full px-2.5 py-1 text-[10px] font-semibold border transition-colors"
+                    [class.border-teal-500/60]="perkPreviewCategory() === type"
+                    [class.bg-teal-950/40]="perkPreviewCategory() === type"
+                    [class.text-teal-200]="perkPreviewCategory() === type"
+                    [class.border-slate-700]="perkPreviewCategory() !== type"
+                    [class.bg-slate-900/50]="perkPreviewCategory() !== type"
+                    [class.text-slate-400]="perkPreviewCategory() !== type">
+              {{ type | titlecase }}
+            </button>
+          }
         </div>
       </div>
 
@@ -358,7 +276,7 @@
             
             <!-- Wrapper for device and its animated glow -->
             <div class="relative"
-                 [style.--glow-color]="glowOverride() ? glowOverride()!.color : (form.value.led?.[previewMode()]?.pattern === 'off' ? 'transparent' : form.value.led?.[previewMode()]?.color)"
+                 [style.--glow-color]="glowOverride() ? glowOverride()!.color : (perkPreviewCategory() ? (form.value.dcnp?.[perkPreviewCategory()!] || '#ffffff') : 'transparent')"
                  [style.--pulse-duration]="glowOverride()?.customDuration || '500ms'">
 
               <!-- The Glow Element (animated) -->
@@ -370,14 +288,12 @@
                      [style.animation-duration]="glow.customDuration || null"
                      [style.box-shadow]="glow.cssClass === 'led-solid' ? '0 0 30px 4px ' + glow.color : null">
                 </div>
-              } @else {
-                <!-- Normal LED preview -->
-                <div class="absolute -inset-2 rounded-2xl transition-opacity duration-300"
-                     [class.opacity-0]="form.value.led?.[previewMode()]?.pattern === 'off'"
-                     [class.animate-breathe]="form.value.led?.[previewMode()]?.pattern === 'breathing' || form.value.led?.[previewMode()]?.pattern?.startsWith('vu_') || form.value.led?.[previewMode()]?.pattern === 'audio_vu'"
-                     [class.animate-pulse-fast]="form.value.led?.[previewMode()]?.pattern === 'pulse' || form.value.led?.[previewMode()]?.pattern?.startsWith('audio_') || form.value.led?.[previewMode()]?.pattern === 'comet' || form.value.led?.[previewMode()]?.pattern === 'dual_comet' || form.value.led?.[previewMode()]?.pattern === 'wave' || form.value.led?.[previewMode()]?.pattern === 'sparkle' || form.value.led?.[previewMode()]?.pattern === 'meteor' || form.value.led?.[previewMode()]?.pattern === 'bounce' || form.value.led?.[previewMode()]?.pattern === 'theater' || form.value.led?.[previewMode()]?.pattern === 'rainbow' || form.value.led?.[previewMode()]?.pattern === 'fire'"
-                     [style.box-shadow]="form.value.led?.[previewMode()]?.pattern === 'solid' ? '0 0 30px 4px var(--glow-color)' : 'none'">
+              } @else if (perkPreviewCategory(); as cat) {
+                <div class="absolute -inset-2 rounded-2xl animate-breathe transition-opacity duration-300"
+                     [style.--glow-color]="form.value.dcnp?.[cat] || '#ffffff'">
                 </div>
+              } @else {
+                <div class="absolute -inset-2 rounded-2xl opacity-0 pointer-events-none"></div>
               }
               
               <!-- The Physical Device Chassis -->
@@ -452,15 +368,19 @@
                 <span class="inline-block h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse"></span>
                 Playing preview
               </div>
-            } @else {
+            } @else if (perkPreviewCategory(); as pc) {
               <div class="text-sm font-medium text-slate-200 capitalize">
-                {{ previewMode() }} Mode
+                Perk glow — {{ pc }}
               </div>
               <div class="text-xs text-slate-500 font-mono">
-                {{ form.value.led?.[previewMode()]?.color }} • {{ form.value.led?.[previewMode()]?.pattern }}
+                {{ form.value.dcnp?.[pc] }}
               </div>
-              <div class="text-[10px] text-slate-600 font-mono">
-                bright {{ form.value.ledBrightness }}% • grad → {{ form.value.ledGradEnd }}
+            } @else {
+              <div class="text-sm font-medium text-slate-300">
+                Perk & capsule colors
+              </div>
+              <div class="text-xs text-slate-500">
+                Choose a perk above or run a notification preview.
               </div>
             }
           </div>
@@ -479,7 +399,7 @@
              </svg>
           </div>
           <h4 class="text-sm font-semibold text-slate-200">Simulator Offline</h4>
-          <p class="text-xs text-slate-500 mt-1">Connect a device to preview themes and LED patterns in real-time.</p>
+          <p class="text-xs text-slate-500 mt-1">Connect a device to sync perk colors from hardware.</p>
         </div>
       }
     </div>
