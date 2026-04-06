@@ -161,10 +161,14 @@ void ledTick() {
   const String& pattern = getCurrentPattern();
   uint8_t bright = map(g_brightness, 0, 100, 0, MAX_BRIGHTNESS);
 
+  // Always set brightness at the start of each frame to avoid stale values
+  FastLED.setBrightness(bright);
+
   // ── BASE PATTERNS (looping) ──────────────────────────────
 
   if (pattern == "off") {
     fill_solid(leds, NUM_LEDS, CRGB::Black);
+    FastLED.setBrightness(0);
   }
   else if (pattern == "solid") {
     fill_solid(leds, NUM_LEDS, color);
@@ -799,8 +803,11 @@ void ledInit() {
   FastLED.addLeds<WS2812B, ONBOARD_LED_PIN, RGB>(onboardLed, NUM_ONBOARD)
     .setCorrection(TypicalLEDStrip);
   FastLED.setBrightness(map(g_brightness, 0, 100, 0, MAX_BRIGHTNESS));
+  // Double-clear to ensure RMT driver flushes any stale DMA data
   fill_solid(leds, NUM_LEDS, CRGB::Black);
   fill_solid(onboardLed, NUM_ONBOARD, CRGB::Black);
+  FastLED.show();
+  delay(10);
   FastLED.show();
   Serial.println("[LED] Onboard LED on GPIO 21 + strip on GPIO 5");
 }
