@@ -658,6 +658,13 @@ void setupSyncUploadServer() {
 
 // ── Setup ────────────────────────────────────────────────────
 void setup() {
+  // Force LED data pins LOW immediately to prevent stray pixels during boot
+  pinMode(5, OUTPUT);
+  digitalWrite(5, LOW);
+  pinMode(21, OUTPUT);
+  digitalWrite(21, LOW);
+  delay(1);
+
   Serial.begin(115200);
   delay(500);
   Serial.println();

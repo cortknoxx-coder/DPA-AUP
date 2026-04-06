@@ -802,13 +802,21 @@ void ledInit() {
   // Onboard RGB LED on GPIO 21 (Waveshare S3 Zero — uses RGB order, NOT GRB)
   FastLED.addLeds<WS2812B, ONBOARD_LED_PIN, RGB>(onboardLed, NUM_ONBOARD)
     .setCorrection(TypicalLEDStrip);
+
+  // Aggressive clear: 3 rounds with delays to flush any stale RMT/DMA data
+  // The first few LEDs in the chain are most susceptible to boot noise
+  FastLED.setBrightness(0);
+  memset(leds, 0, sizeof(leds));
+  memset(onboardLed, 0, sizeof(onboardLed));
+  FastLED.show();
+  delay(30);
+  FastLED.show();
+  delay(30);
+  FastLED.show();
+  delay(30);
+
+  // Now set real brightness
   FastLED.setBrightness(map(g_brightness, 0, 100, 0, MAX_BRIGHTNESS));
-  // Double-clear to ensure RMT driver flushes any stale DMA data
-  fill_solid(leds, NUM_LEDS, CRGB::Black);
-  fill_solid(onboardLed, NUM_ONBOARD, CRGB::Black);
-  FastLED.show();
-  delay(10);
-  FastLED.show();
   Serial.println("[LED] Onboard LED on GPIO 21 + strip on GPIO 5");
 }
 
