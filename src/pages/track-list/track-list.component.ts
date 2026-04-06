@@ -41,11 +41,13 @@ export class TrackListComponent {
 
   // Device tracks (live from firmware when connected)
   deviceTracks = signal<DeviceTrack[]>([]);
+  trackPlayCounts = signal<Record<string, number>>({});
   isConnected = computed(() => this.connectionService.connectionStatus() === 'wifi');
 
   // Combined track list: device tracks when connected, DataService tracks when not
   displayTracks = computed(() => {
     if (this.isConnected() && this.deviceTracks().length > 0) {
+      const counts = this.trackPlayCounts();
       return this.deviceTracks().map((t, i) => ({
         index: i,
         title: t.title,
@@ -55,6 +57,7 @@ export class TrackListComponent {
         format: t.format || 'wav',
         sampleRate: t.sampleRate,
         bitsPerSample: t.bitsPerSample,
+        plays: counts[t.filename] || 0,
         isDevice: true,
       }));
     }
@@ -69,6 +72,7 @@ export class TrackListComponent {
       format: 'local',
       sampleRate: undefined as number | undefined,
       bitsPerSample: undefined as number | undefined,
+      plays: 0,
       isDevice: false,
     }));
   });
@@ -90,6 +94,17 @@ export class TrackListComponent {
   private async refreshDeviceTracks() {
     const tracks = await this.connectionService.wifi.getDeviceTracks();
     this.deviceTracks.set(tracks);
+    // Fetch play counts
+    try {
+      const analytics = await this.connectionService.wifi.getAnalytics();
+      const counts: Record<string, number> = {};
+      for (const a of analytics) {
+        if (tracks[a.idx]) {
+          counts[tracks[a.idx].filename] = a.plays;
+        }
+      }
+      this.trackPlayCounts.set(counts);
+    } catch {}
   }
 
   async playOnDevice(filename: string) {
@@ -258,6 +273,9 @@ export class TrackListComponent {
       const duration = await this.getAudioDuration(file);
       this.dataService.addTrack(a.albumId, title, duration, `device://${duid}/${file.name}`);
     }
+
+    // Refresh device track list after successful upload
+    await this.refreshDeviceTracks();
 
     setTimeout(() => {
       this.uploads.update(items => items.filter(u => u.id !== item.id));
