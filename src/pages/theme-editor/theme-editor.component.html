@@ -144,8 +144,37 @@
 
     <!-- LED Behavior -->
     <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6" formGroupName="led">
-      <h2 class="text-sm font-semibold text-slate-100 mb-1">LED Behavior</h2>
-      <p class="text-xs text-slate-500 mb-4">Side-firing LED strip patterns.</p>
+      <div class="flex flex-wrap items-start justify-between gap-3 mb-1">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-100">LED Behavior</h2>
+          <p class="text-xs text-slate-500 mt-1">Side-firing LED strip patterns.</p>
+        </div>
+        @if (connectionService.connectionStatus() === 'wifi') {
+          <button type="button"
+                  (click)="pullLedThemeFromDevice(true)"
+                  class="shrink-0 rounded border border-teal-600/50 bg-teal-950/30 px-3 py-1.5 text-xs font-semibold text-teal-300 hover:bg-teal-900/40 transition-colors">
+            Sync from device
+          </button>
+        }
+      </div>
+      @if (connectionService.connectionStatus() === 'wifi') {
+        <p class="text-[11px] text-slate-500 mb-4">
+          While connected over WiFi, LED colors and patterns load from the device automatically. Edits stay local until you save or push.
+        </p>
+      } @else {
+        <p class="text-xs text-slate-500 mb-4">Connect over WiFi to mirror live LED settings from the DPA™ hardware.</p>
+      }
+      @if (deviceLedSyncMessage()) {
+        <div class="mb-4 rounded border px-3 py-2 text-xs"
+             [class.border-teal-500/40]="deviceLedSyncStatus() === 'ok'"
+             [class.text-teal-300]="deviceLedSyncStatus() === 'ok'"
+             [class.border-rose-500/40]="deviceLedSyncStatus() === 'error'"
+             [class.text-rose-300]="deviceLedSyncStatus() === 'error'"
+             [class.border-slate-700]="deviceLedSyncStatus() === 'syncing'"
+             [class.text-slate-400]="deviceLedSyncStatus() === 'syncing'">
+          {{ deviceLedSyncMessage() }}
+        </div>
+      }
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div formGroupName="idle" class="space-y-3 p-3 rounded hover:bg-slate-800/30 transition-colors cursor-pointer" 

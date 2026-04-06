@@ -323,6 +323,16 @@ export class DataService {
     }));
   }
 
+  /** Persist theme without marking album as needs-rebuild (e.g. pull from device sync). */
+  updateAlbumThemeQuiet(albumId: string, theme: Theme) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId === albumId) {
+        return { ...a, themeJson: theme };
+      }
+      return a;
+    }));
+  }
+
   updateAlbumMetadata(albumId: string, metadata: Partial<Album>) {
     this.albumsSignal.update(list => list.map(a => {
       if (a.albumId === albumId) {

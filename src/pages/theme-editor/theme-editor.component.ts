@@ -1,10 +1,10 @@
 
-import { Component, inject, computed, effect, signal } from '@angular/core';
+import { Component, inject, computed, effect, signal, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { DataService } from '../../services/data.service';
-import { Theme, DcnpEventType } from '../../types';
+import { Theme, DcnpEventType, FirmwareStatus } from '../../types';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { LedNotificationService } from '../../services/led-notification.service';
 
@@ -14,7 +14,7 @@ import { LedNotificationService } from '../../services/led-notification.service'
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './theme-editor.component.html'
 })
-export class ThemeEditorComponent {
+export class ThemeEditorComponent implements OnDestroy {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
   private fb: FormBuilder = inject(FormBuilder);
@@ -31,6 +31,11 @@ export class ThemeEditorComponent {
   glowOverride = signal<{ cssClass: string; color: string; customDuration?: string } | null>(null);
   pushStatus = signal<'idle' | 'pushing' | 'ok' | 'error'>('idle');
   isPushingTheme = computed(() => this.pushStatus() === 'pushing');
+
+  deviceLedSyncStatus = signal<'idle' | 'syncing' | 'ok' | 'error'>('idle');
+  deviceLedSyncMessage = signal('');
+  private ledSyncPollTimer: ReturnType<typeof setInterval> | null = null;
+  private ledDevicePullKey = '';
 
   readonly dcnpTypes: DcnpEventType[] = ['concert', 'video', 'merch', 'signing', 'remix', 'other'];
 
@@ -71,6 +76,128 @@ export class ThemeEditorComponent {
         this.form.patchValue(themeData as any, { emitEvent: false });
       }
     });
+
+    effect(() => {
+      const conn = this.connectionService.connectionStatus();
+      const a = this.album();
+      if (conn !== 'wifi') {
+        this.ledDevicePullKey = '';
+        this.stopLedDevicePolling();
+        return;
+      }
+      if (!a) return;
+      if (this.ledDevicePullKey === a.albumId) {
+        this.startLedDevicePolling(a.albumId);
+        return;
+      }
+      this.ledDevicePullKey = a.albumId;
+      queueMicrotask(() => {
+        if (this.connectionService.connectionStatus() === 'wifi' && this.album()?.albumId === a.albumId) {
+          void this.pullLedThemeFromDevice(false);
+        }
+      });
+      this.startLedDevicePolling(a.albumId);
+    });
+  }
+
+  ngOnDestroy() {
+    this.stopLedDevicePolling();
+  }
+
+  private startLedDevicePolling(albumId: string) {
+    this.stopLedDevicePolling();
+    this.ledSyncPollTimer = setInterval(() => {
+      if (this.connectionService.connectionStatus() !== 'wifi' || this.album()?.albumId !== albumId) {
+        this.stopLedDevicePolling();
+        return;
+      }
+      if (this.form.dirty) return;
+      void this.pullLedThemeFromDevice(false);
+    }, 5000);
+  }
+
+  private stopLedDevicePolling() {
+    if (this.ledSyncPollTimer) {
+      clearInterval(this.ledSyncPollTimer);
+      this.ledSyncPollTimer = null;
+    }
+  }
+
+  private themeFromFirmwareStatus(base: Theme, st: FirmwareStatus): Theme {
+    const L = st.led;
+    const D = st.dcnp;
+    return {
+      ...base,
+      led: {
+        idle: {
+          color: L?.idle?.color ?? base.led.idle.color,
+          pattern: (L?.idle?.pattern || base.led.idle.pattern) as Theme['led']['idle']['pattern'],
+        },
+        playback: {
+          color: L?.playback?.color ?? base.led.playback.color,
+          pattern: (L?.playback?.pattern || base.led.playback.pattern) as Theme['led']['playback']['pattern'],
+        },
+        charging: {
+          color: L?.charging?.color ?? base.led.charging.color,
+          pattern: (L?.charging?.pattern || base.led.charging.pattern) as Theme['led']['charging']['pattern'],
+        },
+      },
+      dcnp: {
+        concert: D?.concert ?? base.dcnp.concert,
+        video: D?.video ?? base.dcnp.video,
+        merch: D?.merch ?? base.dcnp.merch,
+        signing: D?.signing ?? base.dcnp.signing,
+        remix: D?.remix ?? base.dcnp.remix,
+        other: D?.other ?? base.dcnp.other,
+      },
+    };
+  }
+
+  /**
+   * Pull LED + DCNP colors from device /api/status and merge into the form + local album theme.
+   */
+  async pullLedThemeFromDevice(showBanner: boolean) {
+    const a = this.album();
+    if (!a || this.connectionService.connectionStatus() !== 'wifi') return;
+
+    if (showBanner) {
+      this.deviceLedSyncStatus.set('syncing');
+      this.deviceLedSyncMessage.set('Reading LED theme from device…');
+    }
+
+    try {
+      const st = await this.connectionService.wifi.getStatus();
+      const merged = this.themeFromFirmwareStatus({ ...a.themeJson } as Theme, st);
+      this.form.patchValue(
+        {
+          led: merged.led,
+          dcnp: merged.dcnp,
+        } as any,
+        { emitEvent: false }
+      );
+      this.form.markAsPristine();
+      this.formPatched = true;
+      this.dataService.updateAlbumThemeQuiet(a.albumId, merged);
+
+      if (showBanner) {
+        this.deviceLedSyncStatus.set('ok');
+        this.deviceLedSyncMessage.set('LED settings synced from device.');
+      }
+    } catch {
+      if (showBanner) {
+        this.deviceLedSyncStatus.set('error');
+        this.deviceLedSyncMessage.set('Could not read theme from device.');
+      }
+    }
+
+    if (showBanner) {
+      setTimeout(() => {
+        if (this.deviceLedSyncStatus() !== 'syncing') {
+          this.deviceLedSyncStatus.set('idle');
+          this.deviceLedSyncMessage.set('');
+        }
+      }, 3500);
+    }
   }
 
   setPreviewMode(mode: 'idle' | 'playback' | 'charging') {
