@@ -97,6 +97,15 @@ export class TrackListComponent {
     await this.connectionService.wifi.playFile(filename);
   }
 
+  async deleteFromDevice(filename: string) {
+    if (!this.isConnected()) return;
+    if (!confirm(`Delete ${filename} from device storage?`)) return;
+    const ok = await this.connectionService.wifi.deleteFile(filename);
+    if (ok) {
+      await this.refreshDeviceTracks();
+    }
+  }
+
   formatTime(sec: number): string {
     const m = Math.floor(sec / 60);
     const s = sec % 60;

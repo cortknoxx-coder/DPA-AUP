@@ -129,7 +129,11 @@
               </td>
               <td class="px-4 py-3 text-right text-slate-400 font-mono text-xs">{{ formatTime(track.durationSec) }}</td>
               <td class="px-4 py-3 text-right">
-                @if (!track.isDevice) {
+                @if (track.isDevice) {
+                  <button (click)="deleteFromDevice(track.filename)" class="text-rose-500 hover:text-rose-300 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                    Delete
+                  </button>
+                } @else {
                   <button (click)="deleteTrack(track.id)" class="text-rose-500 hover:text-rose-300 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                     Delete
                   </button>

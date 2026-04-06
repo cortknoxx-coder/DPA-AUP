@@ -311,6 +311,19 @@ export class DeviceWifiService {
     }
   }
 
+  // --- Delete File from SD ---
+
+  async deleteFile(path: string): Promise<boolean> {
+    try {
+      await this.ensureAdminUnlocked();
+      const response = await fetch(`${this.baseUrl}/api/sd/delete?path=${encodeURIComponent(path)}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      return result.ok === true;
+    } catch { return false; }
+  }
+
   // --- .dpa File Upload ---
 
   async uploadDpaFile(file: File, onProgress?: (percent: number) => void): Promise<boolean> {
