@@ -97,6 +97,11 @@ export class TrackListComponent {
     await this.connectionService.wifi.playFile(filename);
   }
 
+  async stopOnDevice() {
+    if (!this.isConnected()) return;
+    await this.connectionService.wifi.sendCommand(0x02);
+  }
+
   async deleteFromDevice(filename: string) {
     if (!this.isConnected()) return;
     if (!confirm(`Delete ${filename} from device storage?`)) return;
