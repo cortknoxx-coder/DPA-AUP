@@ -169,11 +169,16 @@ body.is-playing .bg-glow::after{animation-duration:10s}
   transition:box-shadow 1s ease,transform 0.3s ease;
 }
 .hero-art-wrap svg{transition:opacity 0.5s ease}
+.hero-art-wrap img.hero-cover-img,
+.hero-art-wrap .hero-cover img{width:100%;height:100%;object-fit:cover;display:block}
 .progress-ring{display:none}
 .hero-cover{
   width:100%;height:100%;
 }
 .hero-cover svg{width:100%;height:100%;display:block}
+.booklet-cover img.booklet-cover-img{width:100%;height:100%;object-fit:cover;display:block}
+.track-art .track-art-img{width:44px;height:44px;border-radius:8px;object-fit:cover;display:block}
+.np-art-wrap img{width:100%;height:100%;object-fit:cover;border-radius:8px;display:block}
 body.is-playing .hero-art-wrap{box-shadow:0 16px 64px rgba(0,136,255,0.15), 0 0 0 1px rgba(0,136,255,0.1)}
 
 /* Album Summary Section */
@@ -1827,9 +1832,7 @@ function init() {
   buildHomeTrackList();
   buildCapsuleList();
   buildBookletTrackNotes();
-  // Set album art SVG
-  const artEl = document.getElementById('bookletArt');
-  if (artEl) artEl.innerHTML = ALBUM_ART_SVG;
+  mountBookletCoverFromSd();
   initBookletSwiper();
   initVolumeSlider();
   initBrightnessSlider();
@@ -1865,6 +1868,130 @@ function switchTab(name) {
 
 // ── API Communication ────────────────────────────────────────
 const API_BASE = '';  // Same origin on ESP32
+
+// Album art from SD: /art/cover.jpg (and .png). Per-track: /art/{basename}.jpg
+function artUrl(relPath) {
+  const p = encodeURIComponent(relPath);
+  return API_BASE + '/api/art?path=' + p;
+}
+
+function trackStemFromFile(filePath) {
+  if (!filePath) return '';
+  let base = filePath.split('/').pop() || '';
+  base = base.replace(/\.(wav|dpa|WAV|DPA)$/i, '');
+  return base.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function trackArtCandidates(filePath) {
+  const stem = trackStemFromFile(filePath);
+  if (!stem) return [];
+  return ['/art/' + stem + '.jpg', '/art/' + stem + '.png', '/art/' + stem + '.webp'];
+}
+
+function tryLoadImage(img, urls, depth, onFailHtml) {
+  if (depth >= urls.length) {
+    if (typeof onFailHtml === 'string') img.outerHTML = onFailHtml;
+    return;
+  }
+  img.onerror = function () { tryLoadImage(img, urls, depth + 1, onFailHtml); };
+  img.src = artUrl(urls[depth]);
+}
+
+function mountHeroCoverImage(urls, svgFallbackHtml) {
+  const cover = document.getElementById('heroCover');
+  function applyLoaded(wrap, img) {
+    cover.innerHTML = '';
+    cover.appendChild(wrap);
+    const npExpArt = document.getElementById('npExpArt');
+    if (npExpArt) {
+      npExpArt.innerHTML = '';
+      npExpArt.appendChild(wrap.cloneNode(true));
+    }
+    const npArt = document.getElementById('npArt');
+    if (npArt) {
+      npArt.innerHTML = '';
+      const w3 = document.createElement('div');
+      w3.className = 'np-art-wrap';
+      const mini = document.createElement('img');
+      mini.src = img.src;
+      mini.alt = '';
+      w3.appendChild(mini);
+      npArt.appendChild(w3);
+    }
+  }
+  function tryIdx(i) {
+    if (i >= urls.length) {
+      cover.innerHTML = svgFallbackHtml;
+      const npExpArt = document.getElementById('npExpArt');
+      if (npExpArt) npExpArt.innerHTML = cover.innerHTML;
+      const npArt = document.getElementById('npArt');
+      if (npArt && S.tracks[S.trackIndex]) {
+        npArt.innerHTML = HERO_COVERS[S.trackIndex % HERO_COVERS.length];
+      }
+      return;
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'hero-cover';
+    const img = document.createElement('img');
+    img.className = 'hero-cover-img';
+    img.alt = '';
+    wrap.appendChild(img);
+    img.onload = function () { applyLoaded(wrap, img); };
+    img.onerror = function () { tryIdx(i + 1); };
+    img.src = artUrl(urls[i]);
+  }
+  tryIdx(0);
+}
+
+function updateHeroCoverWithImageOrSvg() {
+  const cover = document.getElementById('heroCover');
+  const track = S.tracks[S.trackIndex];
+  const svgFallback = track ? makeHeroSvg(S.trackIndex, track.title, track.artist) : HERO_COVERS[0];
+  if (track && track.file) {
+    const cands = trackArtCandidates(track.file);
+    if (cands.length) {
+      mountHeroCoverImage(cands, svgFallback);
+      return;
+    }
+  }
+  cover.innerHTML = svgFallback;
+  const npExpArt = document.getElementById('npExpArt');
+  if (npExpArt) npExpArt.innerHTML = cover.innerHTML;
+  const npArt = document.getElementById('npArt');
+  if (npArt && track) {
+    npArt.innerHTML = HERO_COVERS[S.trackIndex % HERO_COVERS.length];
+  }
+}
+
+function hydrateTrackArtThumbnails() {
+  document.querySelectorAll('.track-art-mount').forEach((el) => {
+    const idx = parseInt(el.getAttribute('data-idx') || '0', 10);
+    const file = el.getAttribute('data-file') || '';
+    const cands = trackArtCandidates(file);
+    const svgFb = TRACK_ART[idx] || '';
+    if (!cands.length) {
+      el.outerHTML = svgFb;
+      return;
+    }
+    const img = document.createElement('img');
+    img.className = 'track-art-img';
+    img.alt = '';
+    img.loading = 'lazy';
+    el.parentNode.replaceChild(img, el);
+    tryLoadImage(img, cands, 0, svgFb);
+  });
+}
+
+function mountBookletCoverFromSd() {
+  const artEl = document.getElementById('bookletArt');
+  if (!artEl) return;
+  const img = document.createElement('img');
+  img.className = 'booklet-cover-img';
+  img.alt = 'Album';
+  artEl.innerHTML = '';
+  artEl.appendChild(img);
+  tryLoadImage(img, ['/art/cover.jpg', '/art/cover.png'], 0, ALBUM_ART_SVG);
+}
 
 function apiGet(path) {
   fetch(API_BASE + path).catch(() => {});
@@ -2143,24 +2270,15 @@ function updateHeroCover() {
   tintBackground(S.trackIndex);
   const cover = document.getElementById('heroCover');
   const track = S.tracks[S.trackIndex];
-  if (track) {
-    cover.innerHTML = makeHeroSvg(S.trackIndex, track.title, track.artist);
-  } else {
+  if (!track) {
     cover.innerHTML = HERO_COVERS[0].replace('</svg>',
       `<text x="120" y="110" text-anchor="middle" font-size="22" fill="#ffffff" font-weight="800" opacity="0.9" font-family="sans-serif">DPA\u2122</text>` +
       `<text x="120" y="132" text-anchor="middle" font-size="10" fill="#aaa" font-weight="600" opacity="0.6" font-family="sans-serif" letter-spacing="2">LOADING...</text></svg>`);
+    const npExpArt = document.getElementById('npExpArt');
+    if (npExpArt) npExpArt.innerHTML = cover.innerHTML;
+    return;
   }
-  // Also update expanded now-playing art
-  const npExpArt = document.getElementById('npExpArt');
-  if (npExpArt) {
-    npExpArt.innerHTML = cover.innerHTML;
-  }
-  // Mini now-playing bar art (small version)
-  const npArt = document.getElementById('npArt');
-  if (npArt && track) {
-    const miniSvg = HERO_COVERS[S.trackIndex % HERO_COVERS.length];
-    npArt.innerHTML = miniSvg;
-  }
+  updateHeroCoverWithImageOrSvg();
 }
 
 function escXml(s) {
@@ -2323,8 +2441,11 @@ function buildTrackList() {
   const container = document.getElementById('trackList');
   container.innerHTML = S.tracks.map((t, i) => {
     const isFav = S.favorites.includes(t.file);
+    const artCell = t.file
+      ? `<div class="track-art"><span class="track-art-mount" data-idx="${i}" data-file="${esc(t.file)}"></span></div>`
+      : `<div class="track-art">${TRACK_ART[i] || ''}</div>`;
     return `<div class="track-row glass" data-idx="${i}" onclick="playTrack(${i})">
-      <div class="track-art">${TRACK_ART[i] || ''}</div>
+      ${artCell}
       <div class="track-num" id="tnum${i}">${i + 1}</div>
       <div class="track-meta">
         <div class="track-row-title">${esc(t.title)}</div>
@@ -2341,6 +2462,7 @@ function buildTrackList() {
       </button>
     </div>`;
   }).join('');
+  hydrateTrackArtThumbnails();
 }
 
 function updateTrackListHighlight() {

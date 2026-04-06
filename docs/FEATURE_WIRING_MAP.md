@@ -186,6 +186,7 @@ real data (device firmware, creator input, or backend API), update the status.
 | Theme/LED | `/api/theme` | **WIRED** | NVS persistence |
 | Capsule push | `/api/capsule` | **WIRED** | Saves to `/data/capsules.json` |
 | File upload | Port 81 sync server | **WIRED** | Buffered write with isolation |
+| Album + track art | `GET /api/art?path=/art/...` | **WIRED** | Serves JPG/PNG/WEBP under `/art/` only; portal pushes `cover.jpg`, `TrackStem.jpg` |
 | File delete | `/api/sd/delete` | **WIRED** | DELETE by path |
 | Storage info | `/api/storage` | **WIRED** | Total/used/free MB |
 | Status | `/api/status` | **WIRED** | Full device state JSON |

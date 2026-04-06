@@ -189,6 +189,49 @@ static String sanitizePath(const String& path) {
   return out;
 }
 
+// Resolve ?path= for /api/art — only files under /art/, no traversal
+static bool resolveArtRequestPath(const String& raw, String& outPath) {
+  outPath = "";
+  if (raw.length() == 0) return false;
+  String p = raw;
+  p.trim();
+  if (p.indexOf("..") >= 0) return false;
+  if (!p.startsWith("/")) p = "/art/" + p;
+  if (!p.startsWith("/art/")) return false;
+  String lower = p;
+  lower.toLowerCase();
+  if (!(lower.endsWith(".jpg") || lower.endsWith(".jpeg") ||
+        lower.endsWith(".png")  || lower.endsWith(".webp"))) {
+    return false;
+  }
+  outPath = sanitizePath(p);
+  return true;
+}
+
+static const char* mimeForArtPath(const String& path) {
+  String lower = path;
+  lower.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".webp")) return "image/webp";
+  return "image/jpeg";
+}
+
+static void sendArtFromSd(AsyncWebServerRequest* req, const String& path) {
+  if (!g_sdMounted) {
+    req->send(503, "application/json", "{\"error\":\"sd not mounted\"}");
+    return;
+  }
+  if (!SD.exists(path)) {
+    req->send(404, "application/json", "{\"error\":\"not found\"}");
+    return;
+  }
+  const char* ct = mimeForArtPath(path);
+  AsyncWebServerResponse* response = req->beginResponse(SD, path, ct);
+  response->addHeader("Cache-Control", "public, max-age=86400");
+  response->addHeader("Access-Control-Allow-Origin", "*");
+  req->send(response);
+}
+
 // ── Real Playable Track Helpers ──────────────────────────────
 
 String audioGetCurrentOrFirstPlayablePath() {
@@ -787,6 +830,28 @@ void registerApiRoutes(AsyncWebServer& server) {
     }
     String j = "{\"wavs\":" + audioListTracksJson() + "}";
     req->send(200, "application/json", j);
+  });
+
+  // ── GET /api/art?path=/art/cover.jpg ───────────────────────
+  // Serves album + per-track artwork from SD (/art/). Portal pushes here.
+  server.on("/api/art", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (!req->hasParam("path")) {
+      req->send(400, "application/json", "{\"error\":\"path required\"}");
+      return;
+    }
+    String resolved;
+    if (!resolveArtRequestPath(req->getParam("path")->value(), resolved)) {
+      req->send(400, "application/json", "{\"error\":\"invalid path\"}");
+      return;
+    }
+    sendArtFromSd(req, resolved);
+  });
+  server.on("/api/art", HTTP_OPTIONS, [](AsyncWebServerRequest* req) {
+    AsyncWebServerResponse* response = req->beginResponse(204);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+    req->send(response);
   });
 
   // ── GET /api/sd/files?dir=/ ────────────────────────── [ADMIN]

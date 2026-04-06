@@ -48,22 +48,36 @@ export class TrackListComponent {
   displayTracks = computed(() => {
     if (this.isConnected() && this.deviceTracks().length > 0) {
       const counts = this.trackPlayCounts();
-      return this.deviceTracks().map((t, i) => ({
-        index: i,
-        title: t.title,
-        id: t.filename,
-        durationSec: Math.round(t.durationMs / 1000),
-        filename: t.filename,
-        format: t.format || 'wav',
-        sampleRate: t.sampleRate,
-        bitsPerSample: t.bitsPerSample,
-        plays:
-          counts[t.filename] ??
-          counts[t.filename.split('/').pop() || ''] ??
-          0,
-        artworkUrl: '',
-        isDevice: true,
-      }));
+      const a = this.album();
+      const localByFilename = new Map<string, string>();
+      if (a) {
+        for (const lt of a.tracks) {
+          if (lt.trackId?.startsWith('device://')) {
+            const parts = lt.trackId.replace('device://', '').split('/');
+            const fn = parts[parts.length - 1];
+            if (fn && lt.artworkUrl) localByFilename.set(fn, lt.artworkUrl);
+          }
+        }
+      }
+      return this.deviceTracks().map((t, i) => {
+        const leaf = t.filename.split('/').pop() || t.filename;
+        return {
+          index: i,
+          title: t.title,
+          id: t.filename,
+          durationSec: Math.round(t.durationMs / 1000),
+          filename: t.filename,
+          format: t.format || 'wav',
+          sampleRate: t.sampleRate,
+          bitsPerSample: t.bitsPerSample,
+          plays:
+            counts[t.filename] ??
+            counts[t.filename.split('/').pop() || ''] ??
+            0,
+          artworkUrl: localByFilename.get(leaf) || '',
+          isDevice: true,
+        };
+      });
     }
     const a = this.album();
     if (!a) return [];
@@ -135,6 +149,12 @@ export class TrackListComponent {
     }
   }
 
+  private deviceArtStem(pathOrFilename: string): string {
+    const base = pathOrFilename.split('/').pop() || pathOrFilename;
+    const noExt = base.replace(/\.(wav|dpa|WAV|DPA)$/i, '');
+    return noExt.replace(/[^a-zA-Z0-9_-]/g, '_') || 'track';
+  }
+
   onTrackArtSelected(event: Event, trackId: string) {
     const input = event.target as HTMLInputElement;
     const file = input?.files?.[0];
@@ -149,10 +169,10 @@ export class TrackListComponent {
       this.dataService.updateTrackArtwork(a.albumId, trackId, dataUrl);
 
       if (this.isConnected()) {
-        const safeName = trackId.replace(/[^a-zA-Z0-9_-]/g, '_');
-        await this.connectionService.wifi.uploadFileToPath(
-          file, `/art/${safeName}.jpg`
-        );
+        const stem = trackId.includes('/')
+          ? this.deviceArtStem(trackId)
+          : trackId.replace(/[^a-zA-Z0-9_-]/g, '_');
+        await this.connectionService.wifi.uploadFileToPath(file, `/art/${stem}.jpg`);
       }
     };
     reader.readAsDataURL(file);

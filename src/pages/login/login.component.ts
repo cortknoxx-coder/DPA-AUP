@@ -62,7 +62,7 @@ import { Router } from '@angular/router';
       </div>
       
       <div class="mt-12 text-[10px] text-slate-600 font-mono">
-        DPA™ SYSTEM v2.4.0 • SECURE CONNECTION
+        DPA™ SYSTEM v2.4.1 • SECURE CONNECTION
       </div>
     </div>
   `

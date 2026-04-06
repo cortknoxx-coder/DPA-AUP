@@ -78,7 +78,7 @@
 
 // Device identity
 String g_duid       = "DPA-AB12";
-String g_fwVersion  = "2.4.0";
+String g_fwVersion  = "2.4.1";
 
 // Admin mode (consumer-only by default, unlocked via button combo or API)
 bool   g_adminMode  = false;
@@ -669,7 +669,7 @@ void setup() {
   delay(500);
   Serial.println();
   Serial.println("========================================");
-  Serial.println("  DPA Portal -- Firmware v2.4.0");
+  Serial.println("  DPA Portal -- Firmware v2.4.1");
   Serial.println("========================================");
 
   // 0. Button pins init (all INPUT_PULLUP, active LOW)
@@ -709,6 +709,13 @@ void setup() {
 
     // Load favorites from SD
     loadFavorites();
+
+    // Cover + per-track artwork folder (portal uploads to /art/)
+    if (!SD.exists("/art")) {
+      if (SD.mkdir("/art")) {
+        Serial.println("[SD] Created /art");
+      }
+    }
 
     // Init on-device intelligence (analytics + capsules)
     analyticsInit();
