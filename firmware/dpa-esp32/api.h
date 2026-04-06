@@ -99,6 +99,62 @@ struct RuntimeCapsule {
 };
 static RuntimeCapsule g_runtimeCapsules[24];
 static int g_runtimeCapsuleCount = 0;
+static const char* CAPSULES_PATH = "/data/capsules.json";
+
+// Forward declarations for JSON helpers (defined later in this file)
+String jsonVal(const String& body, const String& key);
+bool jsonBool(const String& body, const String& key, bool fallback);
+
+// Save capsules to SD as JSON array
+void capsulesSave() {
+  if (!SD.exists("/data")) SD.mkdir("/data");
+  File f = SD.open(CAPSULES_PATH, FILE_WRITE);
+  if (!f) { Serial.println("[CAPSULE] Save failed"); return; }
+  f.print("[");
+  for (int i = 0; i < g_runtimeCapsuleCount; i++) {
+    if (i > 0) f.print(",");
+    f.print("{\"id\":\""); f.print(g_runtimeCapsules[i].id);
+    f.print("\",\"type\":\""); f.print(g_runtimeCapsules[i].type);
+    f.print("\",\"title\":\""); f.print(g_runtimeCapsules[i].title);
+    f.print("\",\"desc\":\""); f.print(g_runtimeCapsules[i].desc);
+    f.print("\",\"date\":\""); f.print(g_runtimeCapsules[i].date);
+    f.print("\",\"delivered\":"); f.print(g_runtimeCapsules[i].delivered ? "true" : "false");
+    f.print("}");
+  }
+  f.print("]");
+  f.close();
+  Serial.printf("[CAPSULE] Saved %d capsules to SD\n", g_runtimeCapsuleCount);
+}
+
+// Load capsules from SD JSON
+void capsulesLoad() {
+  if (!SD.exists(CAPSULES_PATH)) return;
+  File f = SD.open(CAPSULES_PATH, FILE_READ);
+  if (!f) return;
+  String raw = f.readString();
+  f.close();
+  g_runtimeCapsuleCount = 0;
+  int pos = 0;
+  while (g_runtimeCapsuleCount < 24) {
+    int start = raw.indexOf("{", pos);
+    if (start < 0) break;
+    int end = raw.indexOf("}", start);
+    if (end < 0) break;
+    String obj = raw.substring(start, end + 1);
+    RuntimeCapsule c;
+    c.id = jsonVal(obj, "id");
+    c.type = jsonVal(obj, "type");
+    c.title = jsonVal(obj, "title");
+    c.desc = jsonVal(obj, "desc");
+    c.date = jsonVal(obj, "date");
+    c.delivered = jsonBool(obj, "delivered", false);
+    if (c.id.length() > 0) {
+      g_runtimeCapsules[g_runtimeCapsuleCount++] = c;
+    }
+    pos = end + 1;
+  }
+  Serial.printf("[CAPSULE] Loaded %d capsules from SD\n", g_runtimeCapsuleCount);
+}
 
 // ── JSON Helpers ─────────────────────────────────────────────
 String escJson(const String& s) {
@@ -1017,28 +1073,17 @@ void registerApiRoutes(AsyncWebServer& server) {
   });
 
   // ── GET /api/capsules ──────────────────────────────────────
+  // Returns ONLY real pushed capsules (no mock data)
   server.on("/api/capsules", HTTP_GET, [](AsyncWebServerRequest* req) {
     String j = "{\"capsules\":[";
-    bool first = true;
     for (int i = 0; i < g_runtimeCapsuleCount; i++) {
-      if (!first) j += ",";
+      if (i > 0) j += ",";
       j += "{\"id\":\"" + escJson(g_runtimeCapsules[i].id) + "\",";
       j += "\"type\":\"" + escJson(g_runtimeCapsules[i].type) + "\",";
       j += "\"title\":\"" + escJson(g_runtimeCapsules[i].title) + "\",";
       j += "\"desc\":\"" + escJson(g_runtimeCapsules[i].desc) + "\",";
       j += "\"date\":\"" + escJson(g_runtimeCapsules[i].date) + "\",";
       j += "\"delivered\":" + String(g_runtimeCapsules[i].delivered ? "true" : "false") + "}";
-      first = false;
-    }
-    for (int i = 0; i < NUM_CAPSULES; i++) {
-      if (!first) j += ",";
-      j += "{\"id\":\"" + String(CAPSULES[i].id) + "\",";
-      j += "\"type\":\"" + String(CAPSULES[i].type) + "\",";
-      j += "\"title\":\"" + String(CAPSULES[i].title) + "\",";
-      j += "\"desc\":\"" + escJson(String(CAPSULES[i].desc)) + "\",";
-      j += "\"date\":\"" + String(CAPSULES[i].date) + "\",";
-      j += "\"delivered\":" + String(CAPSULES[i].delivered ? "true" : "false") + "}";
-      first = false;
     }
     j += "]}";
     req->send(200, "application/json", j);
@@ -1072,8 +1117,9 @@ void registerApiRoutes(AsyncWebServer& server) {
 
       bool delivered = jsonBool(body, "delivered", false);
       upsertRuntimeCapsule(capsuleId, eventType, title, desc, date, delivered);
+      capsulesSave();
 
-      Serial.printf("[CAPSULE] Ingested id=%s type=%s title=%s\n",
+      Serial.printf("[CAPSULE] Ingested + saved id=%s type=%s title=%s\n",
         capsuleId.c_str(), eventType.c_str(), title.c_str());
 
       String j = "{\"ok\":true,\"id\":\"" + escJson(capsuleId) + "\"}";

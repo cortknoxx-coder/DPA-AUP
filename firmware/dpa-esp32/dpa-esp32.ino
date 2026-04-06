@@ -710,8 +710,9 @@ void setup() {
     // Load favorites from SD
     loadFavorites();
 
-    // Init on-device intelligence (analytics)
+    // Init on-device intelligence (analytics + capsules)
     analyticsInit();
+    capsulesLoad();
   } else {
     Serial.println("[BOOT] SD card not available (continuing without storage)");
   }
