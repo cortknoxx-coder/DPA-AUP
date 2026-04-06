@@ -21,7 +21,7 @@ import { DataService } from '../../services/data.service';
           <label class="block text-sm font-medium text-slate-300">Album Title</label>
           <input type="text" formControlName="title" 
             class="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all placeholder:text-slate-600"
-            placeholder="e.g. Midnight Horizons">
+            placeholder="e.g. Album Title">
         </div>
 
         <div class="pt-4 flex items-center justify-end gap-3">
