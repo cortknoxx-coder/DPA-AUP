@@ -400,7 +400,7 @@ export class DataService {
     this.albumsSignal.update(list => list.map(a => {
       if (a.albumId === albumId) {
         const newEvent: DcnpEvent = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: event.id || Math.random().toString(36).substr(2, 9),
           albumId,
           eventType: event.eventType!,
           target: event.target || 'album',
@@ -412,6 +412,20 @@ export class DataService {
         return { ...a, dcnpEvents: [newEvent, ...a.dcnpEvents] };
       }
       return a;
+    }));
+  }
+
+  markDcnpEventDelivered(albumId: string, eventId: string) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId !== albumId) return a;
+      return {
+        ...a,
+        dcnpEvents: a.dcnpEvents.map(ev =>
+          ev.id === eventId
+            ? { ...ev, status: 'delivered' as const, deliveredAt: new Date().toISOString() }
+            : ev
+        ),
+      };
     }));
   }
 

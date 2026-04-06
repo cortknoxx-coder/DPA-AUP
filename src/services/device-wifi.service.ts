@@ -197,10 +197,23 @@ export class DeviceWifiService {
 
   async pushCapsule(eventType: DcnpEventType, capsuleId: string, payload: any): Promise<boolean> {
     try {
+      const flat: Record<string, any> = {
+        eventType,
+        capsuleId,
+        title: payload?.title || 'Capsule',
+        description: payload?.description || '',
+        date: payload?.metadata?.date || new Date().toISOString(),
+        delivered: false,
+      };
+      if (typeof payload?.price === 'number') flat.price = payload.price;
+      if (payload?.cta?.label) flat.ctaLabel = payload.cta.label;
+      if (payload?.cta?.url)   flat.ctaUrl   = payload.cta.url;
+      if (payload?.imageUrl)   flat.hasImage  = true;
+
       const response = await fetch(`${this.baseUrl}/api/capsule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventType, capsuleId, payload }),
+        body: JSON.stringify(flat),
       });
       const result = await response.json();
       return result.ok === true;

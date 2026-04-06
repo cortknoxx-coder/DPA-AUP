@@ -96,6 +96,10 @@ struct RuntimeCapsule {
   String desc;
   String date;
   bool delivered;
+  float price;      // 0 = free
+  String ctaLabel;  // e.g. "Get Tickets", "Shop Now"
+  String ctaUrl;    // link target
+  bool hasImage;    // portal holds actual base64; device just knows it exists
 };
 static RuntimeCapsule g_runtimeCapsules[24];
 static int g_runtimeCapsuleCount = 0;
@@ -113,12 +117,16 @@ void capsulesSave() {
   f.print("[");
   for (int i = 0; i < g_runtimeCapsuleCount; i++) {
     if (i > 0) f.print(",");
-    f.print("{\"id\":\""); f.print(g_runtimeCapsules[i].id);
-    f.print("\",\"type\":\""); f.print(g_runtimeCapsules[i].type);
-    f.print("\",\"title\":\""); f.print(g_runtimeCapsules[i].title);
-    f.print("\",\"desc\":\""); f.print(g_runtimeCapsules[i].desc);
-    f.print("\",\"date\":\""); f.print(g_runtimeCapsules[i].date);
+    f.print("{\"id\":\""); f.print(escJson(g_runtimeCapsules[i].id));
+    f.print("\",\"type\":\""); f.print(escJson(g_runtimeCapsules[i].type));
+    f.print("\",\"title\":\""); f.print(escJson(g_runtimeCapsules[i].title));
+    f.print("\",\"desc\":\""); f.print(escJson(g_runtimeCapsules[i].desc));
+    f.print("\",\"date\":\""); f.print(escJson(g_runtimeCapsules[i].date));
     f.print("\",\"delivered\":"); f.print(g_runtimeCapsules[i].delivered ? "true" : "false");
+    f.print(",\"price\":"); f.print(String(g_runtimeCapsules[i].price, 2));
+    f.print(",\"ctaLabel\":\""); f.print(escJson(g_runtimeCapsules[i].ctaLabel));
+    f.print("\",\"ctaUrl\":\""); f.print(escJson(g_runtimeCapsules[i].ctaUrl));
+    f.print("\",\"hasImage\":"); f.print(g_runtimeCapsules[i].hasImage ? "true" : "false");
     f.print("}");
   }
   f.print("]");
@@ -148,6 +156,11 @@ void capsulesLoad() {
     c.desc = jsonVal(obj, "desc");
     c.date = jsonVal(obj, "date");
     c.delivered = jsonBool(obj, "delivered", false);
+    String priceStr = jsonVal(obj, "price");
+    c.price = priceStr.length() > 0 ? priceStr.toFloat() : 0;
+    c.ctaLabel = jsonVal(obj, "ctaLabel");
+    c.ctaUrl = jsonVal(obj, "ctaUrl");
+    c.hasImage = jsonBool(obj, "hasImage", false);
     if (c.id.length() > 0) {
       g_runtimeCapsules[g_runtimeCapsuleCount++] = c;
     }
@@ -451,26 +464,8 @@ bool jsonBool(const String& body, const String& key, bool fallback = false) {
   return fallback;
 }
 
-void upsertRuntimeCapsule(const String& id, const String& type, const String& title, const String& desc, const String& date, bool delivered) {
-  for (int i = 0; i < g_runtimeCapsuleCount; i++) {
-    if (g_runtimeCapsules[i].id == id) {
-      g_runtimeCapsules[i].type = type;
-      g_runtimeCapsules[i].title = title;
-      g_runtimeCapsules[i].desc = desc;
-      g_runtimeCapsules[i].date = date;
-      g_runtimeCapsules[i].delivered = delivered;
-      return;
-    }
-  }
-  if (g_runtimeCapsuleCount < 24) {
-    g_runtimeCapsules[g_runtimeCapsuleCount++] = { id, type, title, desc, date, delivered };
-    return;
-  }
-  for (int i = 0; i < 23; i++) {
-    g_runtimeCapsules[i] = g_runtimeCapsules[i + 1];
-  }
-  g_runtimeCapsules[23] = { id, type, title, desc, date, delivered };
-}
+// upsertRuntimeCapsule logic now inlined in POST /api/capsule handler
+// to support the extended RuntimeCapsule struct (price, ctaLabel, etc.)
 
 // ── Command Dispatch ─────────────────────────────────────────
 void handleCommand(uint8_t op) {
@@ -1148,7 +1143,11 @@ void registerApiRoutes(AsyncWebServer& server) {
       j += "\"title\":\"" + escJson(g_runtimeCapsules[i].title) + "\",";
       j += "\"desc\":\"" + escJson(g_runtimeCapsules[i].desc) + "\",";
       j += "\"date\":\"" + escJson(g_runtimeCapsules[i].date) + "\",";
-      j += "\"delivered\":" + String(g_runtimeCapsules[i].delivered ? "true" : "false") + "}";
+      j += "\"delivered\":" + String(g_runtimeCapsules[i].delivered ? "true" : "false") + ",";
+      j += "\"price\":" + String(g_runtimeCapsules[i].price, 2) + ",";
+      j += "\"ctaLabel\":\"" + escJson(g_runtimeCapsules[i].ctaLabel) + "\",";
+      j += "\"ctaUrl\":\"" + escJson(g_runtimeCapsules[i].ctaUrl) + "\",";
+      j += "\"hasImage\":" + String(g_runtimeCapsules[i].hasImage ? "true" : "false") + "}";
     }
     j += "]}";
     req->send(200, "application/json", j);
@@ -1181,11 +1180,47 @@ void registerApiRoutes(AsyncWebServer& server) {
       if (date.length() == 0) date = String((unsigned long)(millis() / 1000));
 
       bool delivered = jsonBool(body, "delivered", false);
-      upsertRuntimeCapsule(capsuleId, eventType, title, desc, date, delivered);
+      String priceStr = jsonVal(body, "price");
+      float price = priceStr.length() > 0 ? priceStr.toFloat() : 0;
+      String ctaLabel = jsonVal(body, "ctaLabel");
+      String ctaUrl   = jsonVal(body, "ctaUrl");
+      bool hasImage   = jsonBool(body, "hasImage", false);
+
+      // Upsert with full payload
+      RuntimeCapsule cap;
+      cap.id = capsuleId;
+      cap.type = eventType;
+      cap.title = title;
+      cap.desc = desc;
+      cap.date = date;
+      cap.delivered = delivered;
+      cap.price = price;
+      cap.ctaLabel = ctaLabel;
+      cap.ctaUrl = ctaUrl;
+      cap.hasImage = hasImage;
+
+      // Insert or update in runtime array
+      bool found = false;
+      for (int i = 0; i < g_runtimeCapsuleCount; i++) {
+        if (g_runtimeCapsules[i].id == capsuleId) {
+          g_runtimeCapsules[i] = cap;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        if (g_runtimeCapsuleCount < 24) {
+          g_runtimeCapsules[g_runtimeCapsuleCount++] = cap;
+        } else {
+          for (int i = 0; i < 23; i++) g_runtimeCapsules[i] = g_runtimeCapsules[i + 1];
+          g_runtimeCapsules[23] = cap;
+        }
+      }
+
       capsulesSave();
 
-      Serial.printf("[CAPSULE] Ingested + saved id=%s type=%s title=%s\n",
-        capsuleId.c_str(), eventType.c_str(), title.c_str());
+      Serial.printf("[CAPSULE] Ingested + saved id=%s type=%s title=%s price=%.2f\n",
+        capsuleId.c_str(), eventType.c_str(), title.c_str(), price);
 
       String j = "{\"ok\":true,\"id\":\"" + escJson(capsuleId) + "\"}";
       req->send(200, "application/json", j);
