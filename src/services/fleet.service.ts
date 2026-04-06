@@ -47,7 +47,7 @@ export class FleetService {
     { name: 'Australia', lat: -25.2744, lon: 133.7751 },
   ];
 
-  private trackNames = ['Track 1', 'Track 2', 'Track 3', 'Track 4', 'Track 5'];
+  private trackNames = ['Neon Rain', 'Cyber Heart', 'Analog Dreams', 'Starlight Echo', 'Digital Sea'];
 
   constructor() {}
 

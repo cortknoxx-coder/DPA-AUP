@@ -7,8 +7,8 @@ import { Album, Track, DcnpEvent, Theme, ResaleTransaction, UnitEconomics, Marke
   providedIn: 'root'
 })
 export class DataService {
-  private readonly STORAGE_KEY = 'dpa_creator_data';
-  private readonly STORAGE_VERSION = 2;
+  private readonly STORAGE_KEY = 'dpa_mock_data';
+  private readonly STORAGE_VERSION = 1;
 
   // Default theme factory
   private getDefaultTheme(): Theme {
@@ -58,38 +58,171 @@ export class DataService {
     };
   }
   
-  private initialMarketplaceListings: MarketplaceListing[] = [];
+  private initialMarketplaceListings: MarketplaceListing[] = [
+    {
+      id: 'LST-1',
+      deviceId: 'DPA-MOCK-BEEF',
+      albumId: 'ALB-8A8-2025-0001',
+      albumTitle: 'Midnight Horizons',
+      albumArtist: '808 Dreams',
+      sellerHash: '0x1A2b...C4d5',
+      priceUsd: 125.00,
+      artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+    },
+    {
+      id: 'LST-2',
+      deviceId: 'DPA-MOCK-C0DE',
+      albumId: 'ALB-8A8-2025-0001',
+      albumTitle: 'Midnight Horizons',
+      albumArtist: '808 Dreams',
+      sellerHash: '0x9F8E...B6A7',
+      priceUsd: 110.50,
+      artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+    },
+    {
+      id: 'LST-3',
+      deviceId: 'DPA-MOCK-F00D',
+      albumId: 'ALB-8A8-2025-0001',
+      albumTitle: 'Midnight Horizons',
+      albumArtist: '808 Dreams',
+      sellerHash: '0x5D6C...E3B4',
+      priceUsd: 140.00,
+      artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+    }
+  ];
 
-  // Initial Data — empty starter project, filled in by creator via Metadata tab
+  // Initial Data
   private initialAlbums: Album[] = [
     {
       id: '1',
-      albumId: 'ALB-NEW-0001',
+      albumId: 'ALB-8A8-2025-0001',
       artistId: 'ART-001',
-      artistName: '',
-      title: 'Untitled Project',
+      artistName: '808 Dreams',
+      title: 'Midnight Horizons',
+      skuType: 'premium',
+      status: 'ready',
+      dpacVersion: 4,
+      lastBuiltAt: new Date().toISOString(),
+      themeJson: this.getDefaultTheme(),
+      tracks: [
+        { id: 't1', albumId: 'ALB-8A8-2025-0001', trackIndex: 0, trackId: 'TRK-001', title: 'Neon Rain', durationSec: 215 },
+        { id: 't2', albumId: 'ALB-8A8-2025-0001', trackIndex: 1, trackId: 'TRK-002', title: 'Cyber Heart', durationSec: 198 },
+        { id: 't3', albumId: 'ALB-8A8-2025-0001', trackIndex: 2, trackId: 'TRK-003', title: 'Analog Dreams', durationSec: 245 }
+      ],
+      dcnpEvents: [
+        {
+          id: 'ev1', albumId: 'ALB-8A8-2025-0001', eventType: 'concert', target: 'album',
+          status: 'delivered', createdAt: new Date(Date.now() - 86400000).toISOString(), deliveredAt: new Date().toISOString(),
+          payload: {
+            title: 'Surprise Show in Tokyo!',
+            description: 'We are playing a last-minute secret show at the Liquid Room in Tokyo next Friday. Verified DPA owners get priority access to tickets for the first 24 hours.',
+            imageUrl: 'https://picsum.photos/seed/concert/800/400',
+            cta: { label: 'Get Tickets Now', url: '#', action: 'link' }
+          }
+        },
+        {
+          id: 'ev2', albumId: 'ALB-8A8-2025-0001', eventType: 'remix', target: 'album',
+          status: 'delivered', createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), deliveredAt: new Date(Date.now() - 86400000 * 1.5).toISOString(),
+          payload: {
+            title: 'Neon Rain (Starlight Remix Pack)',
+            description: 'Exclusive remix pack featuring reworks by Starlight, Cygnus, and a fan-voted winner. Stems included.',
+            imageUrl: 'https://picsum.photos/seed/remix/800/400',
+            price: 5.99,
+            cta: { label: 'Buy & Download Stems', action: 'download' }
+          }
+        },
+        {
+          id: 'ev3', albumId: 'ALB-8A8-2025-0001', eventType: 'merch', target: 'album',
+          status: 'delivered', createdAt: new Date(Date.now() - 86400000 * 3).toISOString(), deliveredAt: new Date(Date.now() - 86400000 * 2.5).toISOString(),
+          payload: {
+            title: "Limited 'Horizons' Tour Tee",
+            description: "A new limited edition tour t-shirt just dropped in our store. Only 500 available, grab yours before they're gone forever. DPA owners get a 15% discount code applied at checkout.",
+            imageUrl: 'https://picsum.photos/seed/merch/800/400',
+            cta: { label: 'Shop Now', url: '#', action: 'link' }
+          }
+        },
+        {
+          id: 'ev4', albumId: 'ALB-8A8-2025-0001', eventType: 'video', target: 'album',
+          status: 'delivered', createdAt: new Date(Date.now() - 86400000 * 4).toISOString(), deliveredAt: new Date(Date.now() - 86400000 * 3.5).toISOString(),
+          payload: {
+            title: "'Cyber Heart' Official Music Video (4K)",
+            description: "The official music video for Cyber Heart is here. Experience the visual world of Midnight Horizons. Download the high-bitrate 4K master file directly to your device.",
+            imageUrl: 'https://picsum.photos/seed/video/800/400',
+            price: 2.99,
+            cta: { label: 'Buy & Download Video', action: 'download' }
+          }
+        },
+        {
+          id: 'ev5', albumId: 'ALB-8A8-2025-0001', eventType: 'other', target: 'album',
+          status: 'delivered', createdAt: new Date(Date.now() - 86400000 * 5).toISOString(), deliveredAt: new Date(Date.now() - 86400000 * 4.5).toISOString(),
+          payload: {
+            title: 'Behind the Scenes: Making Midnight Horizons',
+            description: 'Step into the studio with us. A short documentary on the creative process, late-night sessions, and synth magic that brought the album to life. Free for owners.',
+            imageUrl: 'https://picsum.photos/seed/bts/800/400',
+            price: 0,
+            cta: { label: 'Download Documentary', action: 'download' }
+          }
+        }
+      ],
+      genre: 'Synthwave',
+      recordLabel: 'Neon City Records',
+      copyright: '© 2025 808 Dreams',
+      releaseDate: '2025-11-15',
+      upcCode: '19029384756',
+      parentalAdvisory: false,
+      description: 'A sonic journey through the rain-slicked streets of a future metropolis, Midnight Horizons is the defining sound of a new generation of synthwave.',
+      lyrics: "## 1. Neon Rain\n\n(Verse 1)\nStreetlights bleed in the pouring rain\nA digital ghost in a memory pane\nReflections dance on the wet terrain\nWhispering your name, a sweet refrain...\n\n(Chorus)\nIn the neon rain, we lose our way\nChasing echoes of yesterday\nA thousand colors in shades of gray\nIn the neon rain, we'll forever stay.\n\n\n## 2. Cyber Heart\n\n(Verse 1)\nA circuit hums where a heartbeat should be\nBinary code for my love for thee\nIn this silicon cage, I long to be free\nWith you in the static, for eternity...\n\n(Chorus)\nMy cyber heart beats in 1s and 0s\nA love encoded where nobody knows\nThrough firewalls, my affection flows\nA digital seed that forever grows.",
+      
+      // Booklet Data
+      booklet: {
+        credits: "PRODUCED BY 808 DREAMS\nMIXED BY NEON SKY\nMASTERED AT CYBER STUDIOS TOKYO\n\nART DIRECTION: PIXEL VOYAGER\nPHOTOGRAPHY: LENS FLARE COLLECTIVE\n\nSPECIAL THANKS TO:\nMom, Dad, The Neon City Crew, and every fan who bought a DPA device.",
+        gallery: [
+          'https://picsum.photos/seed/studio1/800/600',
+          'https://picsum.photos/seed/studio2/800/600',
+          'https://picsum.photos/seed/studio3/800/600',
+          'https://picsum.photos/seed/studio4/800/600'
+        ],
+        videos: [
+          {
+            id: 'v1',
+            title: 'Studio Diaries: Episode 1',
+            url: '/assets/videos/sample-1.mp4',
+            poster: 'https://picsum.photos/seed/video1/800/450'
+          },
+          {
+            id: 'v2',
+            title: 'Cyber Heart (Live Rehearsal)',
+            url: '/assets/videos/sample-2.mp4',
+            poster: 'https://picsum.photos/seed/video2/800/450'
+          }
+        ]
+      },
+      // FIX: manufacturingCost does not belong in the pricing object.
+      // It is correctly defined within the `economics` object via `generateEconomics()`.
+      pricing: {
+        retailPrice: 79,
+        currency: 'USD'
+      },
+      // Analytics Data
+      economics: this.generateEconomics(),
+      resales: this.generateResales(45)
+    },
+    {
+      id: '2',
+      albumId: 'ALB-9X9-2025-0042',
+      artistId: 'ART-001',
+      artistName: '808 Dreams',
+      title: 'Echoes of Silence',
       skuType: 'premium',
       status: 'draft',
       dpacVersion: 0,
       themeJson: this.getDefaultTheme(),
       tracks: [],
       dcnpEvents: [],
-      genre: '',
-      recordLabel: '',
-      copyright: '',
-      releaseDate: new Date().toISOString().split('T')[0],
-      upcCode: '',
-      parentalAdvisory: false,
-      description: '',
-      lyrics: '',
       booklet: {
         credits: '',
         gallery: [],
         videos: []
-      },
-      pricing: {
-        retailPrice: 0,
-        currency: 'USD'
       },
       economics: {
         totalManufactured: 0, totalSold: 0, manufacturingCost: 0, wholesalePrice: 0,
@@ -127,9 +260,6 @@ export class DataService {
   private hydrateFromStorage() {
     if (typeof window === 'undefined') return;
     try {
-      // Clear legacy mock-data key if present
-      window.localStorage.removeItem('dpa_mock_data');
-
       const raw = window.localStorage.getItem(this.STORAGE_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as {
@@ -137,10 +267,6 @@ export class DataService {
         albums?: Album[];
         marketplaceListings?: MarketplaceListing[];
       };
-      if ((parsed.version ?? 0) < this.STORAGE_VERSION) {
-        window.localStorage.removeItem(this.STORAGE_KEY);
-        return;
-      }
       if (Array.isArray(parsed.albums) && parsed.albums.length > 0) {
         this.albumsSignal.set(parsed.albums);
       }
@@ -175,7 +301,7 @@ export class DataService {
       id: Math.random().toString(36).substr(2, 9),
       albumId: `ALB-${Math.floor(Math.random()*1000)}-2025`,
       artistId: 'ART-001',
-      artistName: this.albumsSignal()[0]?.artistName || '',
+      artistName: '808 Dreams',
       title,
       skuType: 'premium',
       status: 'draft',

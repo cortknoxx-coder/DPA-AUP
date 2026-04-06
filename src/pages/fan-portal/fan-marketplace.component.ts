@@ -76,7 +76,85 @@ export class FanMarketplaceComponent {
   counterOfferAmount = signal(0);
   showFinalizeModal = signal<TradeOffer | null>(null);
 
-  tradeOffers = signal<TradeOffer[]>([]);
+  tradeOffers = signal<TradeOffer[]>([
+    {
+      id: 'TRADE-1',
+      type: 'incoming',
+      status: 'pending',
+      offeredDevice: {
+        albumTitle: 'Cosmic Drift',
+        albumArtist: 'Stellar Phase',
+        deviceId: 'DPA-MOCK-NEW1',
+        artworkUrl: 'https://picsum.photos/seed/cosmicdrift/400/400'
+      },
+      requestedDevice: {
+        albumTitle: 'Midnight Horizons',
+        albumArtist: '808 Dreams',
+        deviceId: 'DPA-SIM-1234',
+        artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+      },
+      fromUser: '0xTR4D...3R',
+      cashAdjustment: 20
+    },
+    {
+      id: 'TRADE-2',
+      type: 'outgoing',
+      status: 'pending',
+      offeredDevice: {
+        albumTitle: 'Midnight Horizons',
+        albumArtist: '808 Dreams',
+        deviceId: 'DPA-SIM-1234',
+        artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+      },
+      requestedDevice: {
+        albumTitle: 'Midnight Horizons',
+        albumArtist: '808 Dreams',
+        deviceId: 'DPA-MOCK-C0DE',
+        artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+      },
+      toUser: '0x9F8E...B6A7',
+      cashAdjustment: -10
+    },
+    {
+      id: 'TRADE-3',
+      type: 'incoming',
+      status: 'rejected',
+      rejectedAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+      offeredDevice: {
+        albumTitle: 'Future Funk Vol. 2',
+        albumArtist: 'GrooveBot',
+        deviceId: 'DPA-MOCK-FUNK',
+        artworkUrl: 'https://picsum.photos/seed/futurefunk/400/400'
+      },
+      requestedDevice: {
+        albumTitle: 'Midnight Horizons',
+        albumArtist: '808 Dreams',
+        deviceId: 'DPA-SIM-1234',
+        artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+      },
+      fromUser: '0xGR00...V3',
+      cashAdjustment: 0
+    },
+    {
+      id: 'TRADE-4',
+      type: 'incoming',
+      status: 'accepted',
+      offeredDevice: {
+        albumTitle: 'Ocean Drive',
+        albumArtist: 'Synthwave Kid',
+        deviceId: 'DPA-MOCK-OCEAN',
+        artworkUrl: 'https://picsum.photos/seed/oceandrive/400/400'
+      },
+      requestedDevice: {
+        albumTitle: 'Midnight Horizons',
+        albumArtist: '808 Dreams',
+        deviceId: 'DPA-SIM-1234',
+        artworkUrl: 'https://picsum.photos/seed/ALB-8A8-2025-0001/400/400'
+      },
+      fromUser: '0x5YN7...H',
+      cashAdjustment: 0
+    }
+  ]);
 
   pendingIncomingTrades = computed(() => this.tradeOffers().filter(t => t.type === 'incoming' && t.status === 'pending'));
   pendingOutgoingTrades = computed(() => this.tradeOffers().filter(t => t.type === 'outgoing' && t.status === 'pending'));
