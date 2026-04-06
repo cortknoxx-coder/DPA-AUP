@@ -108,6 +108,7 @@ static const char* CAPSULES_PATH = "/data/capsules.json";
 // Forward declarations for JSON helpers (defined later in this file)
 String jsonVal(const String& body, const String& key);
 bool jsonBool(const String& body, const String& key, bool fallback);
+String escJson(const String& s);
 
 // Save capsules to SD as JSON array
 void capsulesSave() {
