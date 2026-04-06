@@ -61,6 +61,7 @@ export class TrackListComponent {
           counts[t.filename] ??
           counts[t.filename.split('/').pop() || ''] ??
           0,
+        artworkUrl: '',
         isDevice: true,
       }));
     }
@@ -76,6 +77,7 @@ export class TrackListComponent {
       sampleRate: undefined as number | undefined,
       bitsPerSample: undefined as number | undefined,
       plays: 0,
+      artworkUrl: t.artworkUrl || '',
       isDevice: false,
     }));
   });
@@ -131,6 +133,30 @@ export class TrackListComponent {
     if (ok) {
       await this.refreshDeviceTracks();
     }
+  }
+
+  onTrackArtSelected(event: Event, trackId: string) {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+
+    const a = this.album();
+    if (!a) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      this.dataService.updateTrackArtwork(a.albumId, trackId, dataUrl);
+
+      if (this.isConnected()) {
+        const safeName = trackId.replace(/[^a-zA-Z0-9_-]/g, '_');
+        await this.connectionService.wifi.uploadFileToPath(
+          file, `/art/${safeName}.jpg`
+        );
+      }
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
   }
 
   formatTime(sec: number): string {

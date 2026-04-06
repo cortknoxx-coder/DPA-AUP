@@ -8,6 +8,7 @@ export interface Track {
   durationSec: number;
   isrcCode?: string;
   notes?: string;
+  artworkUrl?: string;
 }
 
 export interface DpacJob {
@@ -308,6 +309,9 @@ export interface Album {
   dcnpEvents: DcnpEvent[];
   lastBuiltAt?: string;
   
+  // Cover Art
+  artworkUrl?: string;
+
   // Distribution Metadata
   artistName?: string;
   genre?: string;

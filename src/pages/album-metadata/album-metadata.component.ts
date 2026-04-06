@@ -21,6 +21,44 @@ export type PricingTier = 'entry' | 'premium' | 'collector';
   imports: [CommonModule, ReactiveFormsModule],
   template: `
     <form [formGroup]="form" (ngSubmit)="save()" class="max-w-4xl space-y-12 pb-20">
+      <!-- Cover Art -->
+      <div class="space-y-4">
+        <div class="border-b border-slate-800 pb-2">
+          <h2 class="text-sm font-semibold text-slate-100 uppercase tracking-wider">Cover Art</h2>
+        </div>
+        <div class="flex items-start gap-8">
+          <div class="relative group shrink-0">
+            <div class="w-48 h-48 rounded-xl border-2 border-dashed border-slate-700 bg-slate-950 overflow-hidden flex items-center justify-center"
+                 [class.border-solid]="coverArtPreview()"
+                 [class.border-slate-600]="coverArtPreview()">
+              @if (coverArtPreview()) {
+                <img [src]="coverArtPreview()" alt="Cover Art" class="w-full h-full object-cover">
+              } @else {
+                <div class="text-center p-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-slate-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  <span class="text-xs text-slate-500">No cover art</span>
+                </div>
+              }
+            </div>
+            <label class="absolute inset-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-xl flex items-center justify-center">
+              <span class="text-xs font-semibold text-white bg-teal-600 px-3 py-1.5 rounded-full">Upload</span>
+              <input type="file" accept="image/*" class="hidden" (change)="onCoverArtSelected($event)">
+            </label>
+          </div>
+          <div class="text-xs text-slate-400 space-y-2 pt-2">
+            <p class="text-slate-300 font-semibold">Album cover artwork</p>
+            <p>Recommended: 3000x3000px, JPG or PNG.</p>
+            <p>This image appears on the device dashboard, fan portal, and marketplace.</p>
+            @if (coverArtPreview()) {
+              <button type="button" (click)="removeCoverArt()" class="mt-2 text-rose-400 hover:text-rose-300 text-xs">Remove cover art</button>
+            }
+            @if (coverArtPushStatus()) {
+              <div class="mt-2 text-teal-400 text-xs">{{ coverArtPushStatus() }}</div>
+            }
+          </div>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
         <!-- Core Identity -->
         <div class="space-y-6">
@@ -111,6 +149,12 @@ export class AlbumMetadataComponent {
   saveStatus = signal<'idle' | 'saving' | 'ok' | 'error'>('idle');
   saveMessage = signal('');
 
+  coverArtPreview = computed(() => {
+    const a = this.album();
+    return a?.artworkUrl || '';
+  });
+  coverArtPushStatus = signal('');
+
   form = this.fb.group({
     title: ['', Validators.required],
     artistName: ['', Validators.required],
@@ -174,6 +218,38 @@ export class AlbumMetadataComponent {
     }
 
     this.form.markAsPristine();
+  }
+
+  onCoverArtSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+
+    const a = this.album();
+    if (!a) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      this.dataService.updateAlbumArtwork(a.albumId, dataUrl);
+
+      if (this.connectionService.connectionStatus() === 'wifi') {
+        this.coverArtPushStatus.set('Uploading cover to device...');
+        const ok = await this.connectionService.wifi.uploadFileToPath(
+          file, '/art/cover.jpg'
+        );
+        this.coverArtPushStatus.set(ok ? 'Cover art pushed to device.' : 'Device upload failed.');
+        setTimeout(() => this.coverArtPushStatus.set(''), 4000);
+      }
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  }
+
+  removeCoverArt() {
+    const a = this.album();
+    if (!a) return;
+    this.dataService.updateAlbumArtwork(a.albumId, '');
   }
 }
 

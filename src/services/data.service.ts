@@ -332,6 +332,29 @@ export class DataService {
     }));
   }
 
+  updateAlbumArtwork(albumId: string, artworkUrl: string) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId === albumId) {
+        return { ...a, artworkUrl };
+      }
+      return a;
+    }));
+  }
+
+  updateTrackArtwork(albumId: string, trackId: string, artworkUrl: string) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId === albumId) {
+        return {
+          ...a,
+          tracks: a.tracks.map(t =>
+            t.trackId === trackId ? { ...t, artworkUrl } : t
+          ),
+        };
+      }
+      return a;
+    }));
+  }
+
   addTrack(albumId: string, title: string, durationSec: number, trackIdOverride?: string) {
     this.albumsSignal.update(list => list.map(a => {
       if (a.albumId === albumId) {
