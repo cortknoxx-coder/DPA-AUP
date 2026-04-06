@@ -14,9 +14,11 @@ export class DataService {
   private getDefaultTheme(): Theme {
     return {
       albumColor: { primary: '#ff4bcb', accent: '#00f1df', background: '#050510' },
+      ledBrightness: 80,
+      ledGradEnd: '#ff6600',
       led: {
         idle: { color: '#ff4bcb', pattern: 'breathing' },
-        playback: { color: '#00f1df', pattern: 'pulse' },
+        playback: { color: '#00f1df', pattern: 'vu_classic' },
         charging: { color: '#ffcc33', pattern: 'breathing' }
       },
       dcnp: { concert: '#ff4bcb', video: '#00f1df', merch: '#ffcc33', signing: '#7d29ff', remix: '#ff4500', other: '#ffffff' }

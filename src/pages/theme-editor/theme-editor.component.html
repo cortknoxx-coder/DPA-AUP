@@ -159,7 +159,7 @@
       </div>
       @if (connectionService.connectionStatus() === 'wifi') {
         <p class="text-[11px] text-slate-500 mb-4">
-          While connected over WiFi, LED colors and patterns load from the device automatically. Edits stay local until you save or push.
+          While connected over WiFi, values mirror firmware NVS (same keys as the device dashboard). Adjustments send a debounced live preview to the strip via <span class="font-mono text-slate-400">/api/led/preview</span>. Use <strong class="text-slate-400">Save</strong> or <strong class="text-slate-400">Push Theme</strong> to persist everything with <span class="font-mono text-slate-400">/api/theme</span>.
         </p>
       } @else {
         <p class="text-xs text-slate-500 mb-4">Connect over WiFi to mirror live LED settings from the DPA™ hardware.</p>
@@ -192,37 +192,13 @@
             <input type="text" formControlName="color" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1 text-xs font-mono">
           </div>
           <select formControlName="pattern" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1.5 text-xs text-slate-300">
-            <optgroup label="Basic">
-              <option value="breathing">Breathing</option>
-              <option value="solid">Solid</option>
-              <option value="pulse">Pulse</option>
-              <option value="off">Off</option>
-            </optgroup>
-            <optgroup label="Animated">
-              <option value="comet">Comet</option>
-              <option value="dual_comet">Dual Comet</option>
-              <option value="wave">Wave</option>
-              <option value="sparkle">Sparkle</option>
-              <option value="meteor">Meteor Rain</option>
-              <option value="bounce">Bounce</option>
-              <option value="theater">Theater Chase</option>
-              <option value="rainbow">Rainbow Flow</option>
-              <option value="fire">Fire</option>
-            </optgroup>
-            <optgroup label="Audio-Reactive">
-              <option value="audio_pulse">Audio Pulse</option>
-              <option value="audio_bass">Bass Flash</option>
-              <option value="audio_beat">Beat Strobe</option>
-              <option value="audio_comet">Audio Comet</option>
-            </optgroup>
-            <optgroup label="VU Meter">
-              <option value="vu_classic">VU Classic</option>
-              <option value="vu_fill">VU Fill</option>
-              <option value="vu_peak">VU Peak Hold</option>
-              <option value="vu_split">VU Stereo Split</option>
-              <option value="vu_bass">VU Bass</option>
-              <option value="vu_energy">VU Energy</option>
-            </optgroup>
+            @for (group of ledPatternGroups; track group.label) {
+              <optgroup [attr.label]="group.label">
+                @for (opt of group.options; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </optgroup>
+            }
           </select>
         </div>
 
@@ -241,37 +217,13 @@
             <input type="text" formControlName="color" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1 text-xs font-mono">
           </div>
           <select formControlName="pattern" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1.5 text-xs text-slate-300">
-            <optgroup label="Basic">
-              <option value="pulse">Pulse</option>
-              <option value="solid">Solid</option>
-              <option value="breathing">Breathing</option>
-              <option value="off">Off</option>
-            </optgroup>
-            <optgroup label="Animated">
-              <option value="comet">Comet</option>
-              <option value="dual_comet">Dual Comet</option>
-              <option value="wave">Wave</option>
-              <option value="sparkle">Sparkle</option>
-              <option value="meteor">Meteor Rain</option>
-              <option value="bounce">Bounce</option>
-              <option value="theater">Theater Chase</option>
-              <option value="rainbow">Rainbow Flow</option>
-              <option value="fire">Fire</option>
-            </optgroup>
-            <optgroup label="Audio-Reactive">
-              <option value="audio_pulse">Audio Pulse</option>
-              <option value="audio_bass">Bass Flash</option>
-              <option value="audio_beat">Beat Strobe</option>
-              <option value="audio_comet">Audio Comet</option>
-            </optgroup>
-            <optgroup label="VU Meter">
-              <option value="vu_classic">VU Classic</option>
-              <option value="vu_fill">VU Fill</option>
-              <option value="vu_peak">VU Peak Hold</option>
-              <option value="vu_split">VU Stereo Split</option>
-              <option value="vu_bass">VU Bass</option>
-              <option value="vu_energy">VU Energy</option>
-            </optgroup>
+            @for (group of ledPatternGroups; track group.label) {
+              <optgroup [attr.label]="group.label">
+                @for (opt of group.options; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </optgroup>
+            }
           </select>
         </div>
 
@@ -290,38 +242,33 @@
             <input type="text" formControlName="color" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1 text-xs font-mono">
           </div>
           <select formControlName="pattern" class="w-full rounded bg-slate-950 border border-slate-800 px-2 py-1.5 text-xs text-slate-300">
-            <optgroup label="Basic">
-              <option value="breathing">Breathing</option>
-              <option value="solid">Solid</option>
-              <option value="pulse">Pulse</option>
-              <option value="off">Off</option>
-            </optgroup>
-            <optgroup label="Animated">
-              <option value="comet">Comet</option>
-              <option value="dual_comet">Dual Comet</option>
-              <option value="wave">Wave</option>
-              <option value="sparkle">Sparkle</option>
-              <option value="meteor">Meteor Rain</option>
-              <option value="bounce">Bounce</option>
-              <option value="theater">Theater Chase</option>
-              <option value="rainbow">Rainbow Flow</option>
-              <option value="fire">Fire</option>
-            </optgroup>
-            <optgroup label="Audio-Reactive">
-              <option value="audio_pulse">Audio Pulse</option>
-              <option value="audio_bass">Bass Flash</option>
-              <option value="audio_beat">Beat Strobe</option>
-              <option value="audio_comet">Audio Comet</option>
-            </optgroup>
-            <optgroup label="VU Meter">
-              <option value="vu_classic">VU Classic</option>
-              <option value="vu_fill">VU Fill</option>
-              <option value="vu_peak">VU Peak Hold</option>
-              <option value="vu_split">VU Stereo Split</option>
-              <option value="vu_bass">VU Bass</option>
-              <option value="vu_energy">VU Energy</option>
-            </optgroup>
+            @for (group of ledPatternGroups; track group.label) {
+              <optgroup [attr.label]="group.label">
+                @for (opt of group.options; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </optgroup>
+            }
           </select>
+        </div>
+      </div>
+
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 p-4 rounded-lg border border-slate-800 bg-slate-950/40">
+        <div>
+          <label class="block text-xs text-slate-400 mb-2">Strip brightness (0–100)</label>
+          <p class="text-[10px] text-slate-600 mb-2">Firmware key <span class="font-mono">bright</span>; applies to all modes.</p>
+          <div class="flex items-center gap-3">
+            <input type="range" formControlName="ledBrightness" min="0" max="100" step="1" class="flex-1 accent-teal-500">
+            <input type="number" formControlName="ledBrightness" min="0" max="100" class="w-16 rounded bg-slate-950 border border-slate-800 px-2 py-1 text-xs text-slate-300 font-mono">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-2">VU gradient end</label>
+          <p class="text-[10px] text-slate-600 mb-2">Firmware <span class="font-mono">grad_e</span>; blends from the mode color to this color on VU / audio_vu patterns.</p>
+          <div class="flex gap-2">
+            <input type="color" formControlName="ledGradEnd" class="h-9 w-12 rounded bg-transparent cursor-pointer shrink-0">
+            <input type="text" formControlName="ledGradEnd" class="flex-1 rounded bg-slate-950 border border-slate-800 px-3 py-1 text-xs text-slate-300 font-mono">
+          </div>
         </div>
       </div>
     </section>
@@ -511,6 +458,9 @@
               </div>
               <div class="text-xs text-slate-500 font-mono">
                 {{ form.value.led?.[previewMode()]?.color }} • {{ form.value.led?.[previewMode()]?.pattern }}
+              </div>
+              <div class="text-[10px] text-slate-600 font-mono">
+                bright {{ form.value.ledBrightness }}% • grad → {{ form.value.ledGradEnd }}
               </div>
             }
           </div>

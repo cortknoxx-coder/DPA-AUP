@@ -3,10 +3,13 @@ import { Component, inject, computed, effect, signal, OnDestroy } from '@angular
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
+import { Subscription } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
 import { DataService } from '../../services/data.service';
 import { Theme, DcnpEventType, FirmwareStatus } from '../../types';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { LedNotificationService } from '../../services/led-notification.service';
+import { FIRMWARE_LED_PATTERN_GROUPS, LedPatternGroup } from '../../constants/led-patterns';
 
 @Component({
   selector: 'app-theme-editor',
@@ -36,8 +39,11 @@ export class ThemeEditorComponent implements OnDestroy {
   deviceLedSyncMessage = signal('');
   private ledSyncPollTimer: ReturnType<typeof setInterval> | null = null;
   private ledDevicePullKey = '';
+  private ledLivePreviewSub: Subscription | null = null;
+  private isHydratingLedFromDevice = false;
 
   readonly dcnpTypes: DcnpEventType[] = ['concert', 'video', 'merch', 'signing', 'remix', 'other'];
+  readonly ledPatternGroups: LedPatternGroup[] = FIRMWARE_LED_PATTERN_GROUPS;
 
   form = this.fb.group({
     albumColor: this.fb.group({
@@ -47,6 +53,8 @@ export class ThemeEditorComponent implements OnDestroy {
     }),
     skinImage: [''], // Holds the base64 string for the skin
     skinType: ['partial'],
+    ledBrightness: [80],
+    ledGradEnd: ['#ff6600'],
     led: this.fb.group({
       idle: this.fb.group({ color: [''], pattern: [''] }),
       playback: this.fb.group({ color: [''], pattern: [''] }),
@@ -69,9 +77,12 @@ export class ThemeEditorComponent implements OnDestroy {
       const a = this.album();
       if (a && a.themeJson && !this.formPatched) {
         this.formPatched = true;
+        const tj = a.themeJson;
         const themeData = {
-          ...a.themeJson,
-          skinType: a.themeJson.skinType || 'partial'
+          ...tj,
+          skinType: tj.skinType || 'partial',
+          ledBrightness: tj.ledBrightness ?? 80,
+          ledGradEnd: tj.ledGradEnd ?? '#ff6600',
         };
         this.form.patchValue(themeData as any, { emitEvent: false });
       }
@@ -98,10 +109,30 @@ export class ThemeEditorComponent implements OnDestroy {
       });
       this.startLedDevicePolling(a.albumId);
     });
+
+    effect(() => {
+      const wifi = this.connectionService.connectionStatus() === 'wifi';
+      this.ledLivePreviewSub?.unsubscribe();
+      this.ledLivePreviewSub = null;
+      if (!wifi) return;
+
+      this.ledLivePreviewSub = this.form.valueChanges
+        .pipe(debounceTime(220))
+        .subscribe(() => {
+          if (this.isHydratingLedFromDevice) return;
+          void this.sendLiveLedPreviewToDevice();
+        });
+
+      return () => {
+        this.ledLivePreviewSub?.unsubscribe();
+        this.ledLivePreviewSub = null;
+      };
+    });
   }
 
   ngOnDestroy() {
     this.stopLedDevicePolling();
+    this.ledLivePreviewSub?.unsubscribe();
   }
 
   private startLedDevicePolling(albumId: string) {
@@ -126,8 +157,15 @@ export class ThemeEditorComponent implements OnDestroy {
   private themeFromFirmwareStatus(base: Theme, st: FirmwareStatus): Theme {
     const L = st.led;
     const D = st.dcnp;
+    const bright =
+      typeof L?.brightness === 'number'
+        ? Math.max(0, Math.min(100, Math.round(L.brightness)))
+        : (base.ledBrightness ?? 80);
+    const gradEnd = L?.gradEnd?.length ? L.gradEnd : (base.ledGradEnd ?? '#ff6600');
     return {
       ...base,
+      ledBrightness: bright,
+      ledGradEnd: gradEnd,
       led: {
         idle: {
           color: L?.idle?.color ?? base.led.idle.color,
@@ -153,6 +191,23 @@ export class ThemeEditorComponent implements OnDestroy {
     };
   }
 
+  /** Send current preview mode strip settings to firmware `/api/led/preview` (matches device dashboard). */
+  private async sendLiveLedPreviewToDevice() {
+    if (this.connectionService.connectionStatus() !== 'wifi') return;
+
+    const v = this.form.getRawValue() as any;
+    const mode = this.previewMode();
+    const row = v.led?.[mode];
+    let b = typeof v.ledBrightness === 'number' ? v.ledBrightness : Number(v.ledBrightness);
+    if (Number.isNaN(b)) b = 80;
+    await this.connectionService.wifi.previewLed(mode, {
+      color: row?.color,
+      pattern: row?.pattern,
+      brightness: b,
+      gradEnd: v.ledGradEnd,
+    });
+  }
+
   /**
    * Pull LED + DCNP colors from device /api/status and merge into the form + local album theme.
    */
@@ -168,13 +223,20 @@ export class ThemeEditorComponent implements OnDestroy {
     try {
       const st = await this.connectionService.wifi.getStatus();
       const merged = this.themeFromFirmwareStatus({ ...a.themeJson } as Theme, st);
-      this.form.patchValue(
-        {
-          led: merged.led,
-          dcnp: merged.dcnp,
-        } as any,
-        { emitEvent: false }
-      );
+      this.isHydratingLedFromDevice = true;
+      try {
+        this.form.patchValue(
+          {
+            ledBrightness: merged.ledBrightness,
+            ledGradEnd: merged.ledGradEnd,
+            led: merged.led,
+            dcnp: merged.dcnp,
+          } as any,
+          { emitEvent: false }
+        );
+      } finally {
+        this.isHydratingLedFromDevice = false;
+      }
       this.form.markAsPristine();
       this.formPatched = true;
       this.dataService.updateAlbumThemeQuiet(a.albumId, merged);
@@ -202,6 +264,9 @@ export class ThemeEditorComponent implements OnDestroy {
 
   setPreviewMode(mode: 'idle' | 'playback' | 'charging') {
     this.previewMode.set(mode);
+    if (this.connectionService.connectionStatus() === 'wifi' && !this.isHydratingLedFromDevice) {
+      void this.sendLiveLedPreviewToDevice();
+    }
   }
 
   downloadTemplate() {
@@ -254,7 +319,11 @@ export class ThemeEditorComponent implements OnDestroy {
       this.dataService.updateAlbumTheme(a.albumId, theme);
       if (this.connectionService.connectionStatus() === 'wifi') {
         this.pushStatus.set('pushing');
-        const ok = await this.connectionService.wifi.pushTheme(theme);
+        const ok = await this.connectionService.wifi.pushTheme(
+          theme,
+          theme.ledBrightness,
+          theme.ledGradEnd
+        );
         this.pushStatus.set(ok ? 'ok' : 'error');
       } else {
         this.pushStatus.set('idle');
@@ -272,7 +341,11 @@ export class ThemeEditorComponent implements OnDestroy {
 
     const theme = this.form.value as Theme;
     this.pushStatus.set('pushing');
-    const ok = await this.connectionService.wifi.pushTheme(theme);
+    const ok = await this.connectionService.wifi.pushTheme(
+      theme,
+      theme.ledBrightness,
+      theme.ledGradEnd
+    );
     this.pushStatus.set(ok ? 'ok' : 'error');
   }
 }

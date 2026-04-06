@@ -79,6 +79,10 @@ export interface Theme {
   albumColor: ThemeColors;
   skinImage?: string; // Base64 Data URL for the device wrap/skin
   skinType?: 'partial' | 'full';
+  /** Global strip brightness 0–100 (firmware NVS `bright`, `/api/status` → `led.brightness`) */
+  ledBrightness?: number;
+  /** VU gradient end color hex (firmware `grad_e`, `/api/status` → `led.gradEnd`) */
+  ledGradEnd?: string;
   led: {
     idle: LedState;
     playback: LedState;
