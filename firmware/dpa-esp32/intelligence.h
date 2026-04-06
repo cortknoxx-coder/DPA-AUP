@@ -164,7 +164,9 @@ void analyticsOnComplete(int idx) {
   g_trackStats[idx].totalListenMs += listened;
   g_trackStats[idx].rating = computeRating(idx);
   g_currentPlayIdx = -1;
-  analyticsDeferSave();
+  // Save immediately on track completion — don't defer
+  // This ensures play counts survive unexpected power loss
+  g_analyticsDirty = true;
 }
 
 // Called when user explicitly stops playback
@@ -238,9 +240,11 @@ String analyticsToJson() {
   for (int i = 0; i < count; i++) {
     if (i > 0) j += ",";
     j += "{\"idx\":" + String(i);
+    j += ",\"path\":\"" + g_wavPaths[i] + "\"";
     j += ",\"plays\":" + String(g_trackStats[i].playCount);
     j += ",\"skips\":" + String(g_trackStats[i].skipCount);
     j += ",\"listenMs\":" + String(g_trackStats[i].totalListenMs);
+    j += ",\"lastPlayedAt\":" + String(g_trackStats[i].lastPlayedAt);
     j += ",\"rating\":" + String(g_trackStats[i].rating);
     j += "}";
   }

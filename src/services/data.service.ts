@@ -14,9 +14,11 @@ export class DataService {
   private getDefaultTheme(): Theme {
     return {
       albumColor: { primary: '#ff4bcb', accent: '#00f1df', background: '#050510' },
+      ledBrightness: 80,
+      ledGradEnd: '#ff6600',
       led: {
         idle: { color: '#ff4bcb', pattern: 'breathing' },
-        playback: { color: '#00f1df', pattern: 'pulse' },
+        playback: { color: '#00f1df', pattern: 'vu_classic' },
         charging: { color: '#ffcc33', pattern: 'breathing' }
       },
       dcnp: { concert: '#ff4bcb', video: '#00f1df', merch: '#ffcc33', signing: '#7d29ff', remix: '#ff4500', other: '#ffffff' }
@@ -323,10 +325,43 @@ export class DataService {
     }));
   }
 
+  /** Persist theme without marking album as needs-rebuild (e.g. pull from device sync). */
+  updateAlbumThemeQuiet(albumId: string, theme: Theme) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId === albumId) {
+        return { ...a, themeJson: theme };
+      }
+      return a;
+    }));
+  }
+
   updateAlbumMetadata(albumId: string, metadata: Partial<Album>) {
     this.albumsSignal.update(list => list.map(a => {
       if (a.albumId === albumId) {
         return { ...a, ...metadata, status: 'needs-rebuild' };
+      }
+      return a;
+    }));
+  }
+
+  updateAlbumArtwork(albumId: string, artworkUrl: string) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId === albumId) {
+        return { ...a, artworkUrl };
+      }
+      return a;
+    }));
+  }
+
+  updateTrackArtwork(albumId: string, trackId: string, artworkUrl: string) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId === albumId) {
+        return {
+          ...a,
+          tracks: a.tracks.map(t =>
+            t.trackId === trackId ? { ...t, artworkUrl } : t
+          ),
+        };
       }
       return a;
     }));
@@ -365,7 +400,7 @@ export class DataService {
     this.albumsSignal.update(list => list.map(a => {
       if (a.albumId === albumId) {
         const newEvent: DcnpEvent = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: event.id || Math.random().toString(36).substr(2, 9),
           albumId,
           eventType: event.eventType!,
           target: event.target || 'album',
@@ -377,6 +412,20 @@ export class DataService {
         return { ...a, dcnpEvents: [newEvent, ...a.dcnpEvents] };
       }
       return a;
+    }));
+  }
+
+  markDcnpEventDelivered(albumId: string, eventId: string) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId !== albumId) return a;
+      return {
+        ...a,
+        dcnpEvents: a.dcnpEvents.map(ev =>
+          ev.id === eventId
+            ? { ...ev, status: 'delivered' as const, deliveredAt: new Date().toISOString() }
+            : ev
+        ),
+      };
     }));
   }
 

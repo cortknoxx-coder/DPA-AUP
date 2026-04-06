@@ -6,11 +6,10 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
 import { UserService } from '../../services/user.service';
 import { DevicePreviewComponent } from '../../components/device-preview/device-preview.component';
 import { Theme, LedPattern, DeviceTrack, FirmwareStatus } from '../../types';
+import { FIRMWARE_LED_PATTERN_GROUPS, LedPatternGroup } from '../../constants/led-patterns';
 
 type ViewState = 'dashboard' | 'unregister-auth' | 'unregister-confirm';
 type LedMode = 'idle' | 'playback' | 'charging';
-type LedPatternOption = { value: LedPattern; label: string };
-type LedPatternGroup = { label: string; options: LedPatternOption[] };
 
 @Component({
   selector: 'app-fan-device-registration',
@@ -53,61 +52,7 @@ export class FanDeviceRegistrationComponent {
   private isHydratingFromFirmware = false;
 
   readonly ledModes: LedMode[] = ['idle', 'playback', 'charging'];
-  readonly ledPatternGroups: LedPatternGroup[] = [
-    {
-      label: 'Basic',
-      options: [
-        { value: 'breathing', label: 'Breathing' },
-        { value: 'solid', label: 'Solid' },
-        { value: 'pulse', label: 'Pulse' },
-        { value: 'off', label: 'Off' },
-      ],
-    },
-    {
-      label: 'Animated',
-      options: [
-        { value: 'rainbow', label: 'Rainbow' },
-        { value: 'comet', label: 'Comet' },
-        { value: 'wave', label: 'Wave' },
-        { value: 'sparkle', label: 'Sparkle' },
-        { value: 'fire', label: 'Fire' },
-        { value: 'dual_comet', label: 'Dual Comet' },
-        { value: 'meteor', label: 'Meteor Rain' },
-        { value: 'theater', label: 'Theater Chase' },
-        { value: 'bounce', label: 'Bounce' },
-      ],
-    },
-    {
-      label: 'Audio-Reactive',
-      options: [
-        { value: 'audio_pulse', label: 'Audio Pulse' },
-        { value: 'audio_bass', label: 'Bass Flash' },
-        { value: 'audio_beat', label: 'Beat Strobe' },
-        { value: 'audio_comet', label: 'Audio Comet' },
-        { value: 'audio_vu', label: 'Audio VU' },
-      ],
-    },
-    {
-      label: 'VU Meter',
-      options: [
-        { value: 'vu_classic', label: 'VU Classic' },
-        { value: 'vu_fill', label: 'VU Fill' },
-        { value: 'vu_peak', label: 'VU Peak Hold' },
-        { value: 'vu_split', label: 'VU Stereo Split' },
-        { value: 'vu_bass', label: 'VU Bass' },
-        { value: 'vu_energy', label: 'VU Energy' },
-      ],
-    },
-    {
-      label: 'Notification',
-      options: [
-        { value: 'chase_fwd', label: 'Chase Forward' },
-        { value: 'chase_rev', label: 'Chase Reverse' },
-        { value: 'heartbeat', label: 'Heartbeat' },
-        { value: 'fade_out', label: 'Fade Out' },
-      ],
-    },
-  ];
+  readonly ledPatternGroups: LedPatternGroup[] = FIRMWARE_LED_PATTERN_GROUPS;
 
   ledForm = this.fb.group({
     idle: this.fb.group({ color: ['#ff4bcb'], pattern: ['breathing'] }),

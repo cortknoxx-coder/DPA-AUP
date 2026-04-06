@@ -197,10 +197,23 @@ export class DeviceWifiService {
 
   async pushCapsule(eventType: DcnpEventType, capsuleId: string, payload: any): Promise<boolean> {
     try {
+      const flat: Record<string, any> = {
+        eventType,
+        capsuleId,
+        title: payload?.title || 'Capsule',
+        description: payload?.description || '',
+        date: payload?.metadata?.date || new Date().toISOString(),
+        delivered: false,
+      };
+      if (typeof payload?.price === 'number') flat.price = payload.price;
+      if (payload?.cta?.label) flat.ctaLabel = payload.cta.label;
+      if (payload?.cta?.url)   flat.ctaUrl   = payload.cta.url;
+      if (payload?.imageUrl)   flat.hasImage  = true;
+
       const response = await fetch(`${this.baseUrl}/api/capsule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventType, capsuleId, payload }),
+        body: JSON.stringify(flat),
       });
       const result = await response.json();
       return result.ok === true;
@@ -279,7 +292,17 @@ export class DeviceWifiService {
     }
   }
 
-  async getAnalytics(): Promise<{ idx: number; plays: number; skips: number; listenMs: number; rating: number }[]> {
+  async getAnalytics(): Promise<
+    {
+      idx: number;
+      path?: string;
+      plays: number;
+      skips: number;
+      listenMs: number;
+      lastPlayedAt?: number;
+      rating: number;
+    }[]
+  > {
     try {
       const response = await fetch(`${this.baseUrl}/api/analytics`);
       const data = await response.json();
@@ -311,6 +334,19 @@ export class DeviceWifiService {
     }
   }
 
+  // --- Delete File from SD ---
+
+  async deleteFile(path: string): Promise<boolean> {
+    try {
+      await this.ensureAdminUnlocked();
+      const response = await fetch(`${this.baseUrl}/api/sd/delete?path=${encodeURIComponent(path)}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      return result.ok === true;
+    } catch { return false; }
+  }
+
   // --- .dpa File Upload ---
 
   async uploadDpaFile(file: File, onProgress?: (percent: number) => void): Promise<boolean> {
@@ -340,7 +376,7 @@ export class DeviceWifiService {
           console.error('[Upload] XHR timeout');
           resolve(false);
         });
-        xhr.timeout = 600000;
+        xhr.timeout = 0;  // No timeout — large files over ESP32 AP WiFi can take 30+ minutes
         const formData = new FormData();
         formData.append('file', file, file.name);
         // Use port 81 sync upload server for reliable large file transfers.

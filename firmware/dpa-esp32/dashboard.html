@@ -42,17 +42,21 @@ body{
 }
 .bg-glow::before{
   width:600px;height:600px;
-  background:radial-gradient(circle,var(--pink),transparent 70%);
+  background:radial-gradient(circle,var(--track-accent, var(--pink)),transparent 70%);
   top:-200px;left:-100px;
+  transition:background 2s ease;
 }
 .bg-glow::after{
   width:500px;height:500px;
-  background:radial-gradient(circle,var(--cyan),transparent 70%);
+  background:radial-gradient(circle,var(--track-accent, var(--cyan)),transparent 70%);
   bottom:-150px;right:-100px;
   animation-name:drift2;animation-duration:25s;
+  transition:background 2s ease;
 }
 body.is-playing .bg-glow::before,
-body.is-playing .bg-glow::after{opacity:0.09}
+body.is-playing .bg-glow::after{opacity:0.14;filter:blur(100px)}
+body.is-playing .bg-glow::before{animation-duration:8s}
+body.is-playing .bg-glow::after{animation-duration:10s}
 
 @keyframes drift1{
   0%{transform:translate(0,0)}
@@ -162,12 +166,19 @@ body.is-playing .bg-glow::after{opacity:0.09}
   position:relative;width:100%;max-width:360px;aspect-ratio:1;margin:0 auto;
   border-radius:24px;overflow:hidden;
   box-shadow:0 16px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
+  transition:box-shadow 1s ease,transform 0.3s ease;
 }
+.hero-art-wrap svg{transition:opacity 0.5s ease}
+.hero-art-wrap img.hero-cover-img,
+.hero-art-wrap .hero-cover img{width:100%;height:100%;object-fit:cover;display:block}
 .progress-ring{display:none}
 .hero-cover{
   width:100%;height:100%;
 }
 .hero-cover svg{width:100%;height:100%;display:block}
+.booklet-cover img.booklet-cover-img{width:100%;height:100%;object-fit:cover;display:block}
+.track-art .track-art-img{width:44px;height:44px;border-radius:8px;object-fit:cover;display:block}
+.np-art-wrap img{width:100%;height:100%;object-fit:cover;border-radius:8px;display:block}
 body.is-playing .hero-art-wrap{box-shadow:0 16px 64px rgba(0,136,255,0.15), 0 0 0 1px rgba(0,136,255,0.1)}
 
 /* Album Summary Section */
@@ -215,7 +226,8 @@ body.is-playing .hero-art-wrap{box-shadow:0 16px 64px rgba(0,136,255,0.15), 0 0 
 }
 .home-track-row:active{transform:scale(0.98);background:rgba(255,255,255,0.06)}
 .home-track-row.now-playing{
-  border-color:rgba(0,136,255,0.15);background:rgba(0,136,255,0.04);
+  border-color:rgba(0,136,255,0.25);background:rgba(0,136,255,0.06);
+  box-shadow:0 0 20px rgba(0,136,255,0.08),inset 0 0 20px rgba(0,136,255,0.03);
 }
 .home-track-num{
   width:22px;font-size:13px;font-weight:700;color:var(--dim);text-align:center;
@@ -262,7 +274,11 @@ body.is-playing .hero-art-wrap{box-shadow:0 16px 64px rgba(0,136,255,0.15), 0 0 
   background:linear-gradient(135deg, var(--pink), #0066cc);
   color:#fff;
   box-shadow:0 2px 12px rgba(0,136,255,0.3);
+  transition:transform 0.15s,box-shadow 0.15s;
 }
+.np-play:active{transform:scale(0.92)}
+body.is-playing .np-play{animation:playPulse 2s ease-in-out infinite}
+@keyframes playPulse{0%,100%{box-shadow:0 2px 12px rgba(0,136,255,0.3)}50%{box-shadow:0 2px 20px rgba(0,136,255,0.5)}}
 .np-play svg{width:20px;height:20px}
 .np-progress{
   position:absolute;top:0;left:0;right:0;height:2px;
@@ -1204,7 +1220,7 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
           <div class="album-meta-chip"><span class="amc-val" id="homeTotalDur">--</span></div>
           <div class="album-meta-chip"><span class="amc-val" id="homeFormat">24-bit Lossless</span></div>
         </div>
-        <div class="album-dpa-badge">DPA&trade; Exclusive &bull; Digital Physical Asset</div>
+        <div class="album-dpa-badge">DPA&trade; Exclusive &bull; PCM5122 DAC &bull; Analog Out</div>
       </div>
 
       <!-- Quick Track List -->
@@ -1218,31 +1234,34 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
   </div>
 
   <!-- ── NOW PLAYING BAR (persistent, above tab bar) ─────── -->
-  <div class="now-playing-bar" id="nowPlayingBar" onclick="openNowPlaying()" style="display:none">
+  <div class="now-playing-bar" id="nowPlayingBar" style="display:none">
     <div class="np-progress"><div class="np-progress-fill" id="npProgressFill"></div></div>
     <div class="np-top-row">
-      <div class="np-art" id="npArt"></div>
-      <div class="np-info">
+      <div class="np-art" id="npArt" onclick="openNowPlaying()"></div>
+      <div class="np-info" onclick="openNowPlaying()">
         <div style="display:flex;align-items:center;gap:6px">
           <div class="np-title" id="npTitle">--</div>
           <div id="npEqAnim" style="width:24px;height:16px;flex-shrink:0"></div>
         </div>
         <div class="np-artist" id="npArtist"></div>
       </div>
-      <div class="np-controls" onclick="event.stopPropagation()">
-        <button class="np-btn" onclick="event.stopPropagation();apiCmd('prev')">
+      <div class="np-controls">
+        <button class="np-btn" onclick="apiCmd('prev')">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6V6zm3.5 6 8.5 6V6l-8.5 6z"/></svg>
         </button>
-        <button class="np-btn np-play" id="npPlayBtn" onclick="event.stopPropagation();apiCmd('toggle')">
+        <button class="np-btn np-play" id="npPlayBtn" onclick="apiCmd('toggle')">
           <svg id="npPlayIcon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg>
           <svg id="npPauseIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
         </button>
-        <button class="np-btn" onclick="event.stopPropagation();apiCmd('next')">
+        <button class="np-btn" onclick="apiCmd('next')">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2V6zM4 18l8.5-6L4 6v12z"/></svg>
+        </button>
+        <button class="np-btn" id="npHeartBtn" onclick="if(S.trackIndex>=0)toggleHeart(S.trackIndex)" style="opacity:0.6">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         </button>
       </div>
     </div>
-    <div class="np-vol-row" onclick="event.stopPropagation()">
+    <div class="np-vol-row">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor" opacity="0.4"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
       <input type="range" class="np-vol-slider" id="npVolSlider" min="0" max="100" value="50">
       <span class="np-vol-label" id="npVolLabel">50</span>
@@ -1250,11 +1269,15 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
   </div>
 
   <!-- ── EXPANDED NOW PLAYING (full overlay) ─────────────── -->
-  <div class="np-expanded" id="npExpanded">
-    <div class="np-expanded-inner">
+  <div class="np-expanded" id="npExpanded" onclick="closeNowPlaying()">
+    <div class="np-expanded-inner" onclick="event.stopPropagation()">
       <div class="np-collapse-bar" onclick="closeNowPlaying()">
         <div class="np-collapse-handle"></div>
+        <span style="font-size:10px;color:rgba(255,255,255,0.3);letter-spacing:2px;margin-top:4px">TAP TO CLOSE</span>
       </div>
+      <button onclick="closeNowPlaying()" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.2);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;backdrop-filter:blur(8px)" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <!-- Cover Art -->
       <div class="np-exp-art" id="npExpArt"></div>
       <!-- Track Info -->
@@ -1277,6 +1300,9 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
         </button>
         <button class="t-btn" onclick="apiCmd('next')" aria-label="Next">
           <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M16 6h2v12h-2V6zM4 18l8.5-6L4 6v12z"/></svg>
+        </button>
+        <button class="t-btn" onclick="apiCmd('stop');closeNowPlaying()" aria-label="Stop" style="opacity:0.6">
+          <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
         </button>
       </div>
       <!-- Volume -->
@@ -1371,7 +1397,7 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
                 <div class="booklet-credits glass">
                   <div class="credit-row">
                     <span class="credit-role">Produced by</span>
-                    <span class="credit-name">DPAC Artist</span>
+                    <span class="credit-name">Cort Knoxx</span>
                   </div>
                   <div class="credit-row">
                     <span class="credit-role">Engineered by</span>
@@ -1644,6 +1670,7 @@ const S = {
   playing: false,
   trackIndex: 0,
   trackTitle: '--',
+  _fwTrackTitle: '--',
   trackArtist: '',
   posMs: 0,
   durationMs: 0,
@@ -1692,13 +1719,13 @@ const TRACK_ART = [
 const ALBUM_ART_SVG = `<svg viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="albumBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1a0033"/><stop offset="50%" stop-color="#001a2a"/><stop offset="100%" stop-color="#0a1a00"/></linearGradient><radialGradient id="albumGlow" cx="50%" cy="50%"><stop offset="0%" stop-color="#0088ff" stop-opacity="0.2"/><stop offset="100%" stop-color="transparent"/></radialGradient></defs><rect width="280" height="280" fill="url(#albumBg)" rx="16"/><rect width="280" height="280" fill="url(#albumGlow)"/><circle cx="140" cy="120" r="40" fill="none" stroke="#0088ff" stroke-width="1.5" opacity="0.3"/><circle cx="140" cy="120" r="60" fill="none" stroke="#e8651a" stroke-width="0.8" opacity="0.2"/><circle cx="140" cy="120" r="80" fill="none" stroke="#0088ff" stroke-width="0.5" opacity="0.1"/><path d="M60 200 Q140 160 220 200" fill="none" stroke="#e8651a" stroke-width="1" opacity="0.3"/><path d="M40 220 Q140 180 240 220" fill="none" stroke="#e8651a" stroke-width="0.8" opacity="0.2"/><text x="140" y="125" text-anchor="middle" font-size="18" fill="#ffffff" font-weight="800" opacity="0.9" font-family="sans-serif">NEON RAIN</text><text x="140" y="145" text-anchor="middle" font-size="10" fill="#0088ff" font-weight="600" opacity="0.7" font-family="sans-serif" letter-spacing="3">DPAC ARTIST</text><text x="140" y="260" text-anchor="middle" font-size="8" fill="#666" font-weight="600" font-family="sans-serif" letter-spacing="2">DPA™ EXCLUSIVE</text></svg>`;
 
 const MOCK_TRACKS = [
-  { id: 't1', title: 'Neon Rain', artist: 'DPAC Artist', durationMs: 234000, plays: 1247, file: '/tracks/neon_rain.wav', favorite: true },
-  { id: 't2', title: 'Cyber Heart', artist: 'DPAC Artist', durationMs: 198000, plays: 8432, file: '/tracks/cyber_heart.wav', favorite: false },
-  { id: 't3', title: 'Analog Dreams', artist: 'DPAC Artist', durationMs: 267000, plays: 3891, file: '/tracks/analog_dreams.wav', favorite: true },
-  { id: 't4', title: 'Digital Sunrise', artist: 'DPAC Artist', durationMs: 212000, plays: 562, file: '/tracks/digital_sunrise.wav', favorite: false },
-  { id: 't5', title: 'Phantom Wire', artist: 'DPAC Artist', durationMs: 289000, plays: 2104, file: '/tracks/phantom_wire.wav', favorite: false },
-  { id: 't6', title: 'Glass Highway', artist: 'DPAC Artist', durationMs: 245000, plays: 911, file: '/tracks/glass_highway.wav', favorite: true },
-  { id: 't7', title: 'Velvet Static', artist: 'DPAC Artist', durationMs: 203000, plays: 4201, file: '/tracks/velvet_static.wav', favorite: false },
+  { id: 't1', title: 'Neon Rain', artist: 'Cort Knoxx', durationMs: 234000, plays: 1247, file: '/tracks/neon_rain.wav', favorite: true },
+  { id: 't2', title: 'Cyber Heart', artist: 'Cort Knoxx', durationMs: 198000, plays: 8432, file: '/tracks/cyber_heart.wav', favorite: false },
+  { id: 't3', title: 'Analog Dreams', artist: 'Cort Knoxx', durationMs: 267000, plays: 3891, file: '/tracks/analog_dreams.wav', favorite: true },
+  { id: 't4', title: 'Digital Sunrise', artist: 'Cort Knoxx', durationMs: 212000, plays: 562, file: '/tracks/digital_sunrise.wav', favorite: false },
+  { id: 't5', title: 'Phantom Wire', artist: 'Cort Knoxx', durationMs: 289000, plays: 2104, file: '/tracks/phantom_wire.wav', favorite: false },
+  { id: 't6', title: 'Glass Highway', artist: 'Cort Knoxx', durationMs: 245000, plays: 911, file: '/tracks/glass_highway.wav', favorite: true },
+  { id: 't7', title: 'Velvet Static', artist: 'Cort Knoxx', durationMs: 203000, plays: 4201, file: '/tracks/velvet_static.wav', favorite: false },
 ];
 
 const MOCK_CAPSULES = [
@@ -1756,7 +1783,7 @@ function loadRealTracks() {
           return {
             id: 't' + (i + 1),
             title: title,
-            artist: 'DPAC Artist',
+            artist: 'Cort Knoxx',
             durationMs: w.durationMs || 0,
             plays: 0,
             file: w.path,
@@ -1805,9 +1832,7 @@ function init() {
   buildHomeTrackList();
   buildCapsuleList();
   buildBookletTrackNotes();
-  // Set album art SVG
-  const artEl = document.getElementById('bookletArt');
-  if (artEl) artEl.innerHTML = ALBUM_ART_SVG;
+  mountBookletCoverFromSd();
   initBookletSwiper();
   initVolumeSlider();
   initBrightnessSlider();
@@ -1843,6 +1868,130 @@ function switchTab(name) {
 
 // ── API Communication ────────────────────────────────────────
 const API_BASE = '';  // Same origin on ESP32
+
+// Album art from SD: /art/cover.jpg (and .png). Per-track: /art/{basename}.jpg
+function artUrl(relPath) {
+  const p = encodeURIComponent(relPath);
+  return API_BASE + '/api/art?path=' + p;
+}
+
+function trackStemFromFile(filePath) {
+  if (!filePath) return '';
+  let base = filePath.split('/').pop() || '';
+  base = base.replace(/\.(wav|dpa|WAV|DPA)$/i, '');
+  return base.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function trackArtCandidates(filePath) {
+  const stem = trackStemFromFile(filePath);
+  if (!stem) return [];
+  return ['/art/' + stem + '.jpg', '/art/' + stem + '.png', '/art/' + stem + '.webp'];
+}
+
+function tryLoadImage(img, urls, depth, onFailHtml) {
+  if (depth >= urls.length) {
+    if (typeof onFailHtml === 'string') img.outerHTML = onFailHtml;
+    return;
+  }
+  img.onerror = function () { tryLoadImage(img, urls, depth + 1, onFailHtml); };
+  img.src = artUrl(urls[depth]);
+}
+
+function mountHeroCoverImage(urls, svgFallbackHtml) {
+  const cover = document.getElementById('heroCover');
+  function applyLoaded(wrap, img) {
+    cover.innerHTML = '';
+    cover.appendChild(wrap);
+    const npExpArt = document.getElementById('npExpArt');
+    if (npExpArt) {
+      npExpArt.innerHTML = '';
+      npExpArt.appendChild(wrap.cloneNode(true));
+    }
+    const npArt = document.getElementById('npArt');
+    if (npArt) {
+      npArt.innerHTML = '';
+      const w3 = document.createElement('div');
+      w3.className = 'np-art-wrap';
+      const mini = document.createElement('img');
+      mini.src = img.src;
+      mini.alt = '';
+      w3.appendChild(mini);
+      npArt.appendChild(w3);
+    }
+  }
+  function tryIdx(i) {
+    if (i >= urls.length) {
+      cover.innerHTML = svgFallbackHtml;
+      const npExpArt = document.getElementById('npExpArt');
+      if (npExpArt) npExpArt.innerHTML = cover.innerHTML;
+      const npArt = document.getElementById('npArt');
+      if (npArt && S.tracks[S.trackIndex]) {
+        npArt.innerHTML = HERO_COVERS[S.trackIndex % HERO_COVERS.length];
+      }
+      return;
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'hero-cover';
+    const img = document.createElement('img');
+    img.className = 'hero-cover-img';
+    img.alt = '';
+    wrap.appendChild(img);
+    img.onload = function () { applyLoaded(wrap, img); };
+    img.onerror = function () { tryIdx(i + 1); };
+    img.src = artUrl(urls[i]);
+  }
+  tryIdx(0);
+}
+
+function updateHeroCoverWithImageOrSvg() {
+  const cover = document.getElementById('heroCover');
+  const track = S.tracks[S.trackIndex];
+  const svgFallback = track ? makeHeroSvg(S.trackIndex, track.title, track.artist) : HERO_COVERS[0];
+  if (track && track.file) {
+    const cands = trackArtCandidates(track.file);
+    if (cands.length) {
+      mountHeroCoverImage(cands, svgFallback);
+      return;
+    }
+  }
+  cover.innerHTML = svgFallback;
+  const npExpArt = document.getElementById('npExpArt');
+  if (npExpArt) npExpArt.innerHTML = cover.innerHTML;
+  const npArt = document.getElementById('npArt');
+  if (npArt && track) {
+    npArt.innerHTML = HERO_COVERS[S.trackIndex % HERO_COVERS.length];
+  }
+}
+
+function hydrateTrackArtThumbnails() {
+  document.querySelectorAll('.track-art-mount').forEach((el) => {
+    const idx = parseInt(el.getAttribute('data-idx') || '0', 10);
+    const file = el.getAttribute('data-file') || '';
+    const cands = trackArtCandidates(file);
+    const svgFb = TRACK_ART[idx] || '';
+    if (!cands.length) {
+      el.outerHTML = svgFb;
+      return;
+    }
+    const img = document.createElement('img');
+    img.className = 'track-art-img';
+    img.alt = '';
+    img.loading = 'lazy';
+    el.parentNode.replaceChild(img, el);
+    tryLoadImage(img, cands, 0, svgFb);
+  });
+}
+
+function mountBookletCoverFromSd() {
+  const artEl = document.getElementById('bookletArt');
+  if (!artEl) return;
+  const img = document.createElement('img');
+  img.className = 'booklet-cover-img';
+  img.alt = 'Album';
+  artEl.innerHTML = '';
+  artEl.appendChild(img);
+  tryLoadImage(img, ['/art/cover.jpg', '/art/cover.png'], 0, ALBUM_ART_SVG);
+}
 
 function apiGet(path) {
   fetch(API_BASE + path).catch(() => {});
@@ -1905,8 +2054,8 @@ function pollStatus() {
       S.connected = true;
       S.playing = d.player?.playing ?? false;
       S.trackIndex = d.player?.trackIndex ?? 0;
-      S.trackTitle = d.player?.trackTitle ?? 'Unknown';
-      S.trackArtist = 'DPAC Artist';
+      S._fwTrackTitle = d.player?.trackTitle ?? 'Unknown';
+      S.trackArtist = 'Cort Knoxx';
       S.posMs = d.player?.posMs ?? 0;
       S.durationMs = d.player?.durationMs ?? 0;
       S.volume = d.audio?.volume ?? 50;
@@ -2019,6 +2168,15 @@ function syncHeartStates() {
       if (svg) svg.setAttribute('fill', isFav ? 'currentColor' : 'none');
     });
   });
+  // Sync play bar heart
+  const npHeart = document.getElementById('npHeartBtn');
+  if (npHeart && S.tracks[S.trackIndex]) {
+    const npFav = S.favorites.includes(S.tracks[S.trackIndex].file);
+    npHeart.style.opacity = npFav ? '1' : '0.6';
+    const npSvg = npHeart.querySelector('svg path');
+    if (npSvg) npSvg.setAttribute('fill', npFav ? 'currentColor' : 'none');
+    npHeart.style.color = npFav ? '#f43f5e' : '#fff';
+  }
   // Also sync track detail heart if open
   if (typeof trackDetailIdx !== 'undefined' && trackDetailIdx >= 0 && S.tracks[trackDetailIdx]) {
     const heartBtn = document.getElementById('trackDetailHeart');
@@ -2094,27 +2252,33 @@ function makeHeroSvg(idx, title, artist) {
   );
 }
 
+// Per-track dominant colors for background tinting
+const TRACK_COLORS = ['#0088ff', '#e8651a', '#0088ff', '#0a1530', '#8b5cf6', '#ff4bcb', '#00d4ff', '#34d399'];
+
+function tintBackground(trackIdx) {
+  const color = TRACK_COLORS[trackIdx % TRACK_COLORS.length];
+  const glow = document.querySelector('.bg-glow');
+  if (glow) {
+    glow.style.setProperty('--track-color', color);
+    glow.style.transition = 'opacity 1s ease';
+  }
+  // Apply to CSS custom property for the before/after pseudo-elements
+  document.documentElement.style.setProperty('--track-accent', color);
+}
+
 function updateHeroCover() {
+  tintBackground(S.trackIndex);
   const cover = document.getElementById('heroCover');
   const track = S.tracks[S.trackIndex];
-  if (track) {
-    cover.innerHTML = makeHeroSvg(S.trackIndex, track.title, track.artist);
-  } else {
+  if (!track) {
     cover.innerHTML = HERO_COVERS[0].replace('</svg>',
       `<text x="120" y="110" text-anchor="middle" font-size="22" fill="#ffffff" font-weight="800" opacity="0.9" font-family="sans-serif">DPA\u2122</text>` +
       `<text x="120" y="132" text-anchor="middle" font-size="10" fill="#aaa" font-weight="600" opacity="0.6" font-family="sans-serif" letter-spacing="2">LOADING...</text></svg>`);
+    const npExpArt = document.getElementById('npExpArt');
+    if (npExpArt) npExpArt.innerHTML = cover.innerHTML;
+    return;
   }
-  // Also update expanded now-playing art
-  const npExpArt = document.getElementById('npExpArt');
-  if (npExpArt) {
-    npExpArt.innerHTML = cover.innerHTML;
-  }
-  // Mini now-playing bar art (small version)
-  const npArt = document.getElementById('npArt');
-  if (npArt && track) {
-    const miniSvg = HERO_COVERS[S.trackIndex % HERO_COVERS.length];
-    npArt.innerHTML = miniSvg;
-  }
+  updateHeroCoverWithImageOrSvg();
 }
 
 function escXml(s) {
@@ -2126,7 +2290,22 @@ function updateTrackInfo() {
   if (track) {
     S.trackTitle = track.title;
     S.trackArtist = track.artist;
-    S.durationMs = track.durationMs;
+    if (track.durationMs > 0) S.durationMs = track.durationMs;
+  }
+  // If firmware reports a different track title (e.g. hardware next/prev), use it
+  if (S._fwTrackTitle && S._fwTrackTitle !== '--' && S._fwTrackTitle !== 'Unknown') {
+    // Try to find the matching track by title to sync the index
+    const fwIdx = S.tracks.findIndex(t => {
+      const clean = t.title.toLowerCase().replace(/[_\s]/g, '');
+      const fw = S._fwTrackTitle.toLowerCase().replace(/[_\s]/g, '');
+      return clean === fw || t.file.toLowerCase().includes(fw);
+    });
+    if (fwIdx >= 0 && fwIdx !== S.trackIndex) {
+      S.trackIndex = fwIdx;
+      S.trackTitle = S.tracks[fwIdx].title;
+      S.trackArtist = S.tracks[fwIdx].artist;
+      if (S.tracks[fwIdx].durationMs > 0) S.durationMs = S.tracks[fwIdx].durationMs;
+    }
   }
   // Expanded now-playing
   document.getElementById('homeTitle').textContent = S.trackTitle;
@@ -2149,8 +2328,8 @@ function updateTrackInfo() {
 function updateAlbumSummary() {
   if (S.tracks.length === 0) return;
   const first = S.tracks[0];
-  document.getElementById('homeAlbumTitle').textContent = first.title || 'DPA\u2122 Album';
-  document.getElementById('homeAlbumArtist').textContent = first.artist || 'Artist';
+  document.getElementById('homeAlbumTitle').textContent = S.tracks.length > 1 ? (first.artist || 'Cort Knoxx') : (first.title || 'DPA\u2122 Album');
+  document.getElementById('homeAlbumArtist').textContent = first.artist || 'Cort Knoxx';
   document.getElementById('homeTrackCount').textContent = S.tracks.length;
   // Total duration
   const totalMs = S.tracks.reduce((s, t) => s + (t.durationMs || 0), 0);
@@ -2171,7 +2350,7 @@ function buildHomeTrackList() {
       <div class="home-track-num">${i + 1}</div>
       <div class="home-track-info">
         <div class="home-track-name">${esc(t.title)}</div>
-        <div class="home-track-detail">${t.sampleRate ? (t.sampleRate/1000) + 'kHz' : ''} ${t.bitsPerSample ? t.bitsPerSample + '-bit' : ''}</div>
+        <div class="home-track-detail"><span style="background:rgba(99,102,241,0.15);color:#818cf8;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:0.5px">${t.bitsPerSample || 24}-bit / ${t.sampleRate ? (t.sampleRate/1000).toFixed(1) : '44.1'}kHz</span></div>
       </div>
       <button class="heart-btn ${isFav ? 'liked' : ''}" id="homeHeart${i}" onclick="event.stopPropagation();toggleHeart(${i})" style="background:none;border:none;padding:4px 8px;cursor:pointer">
         <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="${isFav ? 'currentColor' : 'none'}"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -2262,8 +2441,11 @@ function buildTrackList() {
   const container = document.getElementById('trackList');
   container.innerHTML = S.tracks.map((t, i) => {
     const isFav = S.favorites.includes(t.file);
+    const artCell = t.file
+      ? `<div class="track-art"><span class="track-art-mount" data-idx="${i}" data-file="${esc(t.file)}"></span></div>`
+      : `<div class="track-art">${TRACK_ART[i] || ''}</div>`;
     return `<div class="track-row glass" data-idx="${i}" onclick="playTrack(${i})">
-      <div class="track-art">${TRACK_ART[i] || ''}</div>
+      ${artCell}
       <div class="track-num" id="tnum${i}">${i + 1}</div>
       <div class="track-meta">
         <div class="track-row-title">${esc(t.title)}</div>
@@ -2280,6 +2462,7 @@ function buildTrackList() {
       </button>
     </div>`;
   }).join('');
+  hydrateTrackArtThumbnails();
 }
 
 function updateTrackListHighlight() {
@@ -2352,14 +2535,14 @@ function openTrackDetail(idx) {
     const titleSize = t.title.length > 20 ? 16 : 20;
     document.getElementById('trackDetailArt').innerHTML = heroSvg.replace('</svg>',
       `<text x="120" y="${titleY}" text-anchor="middle" font-size="${titleSize}" fill="#ffffff" font-weight="800" opacity="0.9" font-family="sans-serif">${escXml(t.title)}</text>` +
-      `<text x="120" y="${titleY + 20}" text-anchor="middle" font-size="9" fill="#aaa" font-weight="600" opacity="0.6" font-family="sans-serif" letter-spacing="2">${escXml(t.artist || 'DPAC Artist')}</text></svg>`
+      `<text x="120" y="${titleY + 20}" text-anchor="middle" font-size="9" fill="#aaa" font-weight="600" opacity="0.6" font-family="sans-serif" letter-spacing="2">${escXml(t.artist || 'Cort Knoxx')}</text></svg>`
     );
   } else {
-    document.getElementById('trackDetailArt').innerHTML = `<div style="width:100%;height:100%;background:var(--card);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px"><span style="font-size:20px;font-weight:800;color:var(--bright)">${esc(t.title)}</span><span style="font-size:11px;color:var(--dim);letter-spacing:2px">${esc(t.artist||'DPAC Artist')}</span></div>`;
+    document.getElementById('trackDetailArt').innerHTML = `<div style="width:100%;height:100%;background:var(--card);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px"><span style="font-size:20px;font-weight:800;color:var(--bright)">${esc(t.title)}</span><span style="font-size:11px;color:var(--dim);letter-spacing:2px">${esc(t.artist||'Cort Knoxx')}</span></div>`;
   }
 
   document.getElementById('trackDetailTitle').textContent = t.title;
-  document.getElementById('trackDetailArtist').textContent = t.artist || 'DPAC Artist';
+  document.getElementById('trackDetailArtist').textContent = t.artist || 'Cort Knoxx';
 
   // Meta grid
   const meta = [];
@@ -3013,10 +3196,20 @@ function drawVizBars(w, h) {
     const x = i * (barW + BAR_GAP);
     const barH = Math.max(2, vizBars[i]);
 
+    // Glow effect on tall bars
+    if (barH > mainH * 0.5) {
+      vizCtx.shadowColor = '#0088ff';
+      vizCtx.shadowBlur = 8;
+    } else {
+      vizCtx.shadowBlur = 0;
+    }
+
     vizCtx.fillStyle = grad;
     vizCtx.beginPath();
     vizCtx.roundRect(x, mainH - barH, barW, barH, 1);
     vizCtx.fill();
+
+    vizCtx.shadowBlur = 0;
 
     const mirrorBarH = Math.min(barH * 0.4, mirrorH);
     vizCtx.fillStyle = mirrorGrad;

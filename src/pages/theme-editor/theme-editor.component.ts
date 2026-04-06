@@ -1,10 +1,10 @@
 
-import { Component, inject, computed, effect, signal } from '@angular/core';
+import { Component, inject, computed, effect, signal, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
 import { DataService } from '../../services/data.service';
-import { Theme, DcnpEventType } from '../../types';
+import { Theme, DcnpEventType, FirmwareStatus } from '../../types';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { LedNotificationService } from '../../services/led-notification.service';
 
@@ -14,7 +14,7 @@ import { LedNotificationService } from '../../services/led-notification.service'
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './theme-editor.component.html'
 })
-export class ThemeEditorComponent {
+export class ThemeEditorComponent implements OnDestroy {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
   private fb: FormBuilder = inject(FormBuilder);
@@ -25,12 +25,17 @@ export class ThemeEditorComponent {
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
 
-  // Visualizer State
-  previewMode = signal<'idle' | 'playback' | 'charging'>('idle');
+  /** Which perk color to show on the device mock (creator = perks only; strip modes belong in fan portal). */
+  perkPreviewCategory = signal<DcnpEventType | null>(null);
   notificationPreviewActive = signal<DcnpEventType | null>(null);
   glowOverride = signal<{ cssClass: string; color: string; customDuration?: string } | null>(null);
   pushStatus = signal<'idle' | 'pushing' | 'ok' | 'error'>('idle');
   isPushingTheme = computed(() => this.pushStatus() === 'pushing');
+
+  deviceLedSyncStatus = signal<'idle' | 'syncing' | 'ok' | 'error'>('idle');
+  deviceLedSyncMessage = signal('');
+  private dcnpSyncPollTimer: ReturnType<typeof setInterval> | null = null;
+  private dcnpDevicePullKey = '';
 
   readonly dcnpTypes: DcnpEventType[] = ['concert', 'video', 'merch', 'signing', 'remix', 'other'];
 
@@ -42,11 +47,6 @@ export class ThemeEditorComponent {
     }),
     skinImage: [''], // Holds the base64 string for the skin
     skinType: ['partial'],
-    led: this.fb.group({
-      idle: this.fb.group({ color: [''], pattern: [''] }),
-      playback: this.fb.group({ color: [''], pattern: [''] }),
-      charging: this.fb.group({ color: [''], pattern: [''] })
-    }),
     dcnp: this.fb.group({
       concert: [''],
       video: [''],
@@ -64,17 +64,117 @@ export class ThemeEditorComponent {
       const a = this.album();
       if (a && a.themeJson && !this.formPatched) {
         this.formPatched = true;
+        const tj = a.themeJson;
         const themeData = {
-          ...a.themeJson,
-          skinType: a.themeJson.skinType || 'partial'
+          ...tj,
+          skinType: tj.skinType || 'partial',
         };
         this.form.patchValue(themeData as any, { emitEvent: false });
       }
     });
+
+    effect(() => {
+      const conn = this.connectionService.connectionStatus();
+      const a = this.album();
+      if (conn !== 'wifi') {
+        this.dcnpDevicePullKey = '';
+        this.stopDcnpDevicePolling();
+        return;
+      }
+      if (!a) return;
+      if (this.dcnpDevicePullKey === a.albumId) {
+        this.startDcnpDevicePolling(a.albumId);
+        return;
+      }
+      this.dcnpDevicePullKey = a.albumId;
+      queueMicrotask(() => {
+        if (this.connectionService.connectionStatus() === 'wifi' && this.album()?.albumId === a.albumId) {
+          void this.pullDcnpFromDevice(false);
+        }
+      });
+      this.startDcnpDevicePolling(a.albumId);
+    });
   }
 
-  setPreviewMode(mode: 'idle' | 'playback' | 'charging') {
-    this.previewMode.set(mode);
+  ngOnDestroy() {
+    this.stopDcnpDevicePolling();
+  }
+
+  private startDcnpDevicePolling(albumId: string) {
+    this.stopDcnpDevicePolling();
+    this.dcnpSyncPollTimer = setInterval(() => {
+      if (this.connectionService.connectionStatus() !== 'wifi' || this.album()?.albumId !== albumId) {
+        this.stopDcnpDevicePolling();
+        return;
+      }
+      if (this.form.dirty) return;
+      void this.pullDcnpFromDevice(false);
+    }, 5000);
+  }
+
+  private stopDcnpDevicePolling() {
+    if (this.dcnpSyncPollTimer) {
+      clearInterval(this.dcnpSyncPollTimer);
+      this.dcnpSyncPollTimer = null;
+    }
+  }
+
+  private dcnpFromFirmwareStatus(base: Theme, st: FirmwareStatus): Theme['dcnp'] {
+    const D = st.dcnp;
+    return {
+      concert: D?.concert ?? base.dcnp.concert,
+      video: D?.video ?? base.dcnp.video,
+      merch: D?.merch ?? base.dcnp.merch,
+      signing: D?.signing ?? base.dcnp.signing,
+      remix: D?.remix ?? base.dcnp.remix,
+      other: D?.other ?? base.dcnp.other,
+    };
+  }
+
+  /**
+   * Pull DCNP (perk notification) colors from device — does not overwrite fan-owned strip settings.
+   */
+  async pullDcnpFromDevice(showBanner: boolean) {
+    const a = this.album();
+    if (!a || this.connectionService.connectionStatus() !== 'wifi') return;
+
+    if (showBanner) {
+      this.deviceLedSyncStatus.set('syncing');
+      this.deviceLedSyncMessage.set('Reading perk colors from device…');
+    }
+
+    try {
+      const st = await this.connectionService.wifi.getStatus();
+      const dcnp = this.dcnpFromFirmwareStatus({ ...a.themeJson } as Theme, st);
+      const merged: Theme = { ...(a.themeJson as Theme), dcnp };
+      this.form.patchValue({ dcnp } as any, { emitEvent: false });
+      this.form.markAsPristine();
+      this.formPatched = true;
+      this.dataService.updateAlbumThemeQuiet(a.albumId, merged);
+
+      if (showBanner) {
+        this.deviceLedSyncStatus.set('ok');
+        this.deviceLedSyncMessage.set('Perk colors synced from device.');
+      }
+    } catch {
+      if (showBanner) {
+        this.deviceLedSyncStatus.set('error');
+        this.deviceLedSyncMessage.set('Could not read perk colors from device.');
+      }
+    }
+
+    if (showBanner) {
+      setTimeout(() => {
+        if (this.deviceLedSyncStatus() !== 'syncing') {
+          this.deviceLedSyncStatus.set('idle');
+          this.deviceLedSyncMessage.set('');
+        }
+      }, 3500);
+    }
+  }
+
+  setPerkPreviewCategory(cat: DcnpEventType | null) {
+    this.perkPreviewCategory.set(cat);
   }
 
   downloadTemplate() {
@@ -123,11 +223,18 @@ export class ThemeEditorComponent {
   async save() {
     const a = this.album();
     if (a && this.form.valid) {
-      const theme = this.form.value as Theme;
+      const theme: Theme = {
+        ...(a.themeJson as Theme),
+        ...(this.form.getRawValue() as Partial<Theme>),
+      };
       this.dataService.updateAlbumTheme(a.albumId, theme);
       if (this.connectionService.connectionStatus() === 'wifi') {
         this.pushStatus.set('pushing');
-        const ok = await this.connectionService.wifi.pushTheme(theme);
+        const ok = await this.connectionService.wifi.pushTheme(
+          theme,
+          theme.ledBrightness,
+          theme.ledGradEnd
+        );
         this.pushStatus.set(ok ? 'ok' : 'error');
       } else {
         this.pushStatus.set('idle');
@@ -143,9 +250,16 @@ export class ThemeEditorComponent {
       return;
     }
 
-    const theme = this.form.value as Theme;
+    const theme: Theme = {
+      ...(a.themeJson as Theme),
+      ...(this.form.getRawValue() as Partial<Theme>),
+    };
     this.pushStatus.set('pushing');
-    const ok = await this.connectionService.wifi.pushTheme(theme);
+    const ok = await this.connectionService.wifi.pushTheme(
+      theme,
+      theme.ledBrightness,
+      theme.ledGradEnd
+    );
     this.pushStatus.set(ok ? 'ok' : 'error');
   }
 }

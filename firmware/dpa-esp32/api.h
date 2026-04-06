@@ -96,9 +96,79 @@ struct RuntimeCapsule {
   String desc;
   String date;
   bool delivered;
+  float price;      // 0 = free
+  String ctaLabel;  // e.g. "Get Tickets", "Shop Now"
+  String ctaUrl;    // link target
+  bool hasImage;    // portal holds actual base64; device just knows it exists
 };
 static RuntimeCapsule g_runtimeCapsules[24];
 static int g_runtimeCapsuleCount = 0;
+static const char* CAPSULES_PATH = "/data/capsules.json";
+
+// Forward declarations for JSON helpers (defined later in this file)
+String jsonVal(const String& body, const String& key);
+bool jsonBool(const String& body, const String& key, bool fallback);
+String escJson(const String& s);
+
+// Save capsules to SD as JSON array
+void capsulesSave() {
+  if (!SD.exists("/data")) SD.mkdir("/data");
+  File f = SD.open(CAPSULES_PATH, FILE_WRITE);
+  if (!f) { Serial.println("[CAPSULE] Save failed"); return; }
+  f.print("[");
+  for (int i = 0; i < g_runtimeCapsuleCount; i++) {
+    if (i > 0) f.print(",");
+    f.print("{\"id\":\""); f.print(escJson(g_runtimeCapsules[i].id));
+    f.print("\",\"type\":\""); f.print(escJson(g_runtimeCapsules[i].type));
+    f.print("\",\"title\":\""); f.print(escJson(g_runtimeCapsules[i].title));
+    f.print("\",\"desc\":\""); f.print(escJson(g_runtimeCapsules[i].desc));
+    f.print("\",\"date\":\""); f.print(escJson(g_runtimeCapsules[i].date));
+    f.print("\",\"delivered\":"); f.print(g_runtimeCapsules[i].delivered ? "true" : "false");
+    f.print(",\"price\":"); f.print(String(g_runtimeCapsules[i].price, 2));
+    f.print(",\"ctaLabel\":\""); f.print(escJson(g_runtimeCapsules[i].ctaLabel));
+    f.print("\",\"ctaUrl\":\""); f.print(escJson(g_runtimeCapsules[i].ctaUrl));
+    f.print("\",\"hasImage\":"); f.print(g_runtimeCapsules[i].hasImage ? "true" : "false");
+    f.print("}");
+  }
+  f.print("]");
+  f.close();
+  Serial.printf("[CAPSULE] Saved %d capsules to SD\n", g_runtimeCapsuleCount);
+}
+
+// Load capsules from SD JSON
+void capsulesLoad() {
+  if (!SD.exists(CAPSULES_PATH)) return;
+  File f = SD.open(CAPSULES_PATH, FILE_READ);
+  if (!f) return;
+  String raw = f.readString();
+  f.close();
+  g_runtimeCapsuleCount = 0;
+  int pos = 0;
+  while (g_runtimeCapsuleCount < 24) {
+    int start = raw.indexOf("{", pos);
+    if (start < 0) break;
+    int end = raw.indexOf("}", start);
+    if (end < 0) break;
+    String obj = raw.substring(start, end + 1);
+    RuntimeCapsule c;
+    c.id = jsonVal(obj, "id");
+    c.type = jsonVal(obj, "type");
+    c.title = jsonVal(obj, "title");
+    c.desc = jsonVal(obj, "desc");
+    c.date = jsonVal(obj, "date");
+    c.delivered = jsonBool(obj, "delivered", false);
+    String priceStr = jsonVal(obj, "price");
+    c.price = priceStr.length() > 0 ? priceStr.toFloat() : 0;
+    c.ctaLabel = jsonVal(obj, "ctaLabel");
+    c.ctaUrl = jsonVal(obj, "ctaUrl");
+    c.hasImage = jsonBool(obj, "hasImage", false);
+    if (c.id.length() > 0) {
+      g_runtimeCapsules[g_runtimeCapsuleCount++] = c;
+    }
+    pos = end + 1;
+  }
+  Serial.printf("[CAPSULE] Loaded %d capsules from SD\n", g_runtimeCapsuleCount);
+}
 
 // ── JSON Helpers ─────────────────────────────────────────────
 String escJson(const String& s) {
@@ -131,6 +201,49 @@ static String sanitizePath(const String& path) {
   out.replace("&", "_");
   out.replace("#", "_");
   return out;
+}
+
+// Resolve ?path= for /api/art — only files under /art/, no traversal
+static bool resolveArtRequestPath(const String& raw, String& outPath) {
+  outPath = "";
+  if (raw.length() == 0) return false;
+  String p = raw;
+  p.trim();
+  if (p.indexOf("..") >= 0) return false;
+  if (!p.startsWith("/")) p = "/art/" + p;
+  if (!p.startsWith("/art/")) return false;
+  String lower = p;
+  lower.toLowerCase();
+  if (!(lower.endsWith(".jpg") || lower.endsWith(".jpeg") ||
+        lower.endsWith(".png")  || lower.endsWith(".webp"))) {
+    return false;
+  }
+  outPath = sanitizePath(p);
+  return true;
+}
+
+static const char* mimeForArtPath(const String& path) {
+  String lower = path;
+  lower.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".webp")) return "image/webp";
+  return "image/jpeg";
+}
+
+static void sendArtFromSd(AsyncWebServerRequest* req, const String& path) {
+  if (!g_sdMounted) {
+    req->send(503, "application/json", "{\"error\":\"sd not mounted\"}");
+    return;
+  }
+  if (!SD.exists(path)) {
+    req->send(404, "application/json", "{\"error\":\"not found\"}");
+    return;
+  }
+  const char* ct = mimeForArtPath(path);
+  AsyncWebServerResponse* response = req->beginResponse(SD, path, ct);
+  response->addHeader("Cache-Control", "public, max-age=86400");
+  response->addHeader("Access-Control-Allow-Origin", "*");
+  req->send(response);
 }
 
 // ── Real Playable Track Helpers ──────────────────────────────
@@ -352,26 +465,8 @@ bool jsonBool(const String& body, const String& key, bool fallback = false) {
   return fallback;
 }
 
-void upsertRuntimeCapsule(const String& id, const String& type, const String& title, const String& desc, const String& date, bool delivered) {
-  for (int i = 0; i < g_runtimeCapsuleCount; i++) {
-    if (g_runtimeCapsules[i].id == id) {
-      g_runtimeCapsules[i].type = type;
-      g_runtimeCapsules[i].title = title;
-      g_runtimeCapsules[i].desc = desc;
-      g_runtimeCapsules[i].date = date;
-      g_runtimeCapsules[i].delivered = delivered;
-      return;
-    }
-  }
-  if (g_runtimeCapsuleCount < 24) {
-    g_runtimeCapsules[g_runtimeCapsuleCount++] = { id, type, title, desc, date, delivered };
-    return;
-  }
-  for (int i = 0; i < 23; i++) {
-    g_runtimeCapsules[i] = g_runtimeCapsules[i + 1];
-  }
-  g_runtimeCapsules[23] = { id, type, title, desc, date, delivered };
-}
+// upsertRuntimeCapsule logic now inlined in POST /api/capsule handler
+// to support the extended RuntimeCapsule struct (price, ctaLabel, etc.)
 
 // ── Command Dispatch ─────────────────────────────────────────
 void handleCommand(uint8_t op) {
@@ -733,6 +828,28 @@ void registerApiRoutes(AsyncWebServer& server) {
     req->send(200, "application/json", j);
   });
 
+  // ── GET /api/art?path=/art/cover.jpg ───────────────────────
+  // Serves album + per-track artwork from SD (/art/). Portal pushes here.
+  server.on("/api/art", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (!req->hasParam("path")) {
+      req->send(400, "application/json", "{\"error\":\"path required\"}");
+      return;
+    }
+    String resolved;
+    if (!resolveArtRequestPath(req->getParam("path")->value(), resolved)) {
+      req->send(400, "application/json", "{\"error\":\"invalid path\"}");
+      return;
+    }
+    sendArtFromSd(req, resolved);
+  });
+  server.on("/api/art", HTTP_OPTIONS, [](AsyncWebServerRequest* req) {
+    AsyncWebServerResponse* response = req->beginResponse(204);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+    req->send(response);
+  });
+
   // ── GET /api/sd/files?dir=/ ────────────────────────── [ADMIN]
   server.on("/api/sd/files", HTTP_GET, [](AsyncWebServerRequest* req) {
     if (!g_adminMode) {
@@ -1017,28 +1134,21 @@ void registerApiRoutes(AsyncWebServer& server) {
   });
 
   // ── GET /api/capsules ──────────────────────────────────────
+  // Returns ONLY real pushed capsules (no mock data)
   server.on("/api/capsules", HTTP_GET, [](AsyncWebServerRequest* req) {
     String j = "{\"capsules\":[";
-    bool first = true;
     for (int i = 0; i < g_runtimeCapsuleCount; i++) {
-      if (!first) j += ",";
+      if (i > 0) j += ",";
       j += "{\"id\":\"" + escJson(g_runtimeCapsules[i].id) + "\",";
       j += "\"type\":\"" + escJson(g_runtimeCapsules[i].type) + "\",";
       j += "\"title\":\"" + escJson(g_runtimeCapsules[i].title) + "\",";
       j += "\"desc\":\"" + escJson(g_runtimeCapsules[i].desc) + "\",";
       j += "\"date\":\"" + escJson(g_runtimeCapsules[i].date) + "\",";
-      j += "\"delivered\":" + String(g_runtimeCapsules[i].delivered ? "true" : "false") + "}";
-      first = false;
-    }
-    for (int i = 0; i < NUM_CAPSULES; i++) {
-      if (!first) j += ",";
-      j += "{\"id\":\"" + String(CAPSULES[i].id) + "\",";
-      j += "\"type\":\"" + String(CAPSULES[i].type) + "\",";
-      j += "\"title\":\"" + String(CAPSULES[i].title) + "\",";
-      j += "\"desc\":\"" + escJson(String(CAPSULES[i].desc)) + "\",";
-      j += "\"date\":\"" + String(CAPSULES[i].date) + "\",";
-      j += "\"delivered\":" + String(CAPSULES[i].delivered ? "true" : "false") + "}";
-      first = false;
+      j += "\"delivered\":" + String(g_runtimeCapsules[i].delivered ? "true" : "false") + ",";
+      j += "\"price\":" + String(g_runtimeCapsules[i].price, 2) + ",";
+      j += "\"ctaLabel\":\"" + escJson(g_runtimeCapsules[i].ctaLabel) + "\",";
+      j += "\"ctaUrl\":\"" + escJson(g_runtimeCapsules[i].ctaUrl) + "\",";
+      j += "\"hasImage\":" + String(g_runtimeCapsules[i].hasImage ? "true" : "false") + "}";
     }
     j += "]}";
     req->send(200, "application/json", j);
@@ -1071,10 +1181,47 @@ void registerApiRoutes(AsyncWebServer& server) {
       if (date.length() == 0) date = String((unsigned long)(millis() / 1000));
 
       bool delivered = jsonBool(body, "delivered", false);
-      upsertRuntimeCapsule(capsuleId, eventType, title, desc, date, delivered);
+      String priceStr = jsonVal(body, "price");
+      float price = priceStr.length() > 0 ? priceStr.toFloat() : 0;
+      String ctaLabel = jsonVal(body, "ctaLabel");
+      String ctaUrl   = jsonVal(body, "ctaUrl");
+      bool hasImage   = jsonBool(body, "hasImage", false);
 
-      Serial.printf("[CAPSULE] Ingested id=%s type=%s title=%s\n",
-        capsuleId.c_str(), eventType.c_str(), title.c_str());
+      // Upsert with full payload
+      RuntimeCapsule cap;
+      cap.id = capsuleId;
+      cap.type = eventType;
+      cap.title = title;
+      cap.desc = desc;
+      cap.date = date;
+      cap.delivered = delivered;
+      cap.price = price;
+      cap.ctaLabel = ctaLabel;
+      cap.ctaUrl = ctaUrl;
+      cap.hasImage = hasImage;
+
+      // Insert or update in runtime array
+      bool found = false;
+      for (int i = 0; i < g_runtimeCapsuleCount; i++) {
+        if (g_runtimeCapsules[i].id == capsuleId) {
+          g_runtimeCapsules[i] = cap;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        if (g_runtimeCapsuleCount < 24) {
+          g_runtimeCapsules[g_runtimeCapsuleCount++] = cap;
+        } else {
+          for (int i = 0; i < 23; i++) g_runtimeCapsules[i] = g_runtimeCapsules[i + 1];
+          g_runtimeCapsules[23] = cap;
+        }
+      }
+
+      capsulesSave();
+
+      Serial.printf("[CAPSULE] Ingested + saved id=%s type=%s title=%s price=%.2f\n",
+        capsuleId.c_str(), eventType.c_str(), title.c_str(), price);
 
       String j = "{\"ok\":true,\"id\":\"" + escJson(capsuleId) + "\"}";
       req->send(200, "application/json", j);
@@ -1135,7 +1282,7 @@ void registerApiRoutes(AsyncWebServer& server) {
 
   // ── GET /api/wifi/status ────────────────────────────────────
   server.on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest* req) {
-    String j = "{\"ap\":{\"ssid\":\"" + String(DPA_AP_SSID) + "\",\"ip\":\"" + WiFi.softAPIP().toString() + "\",\"clients\":" + String(WiFi.softAPgetStationNum()) + "},";
+    String j = "{\"ap\":{\"ssid\":\"" + escJson(g_apSSID) + "\",\"ip\":\"" + WiFi.softAPIP().toString() + "\",\"clients\":" + String(WiFi.softAPgetStationNum()) + "},";
     j += "\"sta\":{\"connected\":" + String(g_staConnected ? "true" : "false");
     j += ",\"ssid\":\"" + escJson(g_staSSID) + "\"";
     j += ",\"ip\":\"" + g_staIP + "\"";
@@ -1260,6 +1407,13 @@ void registerApiRoutes(AsyncWebServer& server) {
       v = jsonVal(body, "dcnp_signing"); if (v.length()) g_dcnpSigning = v;
       v = jsonVal(body, "dcnp_remix");   if (v.length()) g_dcnpRemix = v;
       v = jsonVal(body, "dcnp_other");   if (v.length()) g_dcnpOther = v;
+
+      // Update SSID metadata if artist/album provided
+      String artist = jsonVal(body, "artist");
+      String album = jsonVal(body, "album");
+      if (artist.length() > 0 || album.length() > 0) {
+        wifiSetMetadata(artist, album);
+      }
 
       ledSaveToNVS();
       Serial.println("[THEME] Applied & saved");

@@ -313,8 +313,11 @@ export class PlayerService {
 
         if (status.player.trackTitle && this.currentTrack()) {
           const cur = this.currentTrack()!;
-          if (cur.title !== status.player.trackTitle) {
-            this.currentTrack.set({ ...cur, title: status.player.trackTitle });
+          const fwTitle = status.player.trackTitle;
+          const fwPath = status.player.trackId || '';
+          const curPath = cur.blobId || '';
+          if (fwPath && curPath && fwPath !== curPath) {
+            this.currentTrack.set({ ...cur, title: fwTitle, blobId: fwPath });
           }
         }
 

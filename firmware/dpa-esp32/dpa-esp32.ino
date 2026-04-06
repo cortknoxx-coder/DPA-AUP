@@ -78,7 +78,7 @@
 
 // Device identity
 String g_duid       = "DPA-AB12";
-String g_fwVersion  = "2.3.0";
+String g_fwVersion  = "2.4.1";
 
 // Admin mode (consumer-only by default, unlocked via button combo or API)
 bool   g_adminMode  = false;
@@ -619,6 +619,7 @@ void handleSyncFileUpload() {
     scanWavList();
 
     // Restart everything now that upload is done
+    WiFi.setSleep(true);  // Re-enable WiFi sleep to reduce DAC power rail noise
     captiveInit();
     server.begin();
     Serial.println("[HTTP] Async server + DNS restarted");
@@ -633,6 +634,7 @@ void handleSyncFileUpload() {
     g_syncWriteError = true;
     g_syncCompleted = false;
     g_syncStageUsed = 0;
+    WiFi.setSleep(true);  // Re-enable WiFi sleep
     captiveInit();
     server.begin();
     Serial.println("[HTTP] Async server + DNS restarted");
@@ -656,11 +658,18 @@ void setupSyncUploadServer() {
 
 // ── Setup ────────────────────────────────────────────────────
 void setup() {
+  // Force LED data pins LOW immediately to prevent stray pixels during boot
+  pinMode(5, OUTPUT);
+  digitalWrite(5, LOW);
+  pinMode(21, OUTPUT);
+  digitalWrite(21, LOW);
+  delay(1);
+
   Serial.begin(115200);
   delay(500);
   Serial.println();
   Serial.println("========================================");
-  Serial.println("  DPA Portal -- Firmware v2.3.0");
+  Serial.println("  DPA Portal -- Firmware v2.4.1");
   Serial.println("========================================");
 
   // 0. Button pins init (all INPUT_PULLUP, active LOW)
@@ -701,8 +710,16 @@ void setup() {
     // Load favorites from SD
     loadFavorites();
 
-    // Init on-device intelligence (analytics)
+    // Cover + per-track artwork folder (portal uploads to /art/)
+    if (!SD.exists("/art")) {
+      if (SD.mkdir("/art")) {
+        Serial.println("[SD] Created /art");
+      }
+    }
+
+    // Init on-device intelligence (analytics + capsules)
     analyticsInit();
+    capsulesLoad();
   } else {
     Serial.println("[BOOT] SD card not available (continuing without storage)");
   }
@@ -724,7 +741,7 @@ void setup() {
 
   // 6. Start WiFi (AP always on + STA if credentials stored)
   wifiInit(AP_PASSWORD, AP_CHANNEL, AP_MAX_CONN);
-  WiFi.setSleep(false);  // Prevent WiFi power management from disrupting SPI bus during SD writes
+  // WiFi.setSleep(false) is set only during uploads to avoid power rail noise on DAC line-out
 
   // 6b. Captive portal (DNS hijack — phones auto-open dashboard on WiFi connect)
   captiveInit();
@@ -741,7 +758,7 @@ void setup() {
       200, "text/html", DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN
     );
     response->addHeader("Content-Encoding", "gzip");
-    response->addHeader("Cache-Control", "max-age=3600");
+    response->addHeader("Cache-Control", "no-cache, must-revalidate");
     response->addHeader("ETag", "\"" + g_fwVersion + "\"");
     req->send(response);
   });
@@ -855,12 +872,16 @@ void loop() {
     if (!g_audioStopRequested && g_wavCount > 1) {
       // Natural end of track — auto-advance using smart playlist
       analyticsOnComplete(g_trackIndex);
+      // Flush analytics NOW before starting next track
+      // (otherwise g_audioPlaying goes true again and the flush is skipped)
+      analyticsFlushIfDirty();
       int next = playlistNextTrack(g_trackIndex);
       Serial.printf("[AUTO] Next track -> %d\n", next);
       playTrackByIndex(next);
     } else {
       // User stopped playback — stay idle
       analyticsOnStop(g_trackIndex);
+      analyticsFlushIfDirty();
       g_audioStopRequested = false;  // reset for next play
       Serial.println("[STOP] Playback stopped by user");
     }

@@ -1,10 +1,11 @@
-import { Component, inject, computed, signal } from '@angular/core';
+import { Component, inject, computed, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
 import { CryptoService } from '../../services/crypto.service';
 import { DeviceConnectionService } from '../../services/device-connection.service';
+import { DeviceTrack } from '../../types';
 
 interface UploadItem {
   id: string;
@@ -38,9 +39,145 @@ export class TrackListComponent {
   private readonly CLOUD_STREAM_BLOCK_MESSAGE =
     'No cloud streaming: connect your DPA over WiFi before uploading masters.';
 
+  // Device tracks (live from firmware when connected)
+  deviceTracks = signal<DeviceTrack[]>([]);
+  trackPlayCounts = signal<Record<string, number>>({});
+  isConnected = computed(() => this.connectionService.connectionStatus() === 'wifi');
+
+  // Combined track list: device tracks when connected, DataService tracks when not
+  displayTracks = computed(() => {
+    if (this.isConnected() && this.deviceTracks().length > 0) {
+      const counts = this.trackPlayCounts();
+      const a = this.album();
+      const localByFilename = new Map<string, string>();
+      if (a) {
+        for (const lt of a.tracks) {
+          if (lt.trackId?.startsWith('device://')) {
+            const parts = lt.trackId.replace('device://', '').split('/');
+            const fn = parts[parts.length - 1];
+            if (fn && lt.artworkUrl) localByFilename.set(fn, lt.artworkUrl);
+          }
+        }
+      }
+      return this.deviceTracks().map((t, i) => {
+        const leaf = t.filename.split('/').pop() || t.filename;
+        return {
+          index: i,
+          title: t.title,
+          id: t.filename,
+          durationSec: Math.round(t.durationMs / 1000),
+          filename: t.filename,
+          format: t.format || 'wav',
+          sampleRate: t.sampleRate,
+          bitsPerSample: t.bitsPerSample,
+          plays:
+            counts[t.filename] ??
+            counts[t.filename.split('/').pop() || ''] ??
+            0,
+          artworkUrl: localByFilename.get(leaf) || '',
+          isDevice: true,
+        };
+      });
+    }
+    const a = this.album();
+    if (!a) return [];
+    return a.tracks.map(t => ({
+      index: t.trackIndex,
+      title: t.title,
+      id: t.trackId,
+      durationSec: t.durationSec,
+      filename: '',
+      format: 'local',
+      sampleRate: undefined as number | undefined,
+      bitsPerSample: undefined as number | undefined,
+      plays: 0,
+      artworkUrl: t.artworkUrl || '',
+      isDevice: false,
+    }));
+  });
+
   // Simple Add Form State
   newTitle = signal('');
   newDuration = signal(180);
+
+  constructor() {
+    effect(() => {
+      if (this.connectionService.connectionStatus() === 'wifi') {
+        this.refreshDeviceTracks();
+      } else {
+        this.deviceTracks.set([]);
+      }
+    }, { allowSignalWrites: true });
+  }
+
+  private async refreshDeviceTracks() {
+    const tracks = await this.connectionService.wifi.getDeviceTracks();
+    this.deviceTracks.set(tracks);
+    // Fetch play counts
+    try {
+      const analytics = await this.connectionService.wifi.getAnalytics();
+      const counts: Record<string, number> = {};
+      for (const a of analytics) {
+        if (a.path && a.path.length > 0) {
+          counts[a.path] = a.plays;
+          const base = a.path.split('/').pop();
+          if (base) counts[base] = a.plays;
+        } else if (tracks[a.idx]) {
+          counts[tracks[a.idx].filename] = a.plays;
+        }
+      }
+      this.trackPlayCounts.set(counts);
+    } catch {}
+  }
+
+  async playOnDevice(filename: string) {
+    if (!this.isConnected()) return;
+    await this.connectionService.wifi.playFile(filename);
+  }
+
+  async stopOnDevice() {
+    if (!this.isConnected()) return;
+    await this.connectionService.wifi.sendCommand(0x02);
+  }
+
+  async deleteFromDevice(filename: string) {
+    if (!this.isConnected()) return;
+    if (!confirm(`Delete ${filename} from device storage?`)) return;
+    const ok = await this.connectionService.wifi.deleteFile(filename);
+    if (ok) {
+      await this.refreshDeviceTracks();
+    }
+  }
+
+  private deviceArtStem(pathOrFilename: string): string {
+    const base = pathOrFilename.split('/').pop() || pathOrFilename;
+    const noExt = base.replace(/\.(wav|dpa|WAV|DPA)$/i, '');
+    return noExt.replace(/[^a-zA-Z0-9_-]/g, '_') || 'track';
+  }
+
+  onTrackArtSelected(event: Event, trackId: string) {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+
+    const a = this.album();
+    if (!a) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      this.dataService.updateTrackArtwork(a.albumId, trackId, dataUrl);
+
+      if (this.isConnected()) {
+        const stem = trackId.includes('/')
+          ? this.deviceArtStem(trackId)
+          : trackId.replace(/[^a-zA-Z0-9_-]/g, '_');
+        await this.connectionService.wifi.uploadFileToPath(file, `/art/${stem}.jpg`);
+      }
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  }
 
   formatTime(sec: number): string {
     const m = Math.floor(sec / 60);
@@ -189,6 +326,9 @@ export class TrackListComponent {
       const duration = await this.getAudioDuration(file);
       this.dataService.addTrack(a.albumId, title, duration, `device://${duid}/${file.name}`);
     }
+
+    // Refresh device track list after successful upload
+    await this.refreshDeviceTracks();
 
     setTimeout(() => {
       this.uploads.update(items => items.filter(u => u.id !== item.id));

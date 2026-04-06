@@ -1,5 +1,5 @@
 
-import { Component, inject, computed, signal } from '@angular/core';
+import { Component, inject, computed, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
@@ -66,7 +66,36 @@ export class PerksConsoleComponent {
   selectedType = toSignal(this.form.get('eventType')!.valueChanges, { initialValue: 'concert' });
   pushState = signal<'idle' | 'pushing' | 'ok' | 'error'>('idle');
   pushMessage = signal<string>('');
-  private lastPushRequest = signal<{ eventType: DcnpEventType; capsuleId: string; payload: DcnpPayload } | null>(null);
+  private lastPushRequest = signal<{ albumId: string; eventType: DcnpEventType; capsuleId: string; payload: DcnpPayload } | null>(null);
+  private reconciled = false;
+
+  constructor() {
+    effect(() => {
+      const conn = this.connectionService.connectionStatus();
+      const a = this.album();
+      if (conn === 'wifi' && a && !this.reconciled) {
+        this.reconciled = true;
+        void this.reconcileWithDevice(a.albumId);
+      }
+      if (conn !== 'wifi') {
+        this.reconciled = false;
+      }
+    });
+  }
+
+  private async reconcileWithDevice(albumId: string) {
+    try {
+      const deviceCaps = await this.connectionService.wifi.getCapsules();
+      const deliveredIds = new Set(deviceCaps.filter((c: any) => c.id).map((c: any) => c.id as string));
+      const album = this.album();
+      if (!album) return;
+      for (const ev of album.dcnpEvents) {
+        if (ev.status === 'pending' && deliveredIds.has(ev.id)) {
+          this.dataService.markDcnpEventDelivered(albumId, ev.id);
+        }
+      }
+    } catch { /* device may not support this yet */ }
+  }
 
   create() {
     if (this.form.invalid) return;
@@ -102,7 +131,8 @@ export class PerksConsoleComponent {
           payload.price = val.videoPrice || 0;
           payload.cta = {
             label: val.videoPrice ? `Buy & Watch ($${val.videoPrice})` : 'Watch Video',
-            action: 'download' // Simulate downloading the video asset
+            url: val.videoUrl || undefined,
+            action: 'download'
           };
           payload.metadata = {
             exclusive: val.isExclusive || false
@@ -160,14 +190,18 @@ export class PerksConsoleComponent {
         return;
       }
 
+      const capsuleId = `cap-${Date.now().toString(36)}`;
+
       this.dataService.createDcnpEvent(a.albumId, {
+        id: capsuleId,
         eventType: type as any,
         payload: payload
       });
 
       const req = {
+        albumId: a.albumId,
         eventType: type as DcnpEventType,
-        capsuleId: `cap-${Date.now().toString(36)}`,
+        capsuleId,
         payload
       };
       this.lastPushRequest.set(req);
@@ -231,7 +265,7 @@ export class PerksConsoleComponent {
   }
 
   private async pushToDevice(
-    req: { eventType: DcnpEventType; capsuleId: string; payload: DcnpPayload },
+    req: { albumId: string; eventType: DcnpEventType; capsuleId: string; payload: DcnpPayload },
     isRetry: boolean
   ) {
     if (this.connectionService.connectionStatus() !== 'wifi') {
@@ -244,8 +278,9 @@ export class PerksConsoleComponent {
     this.pushMessage.set(isRetry ? 'Retrying capsule push...' : 'Pushing capsule to device...');
     const ok = await this.connectionService.wifi.pushCapsule(req.eventType, req.capsuleId, req.payload);
     if (ok) {
+      this.dataService.markDcnpEventDelivered(req.albumId, req.capsuleId);
       this.pushState.set('ok');
-      this.pushMessage.set('Capsule pushed to connected device.');
+      this.pushMessage.set('Capsule delivered to connected device.');
     } else {
       this.pushState.set('error');
       this.pushMessage.set('Device push failed. Verify connectivity and retry.');
