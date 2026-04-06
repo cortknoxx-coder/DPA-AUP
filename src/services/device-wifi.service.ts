@@ -279,7 +279,17 @@ export class DeviceWifiService {
     }
   }
 
-  async getAnalytics(): Promise<{ idx: number; plays: number; skips: number; listenMs: number; rating: number }[]> {
+  async getAnalytics(): Promise<
+    {
+      idx: number;
+      path?: string;
+      plays: number;
+      skips: number;
+      listenMs: number;
+      lastPlayedAt?: number;
+      rating: number;
+    }[]
+  > {
     try {
       const response = await fetch(`${this.baseUrl}/api/analytics`);
       const data = await response.json();

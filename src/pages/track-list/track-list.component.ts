@@ -57,7 +57,10 @@ export class TrackListComponent {
         format: t.format || 'wav',
         sampleRate: t.sampleRate,
         bitsPerSample: t.bitsPerSample,
-        plays: counts[t.filename] || 0,
+        plays:
+          counts[t.filename] ??
+          counts[t.filename.split('/').pop() || ''] ??
+          0,
         isDevice: true,
       }));
     }
@@ -99,7 +102,11 @@ export class TrackListComponent {
       const analytics = await this.connectionService.wifi.getAnalytics();
       const counts: Record<string, number> = {};
       for (const a of analytics) {
-        if (tracks[a.idx]) {
+        if (a.path && a.path.length > 0) {
+          counts[a.path] = a.plays;
+          const base = a.path.split('/').pop();
+          if (base) counts[base] = a.plays;
+        } else if (tracks[a.idx]) {
           counts[tracks[a.idx].filename] = a.plays;
         }
       }

@@ -273,13 +273,32 @@ export class FanAlbumDetailComponent {
 
   private async refreshAnalyticsFromDevice(m: Manifest) {
     const analytics = await this.wifi.getAnalytics();
+    const byPath = new Map<string, (typeof analytics)[0]>();
+    for (const a of analytics) {
+      if (a.path) {
+        byPath.set(this.normalizeFwPath(a.path), a);
+        const base = a.path.split('/').pop();
+        if (base) byPath.set(this.normalizeFwPath(base), a);
+      }
+    }
+    const paths = this.firmwarePathByTrackId();
     const counts: Record<string, number> = {};
     for (const t of m.tracks) {
-      const match = t.trackId.match(/^fw-(\d+)$/);
-      const fwIdx = match ? Number(match[1]) : -1;
-      const stat = analytics.find(a => a.idx === fwIdx);
+      const rawPath = paths[t.trackId] || t.blobId || '';
+      let stat =
+        (rawPath && byPath.get(this.normalizeFwPath(rawPath))) ||
+        (rawPath && byPath.get(this.normalizeFwPath(rawPath.split('/').pop() || '')));
+      if (!stat) {
+        const match = t.trackId.match(/^fw-(\d+)$/);
+        const fwIdx = match ? Number(match[1]) : -1;
+        stat = analytics.find(a => a.idx === fwIdx);
+      }
       counts[t.trackId] = stat?.plays ?? 0;
     }
     this.trackPlayCounts.set(counts);
+  }
+
+  private normalizeFwPath(p: string): string {
+    return p.trim().replace(/\\/g, '/').toLowerCase();
   }
 }
