@@ -215,12 +215,16 @@ void wifiInit(const char* apPassword, int apChannel, int apMaxConn) {
   WiFi.softAP(g_apSSID.c_str(), apPassword, apChannel, 0, apMaxConn);
   delay(100);
 
-  // Set long AP inactive timeout (default is too aggressive)
-  // and increase beacon interval visibility
+  // Maximize AP client retention — prevent disconnects
   wifi_config_t apConf;
   esp_wifi_get_config(WIFI_IF_AP, &apConf);
-  apConf.ap.beacon_interval = 100;  // 100ms beacon (default, but explicit)
+  apConf.ap.beacon_interval = 100;       // 100ms beacon
+  apConf.ap.max_connection = apMaxConn;
   esp_wifi_set_config(WIFI_IF_AP, &apConf);
+
+  // Keep WiFi radio active to prevent AP from dropping clients during playback
+  // This may add slight noise on line-out but maintains connection stability
+  WiFi.setSleep(false);
 
   IPAddress apIP = WiFi.softAPIP();
   Serial.println("[WIFI] AP started!");
