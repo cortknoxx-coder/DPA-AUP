@@ -80,9 +80,20 @@ export type PricingTier = 'entry' | 'premium' | 'collector';
           </div>
         </div>
       </div>
-       <div class="flex justify-end pt-8 border-t border-slate-800/50">
-        <button type="submit" [disabled]="!form.valid || !form.dirty" class="rounded bg-teal-600 px-8 py-2.5 text-sm font-semibold text-white hover:bg-teal-500 shadow-lg shadow-teal-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-          Save Metadata
+       @if (saveMessage()) {
+        <div class="rounded border px-3 py-2 text-xs mt-4"
+          [class.border-teal-500/40]="saveStatus() === 'ok'"
+          [class.text-teal-300]="saveStatus() === 'ok'"
+          [class.border-rose-500/40]="saveStatus() === 'error'"
+          [class.text-rose-300]="saveStatus() === 'error'"
+          [class.border-slate-700]="saveStatus() === 'saving'"
+          [class.text-slate-300]="saveStatus() === 'saving'">
+          {{ saveMessage() }}
+        </div>
+      }
+      <div class="flex justify-end pt-8 border-t border-slate-800/50">
+        <button type="submit" [disabled]="!form.valid || !form.dirty || saveStatus() === 'saving'" class="rounded bg-teal-600 px-8 py-2.5 text-sm font-semibold text-white hover:bg-teal-500 shadow-lg shadow-teal-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+          @if (saveStatus() === 'saving') { Saving... } @else { Save Metadata }
         </button>
       </div>
     </form>
@@ -91,10 +102,14 @@ export type PricingTier = 'entry' | 'premium' | 'collector';
 export class AlbumMetadataComponent {
   private route = inject(ActivatedRoute);
   private dataService = inject(DataService);
+  private connectionService = inject(DeviceConnectionService);
   private fb: FormBuilder = inject(FormBuilder);
 
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
+
+  saveStatus = signal<'idle' | 'saving' | 'ok' | 'error'>('idle');
+  saveMessage = signal('');
 
   form = this.fb.group({
     title: ['', Validators.required],
@@ -127,13 +142,38 @@ export class AlbumMetadataComponent {
     });
   }
 
-  save() {
+  async save() {
     const a = this.album();
-    if (a && this.form.valid) {
-      this.dataService.updateAlbumMetadata(a.albumId, this.form.value);
-      alert('Metadata saved!');
-      this.form.markAsPristine();
+    if (!a || !this.form.valid) return;
+
+    this.saveStatus.set('saving');
+    this.saveMessage.set('Saving metadata...');
+
+    // Save locally
+    this.dataService.updateAlbumMetadata(a.albumId, this.form.value);
+
+    // Push artist + album to device if connected (sets SSID + NVS)
+    if (this.connectionService.connectionStatus() === 'wifi') {
+      try {
+        const theme = { artist: this.form.value.artistName, album: this.form.value.title } as any;
+        const ok = await this.connectionService.wifi.pushTheme(theme);
+        if (ok) {
+          this.saveStatus.set('ok');
+          this.saveMessage.set('Metadata saved locally + pushed to device. SSID will update on next reboot.');
+        } else {
+          this.saveStatus.set('ok');
+          this.saveMessage.set('Metadata saved locally. Device push failed — retry when connected.');
+        }
+      } catch {
+        this.saveStatus.set('ok');
+        this.saveMessage.set('Metadata saved locally. Could not reach device.');
+      }
+    } else {
+      this.saveStatus.set('ok');
+      this.saveMessage.set('Metadata saved locally. Connect to device to push SSID update.');
     }
+
+    this.form.markAsPristine();
   }
 }
 
