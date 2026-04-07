@@ -74,7 +74,7 @@
     .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; animation: fadeUp 0.8s ease-out 0.3s both; margin-bottom: 3.5rem; }
 
     /* === HERO SHOWCASE — device + tablet side by side === */
-    .hero-showcase { display: flex; align-items: center; justify-content: center; gap: clamp(2rem, 5vw, 5rem); flex-wrap: wrap; animation: fadeUp 1.2s ease-out 0.4s both; margin-bottom: 2rem; perspective: 1400px; }
+    .hero-showcase { display: flex; align-items: center; justify-content: center; gap: clamp(2rem, 5vw, 5rem); flex-wrap: wrap; animation: fadeUp 1.2s ease-out 0.4s both; margin-bottom: 2rem; perspective: 1200px; transform-style: preserve-3d; }
 
     /* DPA DEVICE — solid aluminum slab, no screen */
     .hero-device-container { position: relative; display: inline-block; }
@@ -82,24 +82,79 @@
       width: clamp(280px, 38vw, 420px);
       aspect-ratio: 98.7 / 67;
       border-radius: 14px;
-      background: linear-gradient(155deg, #b8bcc5, #d4d8e0 12%, #e8ecf1 35%, #f1f5f9 50%, #e2e6ec 68%, #c5cad3 88%, #a8adb8);
       position: relative;
+      overflow: hidden;
+      transform-style: preserve-3d;
+      transform: rotateX(35deg) rotateY(-25deg) rotateZ(5deg);
+      animation: heroFloat 7s ease-in-out infinite;
+      transition: transform 0.6s cubic-bezier(0.23,1,0.32,1);
+    }
+    .hero-device:hover { transform: rotateX(15deg) rotateY(-10deg) rotateZ(2deg) scale(1.05); }
+    @keyframes heroFloat {
+      0%,100% { transform: translateY(0) rotateX(35deg) rotateY(-25deg) rotateZ(5deg); }
+      50% { transform: translateY(-18px) rotateX(30deg) rotateY(-20deg) rotateZ(3deg); }
+    }
+
+    /* Top face — the main visible surface */
+    .device-top {
+      position: absolute; inset: 0;
+      border-radius: 14px;
+      background: linear-gradient(155deg, #b8bcc5, #d4d8e0 12%, #e8ecf1 35%, #f1f5f9 50%, #e2e6ec 68%, #c5cad3 88%, #a8adb8);
       box-shadow:
         0 0 0 1px rgba(255,255,255,0.1),
         inset 0 1px 0 rgba(255,255,255,0.6),
-        inset 0 -1px 0 rgba(0,0,0,0.05),
-        0 4px 8px rgba(0,0,0,0.15),
-        0 15px 30px rgba(0,0,0,0.25),
-        0 40px 70px -20px rgba(0,0,0,0.45),
-        0 0 80px var(--glow-gold),
-        0 0 160px var(--glow-cyan);
-      animation: heroFloat 7s ease-in-out infinite;
+        inset 0 -1px 0 rgba(0,0,0,0.05);
+      z-index: 2;
       overflow: hidden;
-      transform: rotateX(5deg) rotateY(-4deg);
-      transition: transform 0.6s cubic-bezier(0.23,1,0.32,1);
     }
-    .hero-device:hover { transform: rotateX(0deg) rotateY(0deg) scale(1.04); }
-    @keyframes heroFloat { 0%,100% { transform: translateY(0) rotateX(5deg) rotateY(-4deg); } 50% { transform: translateY(-18px) rotateX(1deg) rotateY(1deg); } }
+
+    /* Right edge — shows 17mm depth */
+    .device-edge-right {
+      position: absolute;
+      top: 0; right: -16px; bottom: 0; width: 16px;
+      background: linear-gradient(to right, #8b919b, #9da3ad, #8b919b);
+      transform: rotateY(90deg);
+      transform-origin: left center;
+      border-radius: 0 4px 4px 0;
+      z-index: 1;
+    }
+    .device-edge-right::after {
+      content: '';
+      position: absolute; inset: 8% 0 8% 0;
+      width: 3px;
+      background: linear-gradient(to bottom, var(--gold), var(--cyan), var(--purple), var(--gold));
+      border-radius: 2px;
+      box-shadow: 0 0 8px var(--cyan);
+      animation: ledPulse 3s ease-in-out infinite;
+      right: 2px; left: auto;
+    }
+
+    /* Bottom edge — shows depth from below */
+    .device-edge-bottom {
+      position: absolute;
+      left: 0; right: 0; bottom: -16px; height: 16px;
+      background: linear-gradient(to bottom, #8b919b, #7d838d);
+      transform: rotateX(-90deg);
+      transform-origin: top center;
+      border-radius: 0 0 4px 4px;
+      z-index: 1;
+    }
+
+    /* Shadow on the ground plane */
+    .device-shadow {
+      position: absolute;
+      bottom: -40px; left: 10%; right: 10%; height: 30px;
+      background: radial-gradient(ellipse, rgba(0,0,0,0.35), transparent 70%);
+      filter: blur(15px);
+      z-index: 0;
+      transform: rotateX(90deg);
+    }
+
+    /* Combined device shadow for the whole assembly */
+    .hero-device-container {
+      position: relative; display: inline-block;
+      filter: drop-shadow(0 40px 60px rgba(0,0,0,0.4)) drop-shadow(0 0 80px rgba(245,158,11,0.15)) drop-shadow(0 0 120px rgba(6,182,212,0.1));
+    }
 
     /* Brushed aluminum texture */
     .hero-device .metal-tex { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0.08; background: repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(0,0,0,0.04) 1px, rgba(0,0,0,0.04) 2px); }
@@ -375,6 +430,7 @@
     <div class="hero-device-container">
       <div class="device-glow-ring"></div>
       <div class="hero-device">
+        <div class="device-top">
         <div class="metal-tex"></div>
         <div class="sheen"></div>
         <div class="led-strip"></div>
@@ -400,6 +456,9 @@
             <div class="chin-logo-sub">Audio</div>
           </div>
         </div>
+        </div><!-- end .device-top -->
+        <div class="device-edge-right"></div>
+        <div class="device-edge-bottom"></div>
       </div>
     </div>
 
