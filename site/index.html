@@ -141,6 +141,32 @@
     .spec .val { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; color: var(--cyan); }
     .spec .key { font-size: 0.72rem; color: var(--text-dim); margin-top: 0.25rem; }
 
+    /* === FEATURES GRID === */
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin-top: 3rem; }
+    .feat-card { padding: 1.75rem; border-radius: 1rem; border: 1px solid var(--border); background: rgba(10,10,26,0.5); transition: all 0.4s; }
+    .feat-card:hover { border-color: rgba(245,158,11,0.2); box-shadow: 0 0 30px var(--glow-gold); transform: translateY(-3px); }
+    .feat-card .feat-icon { font-size: 1.75rem; margin-bottom: 0.75rem; }
+    .feat-card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .feat-card p { font-size: 0.8rem; color: var(--text-dim); line-height: 1.5; }
+
+    /* === PRODUCT FAMILY === */
+    .family-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
+    .family-card { padding: 2rem 1.5rem; border-radius: 1.25rem; border: 1px solid var(--border); background: rgba(10,10,26,0.5); text-align: center; transition: all 0.4s; position: relative; overflow: hidden; }
+    .family-card:hover { transform: translateY(-5px); }
+    .family-card .family-badge { position: absolute; top: 0.75rem; right: 0.75rem; font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 999px; }
+    .badge-coming { background: rgba(245,158,11,0.1); color: var(--gold); border: 1px solid rgba(245,158,11,0.2); }
+    .badge-vision { background: rgba(168,85,247,0.1); color: var(--purple); border: 1px solid rgba(168,85,247,0.2); }
+    .family-card .family-icon { font-size: 2.5rem; margin-bottom: 1rem; display: block; }
+    .family-card h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.5rem; }
+    .family-card .family-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--gold); letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+    .family-card p { font-size: 0.8rem; color: var(--text-dim); line-height: 1.45; }
+    .family-card:nth-child(1):hover { border-color: rgba(245,158,11,0.3); box-shadow: 0 0 50px var(--glow-gold); }
+    .family-card:nth-child(2):hover { border-color: rgba(6,182,212,0.3); box-shadow: 0 0 50px var(--glow-cyan); }
+    .family-card:nth-child(3):hover { border-color: rgba(168,85,247,0.3); box-shadow: 0 0 50px var(--glow-purple); }
+    .family-card:nth-child(4):hover { border-color: rgba(236,72,153,0.3); box-shadow: 0 0 50px rgba(236,72,153,0.15); }
+    .family-card:nth-child(5):hover { border-color: rgba(16,185,129,0.3); box-shadow: 0 0 50px var(--glow-green); }
+    .family-card:nth-child(6):hover { border-color: rgba(245,158,11,0.3); box-shadow: 0 0 50px var(--glow-gold); }
+
     /* === AUDIENCE === */
     .audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 3rem; }
     @media (max-width: 768px) { .audience-grid { grid-template-columns: 1fr; } }
@@ -326,6 +352,110 @@
       <div class="spec"><div class="val">Capsule Perks</div><div class="key">Push content for life</div></div>
       <div class="spec"><div class="val">A2DP Bluetooth</div><div class="key">Wireless to speakers</div></div>
       <div class="spec"><div class="val">Unique Serial ID</div><div class="key">Every device is tracked</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PLATFORM FEATURES -->
+<section id="features">
+  <div class="container">
+    <div class="section-label">Platform Features</div>
+    <h2>More than a player.<br><span class="grad">A living ecosystem.</span></h2>
+    <p style="color: var(--text-dim); max-width: 600px; line-height: 1.7;">Every DPA™ device ships with software features that keep artists earning and fans engaged — long after the first play.</p>
+    <div class="features-grid">
+      <div class="feat-card">
+        <div class="feat-icon">❤️</div>
+        <h3>Favorites / Hearts</h3>
+        <p>Fans heart tracks on the device and from the portal. Synced to firmware. Artists see which tracks fans love most — real engagement data, not algorithm guesses.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🌍</div>
+        <h3>Fleet Tracker</h3>
+        <p>See every device you've sold on a live map. Track activations by region, monitor play counts, and spot where your fanbase is growing — in real time.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">📊</div>
+        <h3>Real Analytics</h3>
+        <p>Per-track play counts, listening duration, skip rates, favorite ratios. Know how fans actually experience your album — not just that they pressed play once.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🎨</div>
+        <h3>LED Theme Designer</h3>
+        <p>29 patterns including audio-reactive VU meters. Set your brand colors for idle, playback, and charging. Fans can customize too — their device, their vibe.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🎁</div>
+        <h3>Capsule Perks (DCNP)</h3>
+        <p>Push content to devices you sold years ago. Concert pre-sales, exclusive video, merch drops, remix stems, virtual signings. 6 event types. Direct to fan.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🖼️</div>
+        <h3>Cover Art & Booklet</h3>
+        <p>Upload album art, per-track art, credits, lyrics, and gallery images. Displayed on the device dashboard and fan portal. The full album experience, not just audio.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🔄</div>
+        <h3>Secondary Marketplace</h3>
+        <p>Fans trade DPA™ devices. Every resale is tracked by serial ID. Artists earn 10% royalty automatically. Limited editions appreciate. Your catalog keeps paying.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🔒</div>
+        <h3>Encrypted Content</h3>
+        <p>AES-256-GCM encryption locked to the device's unique serial ID. Your masters are secure at rest on the SD card. No ripping, no piracy, no compromise on quality.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THE DPA FAMILY -->
+<section id="family">
+  <div class="container" style="text-align: center;">
+    <div class="section-label" style="justify-content: center;">The DPA™ Family</div>
+    <h2>One format.<br><span class="grad-pink">Every industry.</span></h2>
+    <p style="color: var(--text-dim); max-width: 600px; margin: 0 auto; line-height: 1.7;">DPA™ started with music. But the format — hi-fi audio on a pocketable device with direct-to-owner perks — works everywhere content has value.</p>
+    <div class="family-grid">
+      <div class="family-card">
+        <span class="family-badge badge-coming">Launching</span>
+        <span class="family-icon">🎵</span>
+        <h3>DPA™ Music</h3>
+        <div class="family-sub">The original</div>
+        <p>One album, studio quality, LED visuals, capsule perks. The format that brings back real artist revenue. <strong style="color:#fff;">$20–$150 per unit.</strong></p>
+      </div>
+      <div class="family-card">
+        <span class="family-badge badge-coming">2027</span>
+        <span class="family-icon">🎬</span>
+        <h3>DPA™ Film</h3>
+        <div class="family-sub">Director's cut in your pocket</div>
+        <p>Film scores, commentary tracks, behind-the-scenes audio. The physical companion to a movie release — with exclusive content pushed after premiere.</p>
+      </div>
+      <div class="family-card">
+        <span class="family-badge badge-coming">2027</span>
+        <span class="family-icon">📚</span>
+        <h3>DPA™ Audiobook</h3>
+        <div class="family-sub">Author direct to listener</div>
+        <p>Hi-fi audiobooks with author-narrated extras, signed editions, chapter-specific perks. Authors earn per-unit, not per-listen. Audible can't do this.</p>
+      </div>
+      <div class="family-card">
+        <span class="family-badge badge-vision">2028</span>
+        <span class="family-icon">🚗</span>
+        <h3>DPA™ Inside</h3>
+        <div class="family-sub">Automotive &amp; home audio</div>
+        <p>DPA™ integrated into car infotainment and home audio systems. Tap your device to the dash — instant hi-fi playback with no phone, no streaming, no subscription.</p>
+      </div>
+      <div class="family-card">
+        <span class="family-badge badge-vision">2028</span>
+        <span class="family-icon">🎓</span>
+        <h3>DPA™ Academic</h3>
+        <div class="family-sub">Lectures &amp; courses</div>
+        <p>Professors, institutions, and course creators distribute lecture series on tamper-proof devices. Students own the content. No expiring access. No DRM headaches.</p>
+      </div>
+      <div class="family-card">
+        <span class="family-badge badge-coming">2027</span>
+        <span class="family-icon">🎧</span>
+        <h3>DPA™ Player</h3>
+        <div class="family-sub">The modern Walkman</div>
+        <p>A standalone multi-album DPA™ player. Load multiple devices worth of content. <strong style="color:#fff;">24-bit/96kHz</strong> playback through premium DAC. Bluetooth out. No phone required. The mp3 player — done right.</p>
+      </div>
     </div>
   </div>
 </section>
