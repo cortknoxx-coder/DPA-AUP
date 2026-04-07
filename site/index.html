@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DPAC™ — The Future of Music Ownership</title>
+  <meta name="description" content="DPA™ is a new physical music format. Artists earn real money. Fans own something real. Launching 2028.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #030014;
+      --surface: #0a0a1a;
+      --border: rgba(255,255,255,0.06);
+      --text: #e2e8f0;
+      --text-dim: #64748b;
+      --accent: #06b6d4;
+      --accent2: #a855f7;
+      --accent3: #ec4899;
+      --glow-cyan: rgba(6,182,212,0.15);
+      --glow-purple: rgba(168,85,247,0.15);
+      --glow-pink: rgba(236,72,153,0.1);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* === AMBIENT BACKGROUND === */
+    .ambient {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .ambient .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.4;
+      animation: drift 20s ease-in-out infinite alternate;
+    }
+    .ambient .orb:nth-child(1) {
+      width: 600px; height: 600px;
+      background: var(--accent);
+      top: -200px; left: -100px;
+      animation-duration: 25s;
+    }
+    .ambient .orb:nth-child(2) {
+      width: 500px; height: 500px;
+      background: var(--accent2);
+      top: 40%; right: -150px;
+      animation-duration: 18s;
+      animation-delay: -5s;
+    }
+    .ambient .orb:nth-child(3) {
+      width: 400px; height: 400px;
+      background: var(--accent3);
+      bottom: -100px; left: 30%;
+      animation-duration: 22s;
+      animation-delay: -10s;
+    }
+    @keyframes drift {
+      0% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(40px, -30px) scale(1.05); }
+      66% { transform: translate(-20px, 20px) scale(0.95); }
+      100% { transform: translate(30px, -10px) scale(1.02); }
+    }
+
+    .grid-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+
+    /* === NAV === */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(3,0,20,0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-weight: 900;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-logo sup { font-size: 0.5em; font-weight: 400; }
+    .nav-links { display: flex; gap: 2rem; align-items: center; }
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: color 0.3s;
+    }
+    .nav-links a:hover { color: var(--accent); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.5rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-decoration: none;
+      transition: all 0.3s;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      box-shadow: 0 0 30px rgba(6,182,212,0.3), 0 0 60px rgba(168,85,247,0.15);
+    }
+    .btn-primary:hover {
+      box-shadow: 0 0 40px rgba(6,182,212,0.5), 0 0 80px rgba(168,85,247,0.3);
+      transform: translateY(-2px);
+    }
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .btn-outline:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 0 20px var(--glow-cyan);
+    }
+
+    /* === SECTIONS === */
+    section {
+      position: relative;
+      z-index: 1;
+      padding: 6rem 2rem;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .section-label::before {
+      content: '';
+      width: 2rem;
+      height: 1px;
+      background: var(--accent);
+    }
+    h2 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 1.5rem;
+    }
+    h2 .gradient {
+      background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* === HERO === */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding-top: 6rem;
+    }
+    .hero-inner { max-width: 800px; }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 1rem;
+      border-radius: 999px;
+      border: 1px solid rgba(168,85,247,0.3);
+      background: rgba(168,85,247,0.08);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #c084fc;
+      margin-bottom: 2rem;
+      animation: fadeUp 1s ease-out;
+    }
+    .hero-badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #a855f7;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(168,85,247,0.4); }
+      50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(168,85,247,0); }
+    }
+    .hero h1 {
+      font-size: clamp(2.5rem, 7vw, 5.5rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      margin-bottom: 1.5rem;
+      animation: fadeUp 1s ease-out 0.1s both;
+    }
+    .hero h1 .line2 {
+      background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: var(--text-dim);
+      line-height: 1.7;
+      max-width: 600px;
+      margin: 0 auto 2.5rem;
+      animation: fadeUp 1s ease-out 0.2s both;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      animation: fadeUp 1s ease-out 0.3s both;
+    }
+    .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 3rem;
+      margin-top: 4rem;
+      padding-top: 3rem;
+      border-top: 1px solid var(--border);
+      animation: fadeUp 1s ease-out 0.4s both;
+    }
+    .hero-stat { text-align: center; }
+    .hero-stat .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-stat .label {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 0.25rem;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* === PROBLEM === */
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 3rem;
+    }
+    .problem-card {
+      padding: 2rem;
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      background: rgba(10,10,26,0.6);
+      backdrop-filter: blur(10px);
+      transition: all 0.4s;
+    }
+    .problem-card:hover {
+      border-color: rgba(168,85,247,0.3);
+      box-shadow: 0 0 40px var(--glow-purple);
+      transform: translateY(-4px);
+    }
+    .problem-card .icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .problem-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .problem-card p {
+      font-size: 0.9rem;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+    .strike { text-decoration: line-through; opacity: 0.4; }
+
+    /* === HOW IT WORKS === */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 2rem;
+      margin-top: 3rem;
+    }
+    .step {
+      text-align: center;
+      padding: 2rem 1.5rem;
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      background: rgba(10,10,26,0.4);
+      position: relative;
+      transition: all 0.4s;
+    }
+    .step:hover {
+      border-color: rgba(6,182,212,0.3);
+      box-shadow: 0 0 40px var(--glow-cyan);
+    }
+    .step-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      opacity: 0.3;
+      line-height: 1;
+      margin-bottom: 1rem;
+    }
+    .step h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .step p { font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; }
+
+    /* === DEVICE === */
+    .device-section {
+      text-align: center;
+    }
+    .device-showcase {
+      margin-top: 3rem;
+      position: relative;
+      display: flex;
+      justify-content: center;
+    }
+    .device-mock {
+      width: 380px;
+      height: 240px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #e2e8f0, #f8fafc, #cbd5e1);
+      position: relative;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.1),
+        0 25px 60px rgba(0,0,0,0.5),
+        0 0 100px var(--glow-cyan),
+        0 0 200px var(--glow-purple);
+      animation: float 6s ease-in-out infinite;
+      overflow: hidden;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotateX(2deg); }
+      50% { transform: translateY(-15px) rotateX(-1deg); }
+    }
+    .device-mock::after {
+      content: 'DPA™';
+      position: absolute;
+      bottom: 12px;
+      right: 16px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: rgba(100,116,139,0.5);
+      letter-spacing: -0.02em;
+    }
+    .device-screen {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 75%;
+      background: linear-gradient(135deg, #0f172a, #1e1b4b, #0f172a);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .device-screen .bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 60px;
+    }
+    .device-screen .bar {
+      width: 4px;
+      border-radius: 2px;
+      background: linear-gradient(to top, var(--accent), var(--accent2));
+      animation: eq 1.2s ease-in-out infinite alternate;
+    }
+    .device-screen .bar:nth-child(1) { height: 20px; animation-delay: 0s; }
+    .device-screen .bar:nth-child(2) { height: 35px; animation-delay: 0.1s; }
+    .device-screen .bar:nth-child(3) { height: 50px; animation-delay: 0.2s; }
+    .device-screen .bar:nth-child(4) { height: 25px; animation-delay: 0.3s; }
+    .device-screen .bar:nth-child(5) { height: 45px; animation-delay: 0.15s; }
+    .device-screen .bar:nth-child(6) { height: 30px; animation-delay: 0.25s; }
+    .device-screen .bar:nth-child(7) { height: 55px; animation-delay: 0.05s; }
+    .device-screen .bar:nth-child(8) { height: 40px; animation-delay: 0.35s; }
+    .device-screen .bar:nth-child(9) { height: 20px; animation-delay: 0.2s; }
+    .device-screen .bar:nth-child(10) { height: 48px; animation-delay: 0.1s; }
+    @keyframes eq {
+      0% { transform: scaleY(0.4); }
+      100% { transform: scaleY(1); }
+    }
+    .device-glow {
+      position: absolute;
+      inset: -8px;
+      border-radius: 20px;
+      z-index: -1;
+      background: none;
+      box-shadow: 0 0 30px var(--accent), 0 0 60px var(--accent2);
+      animation: breathe 4s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 0.8; }
+    }
+
+    .spec-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-top: 3rem;
+      text-align: left;
+    }
+    .spec {
+      padding: 1.25rem;
+      border-radius: 0.75rem;
+      border: 1px solid var(--border);
+      background: rgba(10,10,26,0.5);
+    }
+    .spec .val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .spec .key {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-top: 0.25rem;
+    }
+
+    /* === FOR ARTISTS / FANS === */
+    .audience-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-top: 3rem;
+    }
+    @media (max-width: 768px) { .audience-grid { grid-template-columns: 1fr; } }
+    .audience-card {
+      padding: 2.5rem;
+      border-radius: 1.25rem;
+      border: 1px solid var(--border);
+      background: rgba(10,10,26,0.5);
+      backdrop-filter: blur(10px);
+      transition: all 0.4s;
+    }
+    .audience-card:first-child:hover {
+      border-color: rgba(6,182,212,0.3);
+      box-shadow: 0 0 60px var(--glow-cyan);
+    }
+    .audience-card:last-child:hover {
+      border-color: rgba(236,72,153,0.3);
+      box-shadow: 0 0 60px var(--glow-pink);
+    }
+    .audience-card h3 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin-bottom: 1.25rem;
+    }
+    .audience-card ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .audience-card li {
+      font-size: 0.9rem;
+      color: var(--text-dim);
+      line-height: 1.5;
+      padding-left: 1.5rem;
+      position: relative;
+    }
+    .audience-card li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .audience-card:last-child li::before { color: var(--accent3); }
+
+    /* === ROADMAP === */
+    .timeline {
+      margin-top: 3rem;
+      position: relative;
+      padding-left: 3rem;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 7px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--accent), var(--accent2), var(--accent3), rgba(255,255,255,0.05));
+    }
+    .tl-item {
+      position: relative;
+      padding-bottom: 2.5rem;
+    }
+    .tl-dot {
+      position: absolute;
+      left: -2.85rem;
+      top: 4px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 3px solid var(--accent);
+      background: var(--bg);
+    }
+    .tl-item.done .tl-dot {
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+    .tl-item.active .tl-dot {
+      border-color: var(--accent2);
+      background: var(--accent2);
+      box-shadow: 0 0 12px var(--accent2);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    .tl-item.future .tl-dot {
+      border-color: rgba(255,255,255,0.15);
+      background: var(--bg);
+    }
+    .tl-date {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.35rem;
+    }
+    .tl-item.active .tl-date { color: var(--accent2); }
+    .tl-item.future .tl-date { color: var(--text-dim); }
+    .tl-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .tl-desc { font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; }
+
+    /* === CTA === */
+    .cta-section {
+      text-align: center;
+      padding: 8rem 2rem;
+    }
+    .cta-box {
+      max-width: 650px;
+      margin: 0 auto;
+      padding: 3.5rem;
+      border-radius: 1.5rem;
+      border: 1px solid rgba(168,85,247,0.2);
+      background: rgba(168,85,247,0.04);
+      backdrop-filter: blur(20px);
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-box::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 1.5rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+      z-index: -1;
+      opacity: 0.15;
+      filter: blur(1px);
+    }
+    .cta-box h2 { font-size: 2rem; margin-bottom: 1rem; }
+    .cta-box p { color: var(--text-dim); margin-bottom: 2rem; line-height: 1.6; }
+    .cta-form {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .cta-form input {
+      padding: 0.8rem 1.25rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(0,0,0,0.4);
+      color: #fff;
+      font-size: 0.9rem;
+      font-family: 'Inter', sans-serif;
+      width: 280px;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+    .cta-form input:focus { border-color: var(--accent); }
+    .cta-form input::placeholder { color: var(--text-dim); }
+
+    /* === FOOTER === */
+    footer {
+      position: relative;
+      z-index: 1;
+      padding: 3rem 2rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+    footer p {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      line-height: 1.8;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 640px) {
+      nav { padding: 0.75rem 1rem; }
+      .nav-links a:not(.btn) { display: none; }
+      .hero-stats { gap: 1.5rem; flex-wrap: wrap; }
+      section { padding: 4rem 1.25rem; }
+      .device-mock { width: 300px; height: 190px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Background -->
+  <div class="ambient">
+    <div class="orb"></div>
+    <div class="orb"></div>
+    <div class="orb"></div>
+  </div>
+  <div class="grid-overlay"></div>
+
+  <!-- Nav -->
+  <nav>
+    <div class="nav-logo">DPAC<sup>™</sup></div>
+    <div class="nav-links">
+      <a href="#problem">Why</a>
+      <a href="#device">Device</a>
+      <a href="#community">Community</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#enquire" class="btn btn-primary">Enquire</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        Building in public — Target launch 2028
+      </div>
+      <h1>
+        Music ownership<br>
+        <span class="line2">reimagined.</span>
+      </h1>
+      <p>
+        DPA™ is a new physical music format that gives artists back what streaming took away — real revenue, direct fan relationships, and a product worth owning.
+      </p>
+      <div class="hero-actions">
+        <a href="#enquire" class="btn btn-primary">Request Early Access</a>
+        <a href="#problem" class="btn btn-outline">Learn More</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="num">$0.003</div>
+          <div class="label">Per stream (avg)</div>
+        </div>
+        <div class="hero-stat">
+          <div class="num">$20–50+</div>
+          <div class="label">Per DPA™ sold</div>
+        </div>
+        <div class="hero-stat">
+          <div class="num">∞</div>
+          <div class="label">Perks after sale</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Problem -->
+  <section id="problem">
+    <div class="container">
+      <div class="section-label">The Problem</div>
+      <h2>Streaming broke the <span class="gradient">music economy.</span></h2>
+      <p style="color: var(--text-dim); max-width: 600px; line-height: 1.7;">
+        In the CD era, artists earned $1–2 per unit. Today, an artist needs 350,000 streams to match what 1,000 CD sales made. The money didn't disappear — it just stopped reaching creators.
+      </p>
+      <div class="problem-grid">
+        <div class="problem-card">
+          <div class="icon" style="background: rgba(239,68,68,0.1);">💿</div>
+          <h3><span class="strike">Streaming</span> Renting</h3>
+          <p>Fans don't own anything. Artists don't earn anything. Algorithms decide who gets heard. One platform change can erase your audience overnight.</p>
+        </div>
+        <div class="problem-card">
+          <div class="icon" style="background: rgba(168,85,247,0.1);">📀</div>
+          <h3>Vinyl is stuck in 1960</h3>
+          <p>$1.2B market proves fans pay premium for physical music. But zero interactivity — once sold, the artist-fan connection is over. No updates, no perks, no relationship.</p>
+        </div>
+        <div class="problem-card">
+          <div class="icon" style="background: rgba(6,182,212,0.1);">✦</div>
+          <h3>DPA™ changes everything</h3>
+          <p>A physical device that plays hi-fi audio, receives perks for life, and earns artists real money on every sale and resale. The format that should have come after CDs.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Device -->
+  <section id="device" class="device-section">
+    <div class="container">
+      <div class="section-label" style="justify-content: center;">The Device</div>
+      <h2>Credit card sized.<br><span class="gradient">Studio quality.</span></h2>
+      <p style="color: var(--text-dim); max-width: 550px; margin: 0 auto; line-height: 1.7;">
+        One album. FLAC 24/96. A DAC that rivals $300 players. 29 LED visualizer patterns. And a direct channel from artist to fan that never expires.
+      </p>
+      <div class="device-showcase">
+        <div style="position: relative;">
+          <div class="device-glow"></div>
+          <div class="device-mock">
+            <div class="device-screen">
+              <div class="bars">
+                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                <div class="bar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec-grid">
+        <div class="spec"><div class="val">FLAC 24/96</div><div class="key">Studio-grade audio</div></div>
+        <div class="spec"><div class="val">PCM5122 DAC</div><div class="key">Audiophile decode</div></div>
+        <div class="spec"><div class="val">29 Patterns</div><div class="key">Audio-reactive LEDs</div></div>
+        <div class="spec"><div class="val">WiFi + BLE + NFC</div><div class="key">Triple connectivity</div></div>
+        <div class="spec"><div class="val">85.6 × 54mm</div><div class="key">Credit card form factor</div></div>
+        <div class="spec"><div class="val">Capsule Perks</div><div class="key">Artist → fan direct push</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- For Artists / For Fans -->
+  <section id="community">
+    <div class="container">
+      <div class="section-label">The Community</div>
+      <h2>Built for <span class="gradient">creators and fans.</span></h2>
+      <div class="audience-grid">
+        <div class="audience-card">
+          <h3 style="color: var(--accent);">For Artists & Creators</h3>
+          <ul>
+            <li>Earn $20–50+ per unit — not $0.003 per stream</li>
+            <li>Upload your masters in studio quality (FLAC 24/96)</li>
+            <li>Push perks directly to every device you've sold — concert tickets, merch drops, exclusive remixes, video content</li>
+            <li>Earn 10% royalty on every secondary market resale</li>
+            <li>Keep 100% of your master rights. No label required</li>
+            <li>Your LED theme, your branding, your artist identity on the device</li>
+            <li>Real analytics — know how fans actually listen</li>
+          </ul>
+        </div>
+        <div class="audience-card">
+          <h3 style="color: var(--accent3);">For Fans & Collectors</h3>
+          <ul>
+            <li>Own something real — not a playlist that disappears</li>
+            <li>Studio-quality audio through a dedicated hi-fi DAC</li>
+            <li>Receive perks from your favorite artist for life — no app needed</li>
+            <li>29 LED visualizer patterns react to the music in real-time</li>
+            <li>Bluetooth wireless to your speakers and headphones</li>
+            <li>Resell on the secondary market — value appreciates for limited runs</li>
+            <li>Connect via WiFi, NFC tap, or Bluetooth — works without internet</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section>
+    <div class="container" style="text-align: center;">
+      <div class="section-label" style="justify-content: center;">How It Works</div>
+      <h2>From studio to <span class="gradient">fan's hands.</span></h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">01</div>
+          <h3>Create</h3>
+          <p>Upload your album, design your LED theme, set your price. The creator portal handles everything.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">02</div>
+          <h3>Manufacture</h3>
+          <p>We flash your music onto DPA™ devices. Order 50 or 50,000. Each unit has a unique serial ID.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">03</div>
+          <h3>Sell</h3>
+          <p>At shows, online, in stores. You set the price. You keep the margin. No middleman.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">04</div>
+          <h3>Push Perks</h3>
+          <p>Months or years later — push concert tickets, exclusive content, merch drops directly to every device you've sold.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Roadmap -->
+  <section id="roadmap">
+    <div class="container">
+      <div class="section-label">Roadmap</div>
+      <h2>Where we're <span class="gradient">headed.</span></h2>
+      <div class="timeline">
+        <div class="tl-item done">
+          <div class="tl-dot"></div>
+          <div class="tl-date">Dec 2025 – Apr 2026</div>
+          <div class="tl-title">Prototype & Platform</div>
+          <div class="tl-desc">Working hardware prototype. Creator portal. Fan portal. Firmware with 15+ API endpoints. 29 LED patterns. Capsule perk delivery. 130MB studio master upload proven.</div>
+        </div>
+        <div class="tl-item active">
+          <div class="tl-dot"></div>
+          <div class="tl-date">Q2 – Q3 2026</div>
+          <div class="tl-title">Security & Pilot</div>
+          <div class="tl-desc">AES-256-GCM content encryption locked to device. First 100-unit pilot run with real artists. Manufacturing tooling. Community beta.</div>
+        </div>
+        <div class="tl-item future">
+          <div class="tl-dot"></div>
+          <div class="tl-date">Q4 2026 – 2027</div>
+          <div class="tl-title">Scale & Ecosystem</div>
+          <div class="tl-desc">Production manufacturing. Backend infrastructure. Artist onboarding. Marketplace for secondary sales. Mobile companion app.</div>
+        </div>
+        <div class="tl-item future">
+          <div class="tl-dot"></div>
+          <div class="tl-date">2028</div>
+          <div class="tl-title">Public Launch</div>
+          <div class="tl-desc">DPA™ available to all artists and fans worldwide. The new standard for physical music.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section" id="enquire">
+    <div class="cta-box">
+      <h2>Join the <span class="gradient">movement.</span></h2>
+      <p>
+        We're building DPA™ in public and onboarding artists for our first pilot run. Whether you're a creator, a fan, or an investor — we want to hear from you.
+      </p>
+      <form class="cta-form" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+        <input type="email" name="email" placeholder="your@email.com" required>
+        <button type="submit" class="btn btn-primary">Enquire for More</button>
+      </form>
+      <p style="margin-top: 1.25rem; font-size: 0.75rem; color: var(--text-dim);">
+        No spam. We'll reach out when it's time. Artists, labels, and investors — tell us who you are.
+      </p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <p>
+      &copy; 2026 The DPAC™ (Digital Playback Asset Consortium). All rights reserved.<br>
+      DPA™ is a trademark of The DPAC. Currently in development — target launch 2028.<br>
+      <a href="#enquire">Request Access</a>
+    </p>
+  </footer>
+
+</body>
+</html>
