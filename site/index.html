@@ -883,15 +883,40 @@
       <p>
         We're building DPA™ in public and onboarding artists for our first pilot run. Whether you're a creator, a fan, or an investor — we want to hear from you.
       </p>
-      <form class="cta-form" action="mailto:cortney@dpaconsortium.org" method="POST" enctype="text/plain">
-        <input type="email" name="email" placeholder="your@email.com" required>
-        <button type="submit" class="btn btn-primary">Enquire for More</button>
+      <form class="cta-form" action="mailto:inquiries@dpaconsortium.org" method="POST" enctype="text/plain" style="flex-direction: column; align-items: center; gap: 1rem; max-width: 420px; margin: 0 auto;">
+        <input type="email" name="email" placeholder="your@email.com" required style="width: 100%;">
+        <input type="text" name="name" placeholder="Your name" style="width: 100%; padding: 0.8rem 1.25rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #fff; font-size: 0.9rem; font-family: 'Inter', sans-serif; outline: none;">
+        <div style="width: 100%; text-align: left;">
+          <label style="display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.5rem;">I am a...</label>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--text); cursor: pointer; padding: 0.4rem 0.75rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); transition: all 0.3s;">
+              <input type="radio" name="role" value="artist" style="accent-color: var(--accent);"> Artist / Musician
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--text); cursor: pointer; padding: 0.4rem 0.75rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); transition: all 0.3s;">
+              <input type="radio" name="role" value="label" style="accent-color: var(--accent2);"> Label / Distributor
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--text); cursor: pointer; padding: 0.4rem 0.75rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); transition: all 0.3s;">
+              <input type="radio" name="role" value="fan" style="accent-color: var(--accent3);"> Fan / Collector
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--text); cursor: pointer; padding: 0.4rem 0.75rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); transition: all 0.3s;">
+              <input type="radio" name="role" value="creator" style="accent-color: var(--accent);"> Content Creator
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--text); cursor: pointer; padding: 0.4rem 0.75rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); transition: all 0.3s;">
+              <input type="radio" name="role" value="investor" style="accent-color: var(--accent2);"> Investor / Partner
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--text); cursor: pointer; padding: 0.4rem 0.75rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); transition: all 0.3s;">
+              <input type="radio" name="role" value="other" style="accent-color: var(--accent3);"> Other
+            </label>
+          </div>
+        </div>
+        <textarea name="message" placeholder="What excites you most about owning or selling music as a physical format again?" rows="3" style="width: 100%; padding: 0.8rem 1.25rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #fff; font-size: 0.85rem; font-family: 'Inter', sans-serif; outline: none; resize: vertical;"></textarea>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Enquire for More</button>
       </form>
       <p style="margin-top: 1.25rem; font-size: 0.75rem; color: var(--text-dim);">
-        No spam. We'll reach out when it's time. Artists, labels, and investors — tell us who you are.
+        No spam. We'll reach out when it's time.
       </p>
       <p style="margin-top: 0.75rem; font-size: 0.8rem;">
-        Or email us directly: <a href="mailto:cortney@dpaconsortium.org" style="color: var(--accent); text-decoration: none; font-weight: 600;">cortney@dpaconsortium.org</a>
+        Or email us directly: <a href="mailto:inquiries@dpaconsortium.org" style="color: var(--accent); text-decoration: none; font-weight: 600;">inquiries@dpaconsortium.org</a>
       </p>
     </div>
   </section>
@@ -901,7 +926,7 @@
     <p>
       &copy; 2026 The DPAC™ (Digital Playback Asset Consortium). All rights reserved.<br>
       DPA™ is a trademark of The DPAC. Currently in development — target launch 2028.<br>
-      <a href="mailto:cortney@dpaconsortium.org">cortney@dpaconsortium.org</a> · <a href="#enquire">Request Access</a>
+      <a href="mailto:inquiries@dpaconsortium.org">inquiries@dpaconsortium.org</a> · <a href="#enquire">Request Access</a>
     </p>
   </footer>
 
