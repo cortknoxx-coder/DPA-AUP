@@ -240,7 +240,8 @@
     .rev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
     .rev-card { padding: 2rem; border-radius: 1rem; border: 1px solid var(--border); background: rgba(10,10,26,0.5); transition: all 0.4s; }
     .rev-card:hover { border-color: rgba(245,158,11,0.25); box-shadow: 0 0 40px var(--glow-gold); transform: translateY(-3px); }
-    .rev-card .rev-icon { font-size: 2rem; margin-bottom: 1rem; }
+    .rev-card .rev-icon { width: 48px; height: 48px; margin-bottom: 1rem; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+    .rev-card .rev-icon svg { width: 24px; height: 24px; }
     .rev-card .rev-amount { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, var(--gold), var(--green)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.25rem; }
     .rev-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
     .rev-card p { font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; }
@@ -255,7 +256,8 @@
     .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin-top: 3rem; }
     .feat-card { padding: 1.75rem; border-radius: 1rem; border: 1px solid var(--border); background: rgba(10,10,26,0.5); transition: all 0.4s; }
     .feat-card:hover { border-color: rgba(245,158,11,0.2); box-shadow: 0 0 30px var(--glow-gold); transform: translateY(-3px); }
-    .feat-card .feat-icon { font-size: 1.75rem; margin-bottom: 0.75rem; }
+    .feat-card .feat-icon { width: 40px; height: 40px; margin-bottom: 0.75rem; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+    .feat-card .feat-icon svg { width: 20px; height: 20px; }
     .feat-card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.4rem; }
     .feat-card p { font-size: 0.8rem; color: var(--text-dim); line-height: 1.5; }
 
@@ -266,7 +268,8 @@
     .family-card .family-badge { position: absolute; top: 0.75rem; right: 0.75rem; font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 999px; }
     .badge-coming { background: rgba(245,158,11,0.1); color: var(--gold); border: 1px solid rgba(245,158,11,0.2); }
     .badge-vision { background: rgba(168,85,247,0.1); color: var(--purple); border: 1px solid rgba(168,85,247,0.2); }
-    .family-card .family-icon { font-size: 2.5rem; margin-bottom: 1rem; display: block; }
+    .family-card .family-icon { width: 56px; height: 56px; margin: 0 auto 1rem; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+    .family-card .family-icon svg { width: 28px; height: 28px; }
     .family-card h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.5rem; }
     .family-card .family-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--gold); letter-spacing: 0.08em; margin-bottom: 0.5rem; }
     .family-card p { font-size: 0.8rem; color: var(--text-dim); line-height: 1.45; }
@@ -423,27 +426,27 @@
             <div class="tab-track">
               <div class="tab-track-num">1</div>
               <div class="tab-track-name">Neon Rain</div>
-              <div class="tab-track-heart">❤</div>
+              <div class="tab-track-heart"><svg width="8" height="8" viewBox="0 0 24 24" fill="#ec4899"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
             </div>
             <div class="tab-track">
               <div class="tab-track-num">2</div>
               <div class="tab-track-name">Cyber Heart</div>
-              <div class="tab-track-heart">♡</div>
+              <div class="tab-track-heart"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
             </div>
             <div class="tab-track">
               <div class="tab-track-num">3</div>
               <div class="tab-track-name">Analog Dreams</div>
-              <div class="tab-track-heart">❤</div>
+              <div class="tab-track-heart"><svg width="8" height="8" viewBox="0 0 24 24" fill="#ec4899"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
             </div>
             <div class="tab-track">
               <div class="tab-track-num">4</div>
               <div class="tab-track-name">Digital Sunset</div>
-              <div class="tab-track-heart">♡</div>
+              <div class="tab-track-heart"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
             </div>
             <div class="tab-track">
               <div class="tab-track-num">5</div>
               <div class="tab-track-name">Chrome Waves</div>
-              <div class="tab-track-heart">♡</div>
+              <div class="tab-track-heart"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
             </div>
           </div>
           <div class="tab-led-bar">
@@ -507,19 +510,19 @@
     <h2>Three ways to <span class="grad-green">get paid.</span></h2>
     <div class="rev-grid">
       <div class="rev-card">
-        <div class="rev-icon">💰</div>
+        <div class="rev-icon" style="background:rgba(245,158,11,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
         <div class="rev-amount">$20–$50+ margin</div>
         <h3>Hardware Sales</h3>
         <p>You buy devices wholesale at $35. Sell at $60–$150. Keep the spread. Same economics artists had with CDs — but better.</p>
       </div>
       <div class="rev-card">
-        <div class="rev-icon">🎁</div>
+        <div class="rev-icon" style="background:rgba(168,85,247,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18M8 8c0-2 1-4 4-4s4 2 4 4"/></svg></div>
         <div class="rev-amount">$5–$25 per perk</div>
         <h3>Capsule Perks</h3>
         <p>Push paid content directly to fans' devices: exclusive video ($5), remix stems ($10), concert pre-sale ($25). No App Store cut. No middleman.</p>
       </div>
       <div class="rev-card">
-        <div class="rev-icon">🔄</div>
+        <div class="rev-icon" style="background:rgba(16,185,129,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg></div>
         <div class="rev-amount">10% of every trade</div>
         <h3>Secondary Royalties</h3>
         <p>Every time a fan resells a DPA™, you earn 10%. Limited editions appreciate in value. Your back catalog keeps paying.</p>
@@ -555,42 +558,42 @@
     <p style="color: var(--text-dim); max-width: 600px; line-height: 1.7;">Every DPA™ device ships with software features that keep artists earning and fans engaged — long after the first play.</p>
     <div class="features-grid">
       <div class="feat-card">
-        <div class="feat-icon">❤️</div>
+        <div class="feat-icon" style="background:rgba(236,72,153,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="1.5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></div>
         <h3>Favorites / Hearts</h3>
         <p>Fans heart tracks on the device and from the portal. Synced to firmware. Artists see which tracks fans love most — real engagement data, not algorithm guesses.</p>
       </div>
       <div class="feat-card">
-        <div class="feat-icon">🌍</div>
+        <div class="feat-icon" style="background:rgba(6,182,212,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
         <h3>Fleet Tracker</h3>
         <p>See every device you've sold on a live map. Track activations by region, monitor play counts, and spot where your fanbase is growing — in real time.</p>
       </div>
       <div class="feat-card">
-        <div class="feat-icon">📊</div>
+        <div class="feat-icon" style="background:rgba(245,158,11,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div>
         <h3>Real Analytics</h3>
         <p>Per-track play counts, listening duration, skip rates, favorite ratios. Know how fans actually experience your album — not just that they pressed play once.</p>
       </div>
       <div class="feat-card">
-        <div class="feat-icon">🎨</div>
+        <div class="feat-icon" style="background:rgba(168,85,247,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div>
         <h3>LED Theme Designer</h3>
         <p>29 patterns including audio-reactive VU meters. Set your brand colors for idle, playback, and charging. Fans can customize too — their device, their vibe.</p>
       </div>
       <div class="feat-card">
-        <div class="feat-icon">🎁</div>
+        <div class="feat-icon" style="background:rgba(16,185,129,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18M8 8c0-2 1-4 4-4s4 2 4 4"/></svg></div>
         <h3>Capsule Perks (DCNP)</h3>
         <p>Push content to devices you sold years ago. Concert pre-sales, exclusive video, merch drops, remix stems, virtual signings. 6 event types. Direct to fan.</p>
       </div>
       <div class="feat-card">
-        <div class="feat-icon">🖼️</div>
+        <div class="feat-icon" style="background:rgba(6,182,212,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
         <h3>Cover Art & Booklet</h3>
         <p>Upload album art, per-track art, credits, lyrics, and gallery images. Displayed on the device dashboard and fan portal. The full album experience, not just audio.</p>
       </div>
       <div class="feat-card">
-        <div class="feat-icon">🔄</div>
+        <div class="feat-icon" style="background:rgba(245,158,11,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg></div>
         <h3>Secondary Marketplace</h3>
         <p>Fans trade DPA™ devices. Every resale is tracked by serial ID. Artists earn 10% royalty automatically. Limited editions appreciate. Your catalog keeps paying.</p>
       </div>
       <div class="feat-card">
-        <div class="feat-icon">🔒</div>
+        <div class="feat-icon" style="background:rgba(236,72,153,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
         <h3>Encrypted Content</h3>
         <p>AES-256-GCM encryption locked to the device's unique serial ID. Your masters are secure at rest on the SD card. No ripping, no piracy, no compromise on quality.</p>
       </div>
@@ -607,42 +610,42 @@
     <div class="family-grid">
       <div class="family-card">
         <span class="family-badge badge-coming">Launching</span>
-        <span class="family-icon">🎵</span>
+        <span class="family-icon" style="background:rgba(245,158,11,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
         <h3>DPA™ Music</h3>
         <div class="family-sub">The original</div>
         <p>One album, studio quality, LED visuals, capsule perks. The format that brings back real artist revenue. <strong style="color:#fff;">$20–$150 per unit.</strong></p>
       </div>
       <div class="family-card">
         <span class="family-badge badge-coming">2027</span>
-        <span class="family-icon">🎬</span>
+        <span class="family-icon" style="background:rgba(6,182,212,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></svg></span>
         <h3>DPA™ Film</h3>
         <div class="family-sub">Director's cut in your pocket</div>
         <p>Film scores, commentary tracks, behind-the-scenes audio. The physical companion to a movie release — with exclusive content pushed after premiere.</p>
       </div>
       <div class="family-card">
         <span class="family-badge badge-coming">2027</span>
-        <span class="family-icon">📚</span>
+        <span class="family-icon" style="background:rgba(168,85,247,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></span>
         <h3>DPA™ Audiobook</h3>
         <div class="family-sub">Author direct to listener</div>
         <p>Hi-fi audiobooks with author-narrated extras, signed editions, chapter-specific perks. Authors earn per-unit, not per-listen. Audible can't do this.</p>
       </div>
       <div class="family-card">
         <span class="family-badge badge-vision">2028</span>
-        <span class="family-icon">🚗</span>
+        <span class="family-icon" style="background:rgba(236,72,153,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M5 17a2 2 0 01-2-2V9a2 2 0 012-2h14a2 2 0 012 2v6a2 2 0 01-2 2M5 17l-1 3M19 17l1 3"/><circle cx="7.5" cy="12" r="1.5"/><circle cx="16.5" cy="12" r="1.5"/></svg></span>
         <h3>DPA™ Inside</h3>
         <div class="family-sub">Automotive &amp; home audio</div>
         <p>DPA™ integrated into car infotainment and home audio systems. Tap your device to the dash — instant hi-fi playback with no phone, no streaming, no subscription.</p>
       </div>
       <div class="family-card">
         <span class="family-badge badge-vision">2028</span>
-        <span class="family-icon">🎓</span>
+        <span class="family-icon" style="background:rgba(16,185,129,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10l-10-6L2 10l10 6 10-6z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
         <h3>DPA™ Academic</h3>
         <div class="family-sub">Lectures &amp; courses</div>
         <p>Professors, institutions, and course creators distribute lecture series on tamper-proof devices. Students own the content. No expiring access. No DRM headaches.</p>
       </div>
       <div class="family-card">
         <span class="family-badge badge-coming">2027</span>
-        <span class="family-icon">🎧</span>
+        <span class="family-icon" style="background:rgba(245,158,11,0.1);"><svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z"/></svg></span>
         <h3>DPA™ Player</h3>
         <div class="family-sub">The modern Walkman</div>
         <p>A standalone multi-album DPA™ player. Load multiple devices worth of content. <strong style="color:#fff;">24-bit/96kHz</strong> playback through premium DAC. Bluetooth out. No phone required. The mp3 player — done right.</p>
