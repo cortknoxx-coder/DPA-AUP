@@ -54,25 +54,42 @@ static bool g_sdSpiReady = false;
 
 // ── Internal Helpers ─────────────────────────────────────────
 static const int SD_MAX_FILE_SCAN = 200;
+static const int SD_MAX_WALK_DEPTH = 4;
+static const unsigned long SD_MAX_WALK_MS = 1500;
 
-static uint64_t dpaCountDirBytes(File dir, int& fileCount) {
+// Hardened recursive walker. Kept around for sdListFilesJson use cases.
+// Boot path no longer calls this — it uses SD.usedBytes() (O(1) FAT read)
+// because a walk at 400kHz can hang on corrupted entries or macOS
+// AppleDouble files and brick boot.
+static uint64_t dpaCountDirBytes(File dir, int& fileCount, int depth = 0,
+                                 unsigned long deadline = 0) {
   uint64_t total = 0;
-
   if (!dir || !dir.isDirectory()) return 0;
+  if (depth >= SD_MAX_WALK_DEPTH) return 0;
+  if (deadline == 0) deadline = millis() + SD_MAX_WALK_MS;
 
   File entry = dir.openNextFile();
   while (entry) {
+    if (millis() > deadline) { entry.close(); break; }
     if (fileCount >= SD_MAX_FILE_SCAN) { entry.close(); break; }
-    if (entry.isDirectory()) {
-      total += dpaCountDirBytes(entry, fileCount);
-    } else {
-      total += entry.size();
-      fileCount++;
+    yield();
+    const char* nm = entry.name();
+    // Skip macOS AppleDouble + hidden metadata that can trip SD parsers
+    bool skip = (nm && (nm[0] == '.' ||
+                        strstr(nm, "Spotlight") ||
+                        strstr(nm, "Trashes") ||
+                        strstr(nm, "fseventsd")));
+    if (!skip) {
+      if (entry.isDirectory()) {
+        total += dpaCountDirBytes(entry, fileCount, depth + 1, deadline);
+      } else {
+        total += entry.size();
+        fileCount++;
+      }
     }
     entry.close();
     entry = dir.openNextFile();
   }
-
   return total;
 }
 
@@ -197,12 +214,11 @@ static bool sdInit() {
     g_sdTotalMB = (float)totalBytes / (1024.0f * 1024.0f);
   }
 
-  int files = 0;
-  File root = SD.open("/");
-  uint64_t usedBytes = dpaCountDirBytes(root, files);
-  if (root) root.close();
-
-  g_sdFileCount = files;
+  // Use FAT metadata for used-bytes (O(1), no directory walk).
+  // A recursive walker at 400kHz can hang boot if root contains pathological
+  // entries. Real track count is populated by scanWavList() on /tracks only.
+  uint64_t usedBytes = SD.usedBytes();
+  g_sdFileCount = 0;
   g_sdUsedMB = (float)usedBytes / (1024.0f * 1024.0f);
   g_sdFreeMB = g_sdTotalMB - g_sdUsedMB;
   if (g_sdFreeMB < 0) g_sdFreeMB = 0;
@@ -243,12 +259,8 @@ static void sdRefreshStats() {
     g_sdTotalMB = (float)totalBytes / (1024.0f * 1024.0f);
   }
 
-  int files = 0;
-  File root = SD.open("/");
-  uint64_t usedBytes = dpaCountDirBytes(root, files);
-  if (root) root.close();
-
-  g_sdFileCount = files;
+  uint64_t usedBytes = SD.usedBytes();
+  g_sdFileCount = 0;
   g_sdUsedMB = (float)usedBytes / (1024.0f * 1024.0f);
   g_sdFreeMB = g_sdTotalMB - g_sdUsedMB;
   if (g_sdFreeMB < 0) g_sdFreeMB = 0;

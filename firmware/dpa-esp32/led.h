@@ -16,6 +16,15 @@
 #ifndef DPA_LED_H
 #define DPA_LED_H
 
+// FastLED on ESP32-S3 + WiFi AP: the default RMT driver gets preempted by
+// WiFi interrupts mid-frame, causing bit-slip on the tail of the WS2812
+// stream (pixels 14-17 display wrong bytes). Fixes:
+//   1) FASTLED_ALLOW_INTERRUPTS 0 — blocks IRQs during the ~510µs frame
+//   2) FASTLED_RMT_MAX_CHANNELS 1  — serialize RMT so no channel races
+//   3) FASTLED_RMT_BUILTIN_DRIVER  — use ESP-IDF RMT driver (more robust)
+#define FASTLED_ALLOW_INTERRUPTS 0
+#define FASTLED_RMT_MAX_CHANNELS 1
+#define FASTLED_RMT_BUILTIN_DRIVER 1
 #include <FastLED.h>
 #include <Preferences.h>
 #include "audio_reactive.h"  // g_audioFeatures for audio-reactive patterns
