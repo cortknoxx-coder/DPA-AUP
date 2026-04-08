@@ -192,7 +192,16 @@ export class AlbumMetadataComponent {
   saveStatus = signal<'idle' | 'saving' | 'ok' | 'error'>('idle');
   saveMessage = signal('');
 
+  /** Bumped after every successful upload to force <img> cache-bust. */
+  coverArtBust = signal(0);
   coverArtPreview = computed(() => {
+    // DEVICE IS SOURCE OF TRUTH when connected + verified — survives browser
+    // refresh and keeps the portal visually in sync with what's actually on SD.
+    if (this.connectionService.connectionStatus() === 'wifi' && this.coverArtOnDevice()) {
+      // Touch the bust signal so Angular re-computes when it changes.
+      const bust = this.coverArtBust();
+      return this.connectionService.wifi.coverArtUrl('/art/cover.jpg') + '&b=' + bust;
+    }
     const a = this.album();
     return a?.artworkUrl || '';
   });
@@ -344,8 +353,15 @@ export class AlbumMetadataComponent {
         this.coverArtUploading.set(true);
         this.coverArtProgress.set(0);
         this.coverArtPushStatus.set('');
+        // Downscale to 1024×1024 JPEG @ 0.85 (~200KB) before shipping to the
+        // device. The ESP32-S3 Zero's AsyncWebServer stalls on multi-megabyte
+        // static files over softAP WiFi, and 1024px is already 2x the hero
+        // cover's visible size. The full-res original stays in the form for
+        // distribution/export later.
+        const deviceJpegDataUrl = await this.downscaleImage(fullDataUrl, 1024, 0.85).catch(() => fullDataUrl);
+        const deviceFile = this.dataUrlToFile(deviceJpegDataUrl, 'cover.jpg');
         const ok = await this.connectionService.wifi.uploadFileToPath(
-          file, '/art/cover.jpg',
+          deviceFile, '/art/cover.jpg',
           (pct) => this.coverArtProgress.set(pct)
         );
         this.coverArtUploading.set(false);
@@ -357,6 +373,7 @@ export class AlbumMetadataComponent {
           await new Promise(r => setTimeout(r, 400));
           verified = await this.connectionService.wifi.verifyCoverArt();
           this.coverArtOnDevice.set(verified);
+          if (verified) this.coverArtBust.set(Date.now());
         }
         this.coverArtPushStatus.set(
           verified ? '✓ Cover art on device — verified'
@@ -372,6 +389,17 @@ export class AlbumMetadataComponent {
     };
     reader.readAsDataURL(file);
     input.value = '';
+  }
+
+  /** Convert a data URL (image/jpeg) to a File object for XHR upload. */
+  private dataUrlToFile(dataUrl: string, filename: string): File {
+    const [meta, b64] = dataUrl.split(',');
+    const mime = /data:([^;]+)/.exec(meta)?.[1] || 'image/jpeg';
+    const bin = atob(b64);
+    const len = bin.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+    return new File([bytes], filename, { type: mime });
   }
 
   /** Downscale a data URL to `maxEdge`px longest side as JPEG. */

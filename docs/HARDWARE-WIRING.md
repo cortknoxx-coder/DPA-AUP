@@ -2,62 +2,73 @@
 
 **DPA** (Digital Playback Asset) — brought to you by **The DPAC** (Digital Playback Asset Consortium)
 
-**Firmware:** v1.0.0 | **MCU:** ESP32-WROVER-32 (also compatible with WROOM-32)
+**Firmware:** v2.4.1 (Phase-4) | **MCU:** Waveshare **ESP32-S3 Zero** (8MB flash, no PSRAM, USB-C CDC)
+
+> **⚠ Hardware changed:** earlier revisions of this guide targeted the ESP32-WROVER-32 / WROOM-32. The final production hardware is the **Waveshare ESP32-S3 Zero**, which has a smaller pin count, different reserved pins, and no PSRAM. This section reflects the current firmware source of truth in `firmware/dpa-esp32/`. Older legacy diagrams are preserved further down for reference only — **do not wire from them.**
 
 ---
 
-## Bill of Materials
+## Bill of Materials (current)
 
 | Component | Part | Notes |
 |-----------|------|-------|
-| MCU | ESP32-WROVER-32 DevKit | 4MB Flash + 4MB PSRAM (WROVER) or 4MB Flash (WROOM) |
-| DAC | PCM5122 I2S DAC Module | 24-bit / 192kHz, I2C config at 0x4C |
-| LED Strip | WS2812B COB Strip (60 LEDs) | 5V data, level shifter recommended |
-| SPI Flash SD Card | Adafruit XTSD #6039 (4GB) | SPI interface, 3V/5V (onboard regulator + level shifter) |
-| NFC Module | PN532 NFC/RFID | I2C mode (shared bus with DAC) |
-| Buttons (x5) | 6mm Tactile Momentary | Play, Pause, Next, Prev, Mode |
-| Battery | 3.7V LiPo (2000mAh+) | JST-PH connector |
-| Voltage Divider | 2x 100K resistors | Battery monitoring on ADC |
-| Capacitors | 10uF + 100nF | Decoupling for DAC + ADC |
-| Level Shifter | 3.3V to 5V (1-ch) | WS2812B data line (optional but recommended) |
+| MCU | **Waveshare ESP32-S3 Zero** | 8MB flash, no PSRAM, USB-C (CDC-on-boot), ~320KB heap |
+| DAC | **Adafruit PCM5122** I2S DAC | 24/32-bit up to 384kHz, analog out |
+| LED Strip | WS2812B-style addressable RGB (2.7mm pitch, SuperLightingLED) | single data GPIO, 5V logic tolerant |
+| Storage | **Adafruit microSD breakout** | SPI, ~2GB tested (up to 32GB FAT32) |
+| Buttons (x4) | 6mm tactile momentary | Play/Pause, Next, Prev, Heart; internal pull-ups, active LOW |
+| Battery | 3.7V LiPo | ADC voltage monitor + charge-detect (optional TP4056 CHRG) |
+| Power | USB-C (dev) or LiPo (field) | S3 Zero has built-in regulator |
 
 ---
 
-## Pin Assignment Table
+## Pin Assignment Table (ESP32-S3 Zero — authoritative)
+
+> Source of truth: `firmware/dpa-esp32/dpa-esp32.ino` `#define` block.
 
 | GPIO | Function | Direction | Component | Bus | Notes |
 |------|----------|-----------|-----------|-----|-------|
-| **4** | I2S BCLK | OUT | PCM5122 BCK | I2S | Bit clock |
-| **5** | LED Data | OUT | WS2812B DIN | — | Level shift to 5V recommended |
-| **12** | SD MISO | IN | XTSD MISO | HSPI | |
-| **13** | SD MOSI | OUT | XTSD MOSI | HSPI | |
-| **14** | SD SCK | OUT | XTSD SCK | HSPI | |
-| **15** | SD CS | OUT | XTSD CS | HSPI | |
-| **19** | I2S LRCLK | OUT | PCM5122 LRCK | I2S | Word select (L/R) |
-| **21** | I2C SDA | I/O | PCM5122 + PN532 | I2C | Shared bus, 4.7K pull-up |
-| **22** | I2C SCL | OUT | PCM5122 + PN532 | I2C | Shared bus, 4.7K pull-up |
-| **23** | I2S DOUT | OUT | PCM5122 DIN | I2S | Audio data |
-| **25** | Button: Play | IN | Tactile switch | — | Internal pull-up, active LOW |
-| **26** | Button: Pause | IN | Tactile switch | — | Internal pull-up, active LOW |
-| **27** | Button: Next | IN | Tactile switch | — | Internal pull-up, active LOW |
-| **32** | Button: Prev | IN | Tactile switch | — | Internal pull-up, active LOW |
-| **33** | Button: Mode | IN | Tactile switch | — | Internal pull-up, active LOW |
-| **34** | Battery ADC | IN | Voltage divider | ADC1 | Input-only pin, no pull-up |
+| **0**  | BOOT button       | IN  | Onboard BOOT switch | — | Aliased to Play/Pause at runtime |
+| **1**  | Button: Play/Pause| IN  | Tactile switch      | — | Internal pull-up, active LOW |
+| **2**  | Button: Next      | IN  | Tactile switch      | — | Internal pull-up, active LOW |
+| **3**  | Button: Prev      | IN  | Tactile switch      | — | Internal pull-up, active LOW |
+| **4**  | Button: Heart     | IN  | Tactile switch      | — | Favorite current track |
+| **5**  | LED data          | OUT | WS2812B strip DIN   | — | FastLED; driven LOW at boot to prevent stray pixels |
+| **6**  | I2S BCLK          | OUT | PCM5122 BCK         | I2S | Bit clock |
+| **7**  | I2S LRCLK (WS)    | OUT | PCM5122 LRCK        | I2S | Word select |
+| **8**  | I2S DOUT          | OUT | PCM5122 DIN         | I2S | Audio data |
+| **9**  | Battery ADC       | IN  | Voltage divider     | ADC1 | Free ADC-capable pin |
+| **10** | SD CS             | OUT | microSD CS          | SPI | Slow mount: 400kHz (uploads) / Fast: 20MHz (playback) |
+| **11** | SD MOSI           | OUT | microSD MOSI        | SPI | |
+| **12** | SD SCK            | OUT | microSD SCK         | SPI | |
+| **13** | SD MISO           | IN  | microSD MISO        | SPI | |
+| **14** | Charge detect     | IN  | TP4056 CHRG (opt.)  | — | `INPUT_PULLUP`, LOW = charging. Set to `-1` to disable. |
+| **21** | (reserved)        | —   | —                   | — | Driven LOW at boot to prevent stray pixels; free for future use |
 
-### Reserved / Unavailable Pins
+### Reserved / Do Not Use
 
 | GPIO | Reason |
 |------|--------|
-| 0 | Boot strapping (BOOT button) |
-| 1 | UART TX (Serial output) |
-| 2 | Boot strapping (onboard LED on some boards) |
-| 3 | UART RX (Serial input) |
-| 6-11 | Internal SPI flash (do NOT use) |
-| 16 | PSRAM on WROVER (do NOT use) |
-| 17 | PSRAM on WROVER (do NOT use) |
-| 34-39 | Input-only (no internal pull-up, no output) |
+| 19, 20 | USB D-/D+ (CDC serial over USB-C) |
+| 26-32, 33-37 | Internal SPI flash / PSRAM region — not exposed on S3 Zero board anyway |
+| 43, 44 | U0TXD / U0RXD (debug UART, optional) |
 
-> **WROVER Note:** GPIO 16 and 17 are occupied by the PSRAM chip on WROVER modules. This firmware avoids both pins entirely, making it compatible with WROVER and WROOM variants.
+> **No PSRAM on this board.** The Waveshare ESP32-S3 Zero ships without PSRAM, so avoid any libraries that assume it's present (most FastLED, I2S, SD, and Async web server code is fine).
+
+### Build settings (PlatformIO)
+
+```ini
+[env:esp32s3]
+platform = https://github.com/pioarduino/platform-espressif32/releases/download/53.03.13/platform-espressif32.zip
+board = esp32-s3-devkitc-1
+framework = arduino
+board_build.flash_size = 8MB
+board_build.partitions = default.csv
+build_flags =
+    -DARDUINO_USB_MODE=1
+    -DARDUINO_USB_CDC_ON_BOOT=1
+monitor_speed = 115200
+```
 
 ---
 

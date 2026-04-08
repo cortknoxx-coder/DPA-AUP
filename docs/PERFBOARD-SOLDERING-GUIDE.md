@@ -2,7 +2,9 @@
 
 **DPA** (Digital Playback Asset) — brought to you by **The DPAC** (Digital Playback Asset Consortium)
 
-**Firmware:** v1.0.0 | **Board:** 7×9cm double-sided perfboard | **MCU:** ESP32-WROVER-32 DevKit V1 (30-pin)
+> **⚠ Legacy document — WROVER-era hardware.** This guide was written for the v1.0.0 ESP32-WROVER-32 prototype. The current production hardware is the **Waveshare ESP32-S3 Zero** with a different pin map and much smaller footprint. **Do not solder from the pin numbers below.** See [`HARDWARE-WIRING.md`](HARDWARE-WIRING.md) for the authoritative S3 Zero pinout. This file is kept for historical reference only and will be replaced with an S3 Zero perfboard guide.
+
+**Legacy firmware:** v1.0.0 | **Legacy board:** 7×9cm double-sided perfboard | **Legacy MCU:** ESP32-WROVER-32 DevKit V1 (30-pin)
 
 ---
 

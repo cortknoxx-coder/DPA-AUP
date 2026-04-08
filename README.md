@@ -9,8 +9,8 @@ The companion web portal and ESP32 firmware for DPA (Digital Playback Asset) dev
 ## What's Inside
 
 ```
-├── firmware/              ESP32 firmware (Arduino .ino)
-│   └── dpa-fan-sim.ino    v1.0.0 — BLE, WiFi AP, A2DP, I2S DAC, SD, NFC, ESP-NOW mesh
+├── firmware/              ESP32-S3 firmware (PlatformIO)
+│   └── dpa-esp32/         v2.4.1 — WiFi AP, I2S DAC, SD, WS2812B, ESP-NOW mesh, captive portal
 ├── src/                   Angular 21 portal (Vite + Tailwind)
 │   ├── pages/             Creator portal + Fan portal
 │   ├── services/          BLE, WiFi, Crypto, Player, Data
@@ -33,14 +33,17 @@ Opens at `http://localhost:4200`. No API keys required.
 
 ## Flash the Firmware
 
-**Prerequisites:** Arduino IDE with ESP32 board package
+**Prerequisites:** [PlatformIO Core](https://platformio.org/install/cli) (installs the ESP32-S3 toolchain automatically)
 
-1. Open `firmware/dpa-fan-sim.ino` in Arduino IDE
-2. Set board to **ESP32 Dev Module**
-3. Set Bluetooth to **BT + BLE** (enables A2DP audio)
-4. Set PSRAM to **Enabled** (WROVER) or **Disabled** (WROOM)
-5. Uncomment `#define HAS_DAC` and `#define HAS_NFC` if hardware is wired
-6. Upload
+```bash
+cd firmware/dpa-esp32
+./gen_dashboard.sh        # regenerates dashboard.h from dashboard.html
+pio run                   # build
+pio run --target upload   # flash over USB-C
+pio device monitor -b 115200
+```
+
+Hardware: **Waveshare ESP32-S3 Zero** (8MB flash, no PSRAM). USB-C serial is CDC-on-boot; no external UART chip. See [`docs/HARDWARE-WIRING.md`](docs/HARDWARE-WIRING.md) for the full pin map.
 
 See [`docs/HARDWARE-WIRING.md`](docs/HARDWARE-WIRING.md) for complete pin assignments and wiring diagrams.
 
@@ -90,13 +93,15 @@ The portal communicates with DPA hardware via:
 
 | Component | Part |
 |-----------|------|
-| MCU | ESP32-WROVER-32 (or WROOM-32) |
-| DAC | PCM5122 (I2S, 24-bit/192kHz) |
-| LEDs | WS2812B COB strip (60 LEDs) |
-| Storage | XTSD 4GB SPI Flash (Adafruit #6039, HSPI) |
-| NFC | PN532 (I2C, tag emulation) |
-| Controls | 5x tactile buttons (Play/Pause/Next/Prev/Mode) |
-| Battery | 3.7V LiPo with ADC monitoring |
+| MCU | **Waveshare ESP32-S3 Zero** (8MB flash, no PSRAM, USB-C CDC) |
+| DAC | Adafruit PCM5122 (I2S, 24-bit / 32-bit, up to 384kHz) |
+| LEDs | WS2812B-style addressable RGB (2.7mm pitch, SuperLightingLED) |
+| Storage | Adafruit microSD breakout (SPI, ~2GB tested) |
+| Controls | 4x tactile buttons (Play/Pause, Next, Prev, Heart) + BOOT |
+| Battery | 3.7V LiPo with ADC monitoring + charge detect |
+| Comms | BLE, WiFi SoftAP, ESP-NOW mesh, (optional) A2DP |
+
+> **Note:** Earlier prototyping used ESP32-WROVER-32 / WROOM-32. The final hardware is the Waveshare ESP32-S3 Zero, which has a different pin map and no PSRAM. All firmware and docs in `main` target the S3 Zero. WROOM-era artifacts remain only in git history.
 
 ## Tech Stack
 

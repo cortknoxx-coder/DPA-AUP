@@ -2,7 +2,9 @@
 
 **DPA** (Digital Playback Asset) — brought to you by **The DPAC** (Digital Playback Asset Consortium)
 
-**Version:** 1.0.0 | **Platform:** ESP32 + Angular 21
+**Firmware:** v2.4.1 (Phase-4) | **Platform:** Waveshare ESP32-S3 Zero + Angular 21 Creator/Fan Portal
+
+> **Hardware note:** Any mention of ESP32-WROVER-32 / WROOM-32 below is legacy from earlier prototyping. The current MCU is the **Waveshare ESP32-S3 Zero** (8MB flash, no PSRAM, USB-C CDC). API endpoints, protocols, and portal architecture are unchanged — only the pin mapping and flash layout differ. See [`HARDWARE-WIRING.md`](HARDWARE-WIRING.md) for the authoritative pinout.
 
 ---
 
