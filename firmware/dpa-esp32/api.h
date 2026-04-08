@@ -385,6 +385,20 @@ String buildStatusJson() {
   j += "\"artist\":\"" + escJson(wifiGetArtist()) + "\",";
   j += "\"album\":\""  + escJson(wifiGetAlbum())  + "\",";
   j += "\"apSsid\":\"" + escJson(wifiGetApSSID()) + "\",";
+  // Cover art file size — portal + dashboard use this to detect replacements
+  // and force a cache-bust on the next tick. 0 = no cover on SD.
+  {
+    unsigned long _coverBytes = 0;
+    if (g_sdMounted) {
+      File _cf = SD.open("/art/cover.jpg");
+      if (_cf) { _coverBytes = _cf.size(); _cf.close(); }
+      else {
+        File _cfp = SD.open("/art/cover.png");
+        if (_cfp) { _coverBytes = _cfp.size(); _cfp.close(); }
+      }
+    }
+    j += "\"coverBytes\":" + String(_coverBytes) + ",";
+  }
   j += "\"ble\":false,\"wifi\":true,\"ip\":\"192.168.4.1\",";
   j += "\"sta\":{\"connected\":" + String(g_staConnected ? "true" : "false");
   j += ",\"ssid\":\"" + escJson(g_staSSID) + "\"";

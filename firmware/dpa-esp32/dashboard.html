@@ -2060,11 +2060,12 @@ function pollStatus() {
       S.playing = d.player?.playing ?? false;
       S.trackIndex = d.player?.trackIndex ?? 0;
       S._fwTrackTitle = d.player?.trackTitle ?? 'Unknown';
-      const _prevMetaKey = (S.deviceArtist || '') + '|' + (S.deviceAlbum || '');
+      const _prevMetaKey = (S.deviceArtist || '') + '|' + (S.deviceAlbum || '') + '|' + (S.coverBytes || 0);
       S.deviceArtist = d.artist || '';
       S.deviceAlbum  = d.album  || '';
+      S.coverBytes   = d.coverBytes || 0;
       S.trackArtist  = d.artist || 'Cort Knoxx';
-      const _newMetaKey = S.deviceArtist + '|' + S.deviceAlbum;
+      const _newMetaKey = S.deviceArtist + '|' + S.deviceAlbum + '|' + S.coverBytes;
       if (_newMetaKey !== _prevMetaKey) S._metaDirty = true;
       S.posMs = d.player?.posMs ?? 0;
       S.durationMs = d.player?.durationMs ?? 0;
@@ -2283,20 +2284,19 @@ function tintBackground(trackIdx) {
 
 function updateHeroCover(force) {
   tintBackground(S.trackIndex);
-  // Idempotent: only remount if track changed, metadata dirty, or forced.
-  const _key = (S.trackIndex|0) + '|' + (S.deviceArtist||'') + '|' + (S.deviceAlbum||'');
+  // Idempotency key includes track count + cover byte size so that:
+  //   - empty-tracks → tracks-loaded  transition re-mounts
+  //   - cover file replaced (new size) re-mounts
+  //   - metadata change re-mounts
+  const _key = (S.trackIndex|0) + '|' + (S.tracks.length|0) + '|'
+             + (S.deviceArtist||'') + '|' + (S.deviceAlbum||'') + '|'
+             + (S.coverBytes||0);
   if (!force && window.__heroKey === _key) return;
   window.__heroKey = _key;
-  const cover = document.getElementById('heroCover');
-  const track = S.tracks[S.trackIndex];
-  if (!track) {
-    cover.innerHTML = HERO_COVERS[0].replace('</svg>',
-      `<text x="120" y="110" text-anchor="middle" font-size="22" fill="#ffffff" font-weight="800" opacity="0.9" font-family="sans-serif">DPA\u2122</text>` +
-      `<text x="120" y="132" text-anchor="middle" font-size="10" fill="#aaa" font-weight="600" opacity="0.6" font-family="sans-serif" letter-spacing="2">LOADING...</text></svg>`);
-    const npExpArt = document.getElementById('npExpArt');
-    if (npExpArt) npExpArt.innerHTML = cover.innerHTML;
-    return;
-  }
+  // Always flow through updateHeroCoverWithImageOrSvg() — it has the full
+  // fallback chain (per-track art → /art/cover.jpg → SVG). Removing the
+  // early-return ensures the album cover still mounts when there are no
+  // tracks on the SD card yet.
   updateHeroCoverWithImageOrSvg();
 }
 
