@@ -1872,8 +1872,7 @@ const API_BASE = '';  // Same origin on ESP32
 // Album art from SD: /art/cover.jpg (and .png). Per-track: /art/{basename}.jpg
 function artUrl(relPath) {
   const p = encodeURIComponent(relPath);
-  const bust = (window.__artBust ? '&t=' + window.__artBust : '');
-  return API_BASE + '/api/art?path=' + p + bust;
+  return API_BASE + '/api/art?path=' + p;
 }
 
 function trackStemFromFile(filePath) {
@@ -1948,17 +1947,13 @@ function updateHeroCoverWithImageOrSvg() {
   const cover = document.getElementById('heroCover');
   const track = S.tracks[S.trackIndex];
   const svgFallback = track ? makeHeroSvg(S.trackIndex, track.title, track.artist) : HERO_COVERS[0];
-  // Priority: per-track art (unless known-missing), then album cover, then SVG.
-  window.__artMiss = window.__artMiss || {};
-  const cands = [];
-  if (track && track.file && !window.__artMiss[track.file]) {
-    cands.push(...trackArtCandidates(track.file));
+  if (track && track.file) {
+    const cands = trackArtCandidates(track.file);
+    if (cands.length) {
+      mountHeroCoverImage(cands, svgFallback);
+      return;
+    }
   }
-  cands.push('/art/cover.jpg', '/art/cover.png');
-  // With updateHeroCover() now idempotent per-track, this only walks once per track change.
-  mountHeroCoverImage(cands, svgFallback);
-  return;
-  // eslint-disable-next-line no-unreachable
   cover.innerHTML = svgFallback;
   const npExpArt = document.getElementById('npExpArt');
   if (npExpArt) npExpArt.innerHTML = cover.innerHTML;
@@ -2060,12 +2055,7 @@ function pollStatus() {
       S.playing = d.player?.playing ?? false;
       S.trackIndex = d.player?.trackIndex ?? 0;
       S._fwTrackTitle = d.player?.trackTitle ?? 'Unknown';
-      const _prevMetaKey = (S.deviceArtist || '') + '|' + (S.deviceAlbum || '');
-      S.deviceArtist = d.artist || '';
-      S.deviceAlbum  = d.album  || '';
-      S.trackArtist  = d.artist || 'Cort Knoxx';
-      const _newMetaKey = S.deviceArtist + '|' + S.deviceAlbum;
-      if (_newMetaKey !== _prevMetaKey) S._metaDirty = true;
+      S.trackArtist = 'Cort Knoxx';
       S.posMs = d.player?.posMs ?? 0;
       S.durationMs = d.player?.durationMs ?? 0;
       S.volume = d.audio?.volume ?? 50;
@@ -2160,14 +2150,9 @@ function updateUI() {
   updateEqPills();
   syncHeartStates();
   document.getElementById('deviceName').textContent = S.deviceName;
-  // Always refresh album info — device metadata can render without tracks
-  updateAlbumSummary();
-  if (S._metaDirty) {
-    S._metaDirty = false;
-    window.__artBust = Date.now();
-    window.__heroKey = null; // invalidate idempotency cache
-    updateHeroCover(true);
-    if (typeof mountBookletCoverFromSd === 'function') mountBookletCoverFromSd();
+  // Refresh home album info if tracks loaded
+  if (S.tracks.length > 0) {
+    updateAlbumSummary();
   }
 }
 
@@ -2281,12 +2266,8 @@ function tintBackground(trackIdx) {
   document.documentElement.style.setProperty('--track-accent', color);
 }
 
-function updateHeroCover(force) {
+function updateHeroCover() {
   tintBackground(S.trackIndex);
-  // Idempotent: only remount if track changed, metadata dirty, or forced.
-  const _key = (S.trackIndex|0) + '|' + (S.deviceArtist||'') + '|' + (S.deviceAlbum||'');
-  if (!force && window.__heroKey === _key) return;
-  window.__heroKey = _key;
   const cover = document.getElementById('heroCover');
   const track = S.tracks[S.trackIndex];
   if (!track) {
@@ -2345,21 +2326,11 @@ function updateTrackInfo() {
 }
 
 function updateAlbumSummary() {
-  const first = S.tracks[0] || {};
-  const albumTitle  = S.deviceAlbum  || first.title  || 'DPA\u2122 Album';
-  const albumArtist = S.deviceArtist || first.artist || 'Artist';
-  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  setText('homeAlbumTitle', albumTitle);
-  setText('homeAlbumArtist', albumArtist);
-  setText('bookletAlbumTitle', albumTitle);
-  setText('bookletAlbumArtist', albumArtist);
-  setText('npArtist', albumArtist);
+  if (S.tracks.length === 0) return;
+  const first = S.tracks[0];
+  document.getElementById('homeAlbumTitle').textContent = S.tracks.length > 1 ? (first.artist || 'Cort Knoxx') : (first.title || 'DPA\u2122 Album');
+  document.getElementById('homeAlbumArtist').textContent = first.artist || 'Cort Knoxx';
   document.getElementById('homeTrackCount').textContent = S.tracks.length;
-  if (S.tracks.length === 0) {
-    setText('homeTotalDur', '--');
-    setText('homeFormat', '24-bit Lossless');
-    return;
-  }
   // Total duration
   const totalMs = S.tracks.reduce((s, t) => s + (t.durationMs || 0), 0);
   const mins = Math.floor(totalMs / 60000);

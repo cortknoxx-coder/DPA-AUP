@@ -1,0 +1,16 @@
+{
+  "/dpa-api": {
+    "target": "http://192.168.4.1",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": { "^/dpa-api": "" }
+  },
+  "/dpa-upload": {
+    "target": "http://192.168.4.1:81",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": { "^/dpa-upload": "" }
+  }
+}

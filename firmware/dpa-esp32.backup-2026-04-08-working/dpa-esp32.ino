@@ -564,20 +564,7 @@ void handleSyncFileUpload() {
 
     sdMountSlow();
 
-    // Honor ?path= query param if provided (e.g. /art/cover.jpg for cover uploads);
-    // otherwise fall back to legacy /tracks/<filename> behavior so the 24/96 + 32/96
-    // audio upload flow stays bit-for-bit identical.
-    String reqPath = uploadServer.arg("path");
-    String safeName = sanitizePath(reqPath.length() > 0 ? reqPath : (String("/tracks/") + String(upload.filename)));
-    // Ensure parent directory exists (e.g. create /art if writing /art/cover.jpg).
-    // No-op for repeat /tracks/* audio uploads.
-    {
-      int _slash = safeName.lastIndexOf('/');
-      if (_slash > 0) {
-        String _dir = safeName.substring(0, _slash);
-        if (_dir.length() > 0 && !SD.exists(_dir)) SD.mkdir(_dir);
-      }
-    }
+    String safeName = sanitizePath("/tracks/" + String(upload.filename));
     g_syncFinalPath = safeName;
     g_syncTempPath = safeName + ".part";
 
