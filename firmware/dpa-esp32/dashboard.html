@@ -2098,7 +2098,7 @@ function pollStatus() {
       updateConnectionDot();
       // Start/stop features polling — 250ms (was 100ms, 4x less load)
       if (S.playing && !featuresTimer) {
-        featuresTimer = setInterval(pollFeatures, 250);
+        featuresTimer = setInterval(pollFeatures, 500);  // 500ms — balances VU responsiveness vs socket load
       } else if (!S.playing && featuresTimer) {
         clearInterval(featuresTimer);
         featuresTimer = null;

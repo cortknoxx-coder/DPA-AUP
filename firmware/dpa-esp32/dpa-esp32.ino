@@ -931,6 +931,22 @@ void loop() {
     lastBattRead = millis();
   }
 
+  // Heap watchdog — if free heap drops below 40KB, AsyncWebServer likely
+  // has stale sockets piling up. Restart it to reclaim them. This prevents
+  // the "portal stays connected but device stops responding" syndrome.
+  static unsigned long lastHeapCheck = 0;
+  if (millis() - lastHeapCheck > 10000) {
+    lastHeapCheck = millis();
+    uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < 40000) {
+      Serial.printf("[HEAP] Low heap: %u bytes — restarting async server\n", freeHeap);
+      server.end();
+      delay(50);
+      server.begin();
+      Serial.printf("[HEAP] Server restarted, heap now: %u\n", ESP.getFreeHeap());
+    }
+  }
+
   // Small yield to prevent WDT reset
   delay(5);
 }
