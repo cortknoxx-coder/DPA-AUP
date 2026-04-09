@@ -632,7 +632,8 @@ void handleSyncFileUpload() {
     scanWavList();
 
     // Restart everything now that upload is done
-    WiFi.setSleep(true);  // Re-enable WiFi sleep to reduce DAC power rail noise
+    // Keep WiFi sleep OFF — re-enabling causes intermittent AP client drops.
+    // wifiInit() already set WIFI_PS_NONE + setSleep(false) for AP stability.
     captiveInit();
     server.begin();
     Serial.println("[HTTP] Async server + DNS restarted");
@@ -647,7 +648,6 @@ void handleSyncFileUpload() {
     g_syncWriteError = true;
     g_syncCompleted = false;
     g_syncStageUsed = 0;
-    WiFi.setSleep(true);  // Re-enable WiFi sleep
     captiveInit();
     server.begin();
     Serial.println("[HTTP] Async server + DNS restarted");
