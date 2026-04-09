@@ -1464,21 +1464,7 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
           <div class="pat-card play-pat active" data-pat="vu_classic">
             <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="3" height="8" rx="1"/><rect x="10.5" y="4" width="3" height="16" rx="1"/><rect x="17" y="10" width="3" height="6" rx="1"/></svg></span>Classic
             <div class="pat-subtitle">Center-out</div>          </div>
-          <div class="pat-card play-pat" data-pat="vu_fill">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="14" width="3" height="4" rx="1"/><rect x="7" y="10" width="3" height="8" rx="1"/><rect x="12" y="6" width="3" height="12" rx="1"/><rect x="17" y="3" width="3" height="15" rx="1"/></svg></span>Fill
-            <div class="pat-subtitle">Left to Right</div>          </div>
-          <div class="pat-card play-pat" data-pat="vu_peak">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="12" width="3" height="6" rx="1"/><rect x="10.5" y="8" width="3" height="10" rx="1"/><rect x="17" y="14" width="3" height="4" rx="1"/><circle cx="18.5" cy="6" r="1.5" fill="currentColor"/></svg></span>Peak
-            <div class="pat-subtitle">Floating dot</div>          </div>
-          <div class="pat-card play-pat" data-pat="vu_split">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="10" width="3" height="8" rx="1"/><rect x="6" y="12" width="3" height="6" rx="1"/><rect x="15" y="12" width="3" height="6" rx="1"/><rect x="19" y="10" width="3" height="8" rx="1"/><line x1="12" y1="6" x2="12" y2="18" stroke-dasharray="2 2" opacity="0.4"/></svg></span>Stereo
-            <div class="pat-subtitle">L/R split</div>          </div>
-          <div class="pat-card play-pat" data-pat="vu_bass">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 5a7 7 0 0 1 0 14" stroke-width="1.5"/><path d="M12 2a10 10 0 0 1 0 20" stroke-width="1" opacity="0.5"/></svg></span>Bass
-            <div class="pat-subtitle">Low-freq pulse</div>          </div>
-          <div class="pat-card play-pat" data-pat="vu_energy">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12 Q6 4 12 12 Q18 20 22 12" stroke-width="2"/><path d="M2 12 Q6 20 12 12 Q18 4 22 12" stroke-width="1" opacity="0.4"/></svg></span>Energy
-            <div class="pat-subtitle">Full glow</div>          </div>
+          <!-- vu_fill, vu_peak, vu_split, vu_bass, vu_energy removed -->
         </div>
 
         <!-- ── WHEN IDLE — LED Patterns ── -->
@@ -3035,11 +3021,7 @@ const PATTERN_DEFAULTS = {
   off:       null,
   // VU / playback patterns
   vu_classic: { color: '#00ff88', gradEnd: '#ff0044' },
-  vu_fill:    { color: '#0088ff', gradEnd: '#ff6600' },
-  vu_peak:    { color: '#00ffaa', gradEnd: '#ff0066' },
-  vu_split:   { color: '#0088ff', gradEnd: '#ff4400' },
-  vu_bass:    { color: '#ff0066', gradEnd: '#6600ff' },
-  vu_energy:  { color: '#ffaa00', gradEnd: '#ff0044' },
+  // removed: vu_fill, vu_peak, vu_split, vu_bass, vu_energy
 };
 
 // Per-pattern color cache (user modifications remembered during session)
