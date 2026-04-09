@@ -105,9 +105,9 @@ int    g_favCount = 0;
 String g_firstPlayableWav = "";
 
 // LED Theme (defaults — overridden by NVS on boot)
-String g_ledIdle      = "#ff4bcb";
+String g_ledIdle      = "#ffffff";   // White breathing at idle (user preference)
 String g_ledIdlePat   = "breathing";
-String g_ledPlay      = "#00f1df";
+String g_ledPlay      = "#00f1df";   // Overridden by cover-art color extraction on upload
 String g_ledPlayPat   = "vu_classic";
 String g_ledCharge    = "#ffcc33";
 String g_ledChargePat = "breathing";

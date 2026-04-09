@@ -375,8 +375,23 @@ export class AlbumMetadataComponent {
           this.coverArtOnDevice.set(verified);
           if (verified) this.coverArtBust.set(Date.now());
         }
+        // After verified cover upload, extract dominant colors from the art
+        // and push them to the device as the playback LED theme so lights match the album.
+        if (verified) {
+          try {
+            const [primary, secondary] = await this.extractDominantColors(fullDataUrl);
+            await this.connectionService.wifi.pushTheme({
+              led: {
+                playback: { color: primary, pattern: 'vu_classic' },
+              },
+            } as any, undefined, secondary);
+            console.log(`[COVER→LED] Pushed album colors: ${primary} / ${secondary}`);
+          } catch (e) {
+            console.warn('[COVER→LED] Color extraction failed, using defaults', e);
+          }
+        }
         this.coverArtPushStatus.set(
-          verified ? '✓ Cover art on device — verified'
+          verified ? '✓ Cover art + LED theme pushed to device'
           : ok     ? '⚠ Upload reported OK but file not found on SD. Retry.'
                    : '✗ Device upload failed — retry or check Wi-Fi.'
         );
@@ -400,6 +415,70 @@ export class AlbumMetadataComponent {
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
     return new File([bytes], filename, { type: mime });
+  }
+
+  /**
+   * Extract the two most dominant vibrant colors from a cover art image.
+   * Uses canvas pixel sampling — picks the most saturated/bright colors,
+   * clusters them, and returns [primary, secondary] as hex strings.
+   * These drive the LED playback theme so the device lights match the album.
+   */
+  private extractDominantColors(dataUrl: string): Promise<[string, string]> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 64; // downsample for speed
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(['#0088ff', '#ff6600']); return; }
+        ctx.drawImage(img, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+
+        // Collect vibrant pixels (saturation > 30%, brightness > 20%)
+        const buckets: { r: number; g: number; b: number; count: number }[] = [];
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const max = Math.max(r, g, b), min = Math.min(r, g, b);
+          const sat = max === 0 ? 0 : (max - min) / max;
+          const bright = max / 255;
+          if (sat < 0.25 || bright < 0.15) continue;
+
+          // Quantize to 4-bit buckets for clustering
+          const qr = (r >> 4) << 4, qg = (g >> 4) << 4, qb = (b >> 4) << 4;
+          let found = false;
+          for (const bk of buckets) {
+            if (Math.abs(bk.r - qr) < 32 && Math.abs(bk.g - qg) < 32 && Math.abs(bk.b - qb) < 32) {
+              bk.r = (bk.r * bk.count + r) / (bk.count + 1);
+              bk.g = (bk.g * bk.count + g) / (bk.count + 1);
+              bk.b = (bk.b * bk.count + b) / (bk.count + 1);
+              bk.count++;
+              found = true;
+              break;
+            }
+          }
+          if (!found) buckets.push({ r, g, b, count: 1 });
+        }
+
+        // Sort by count (most frequent first), pick top 2 that differ enough
+        buckets.sort((a, b) => b.count - a.count);
+        const toHex = (c: { r: number; g: number; b: number }) =>
+          '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+
+        const primary = buckets[0] || { r: 0, g: 136, b: 255 };
+        let secondary = buckets[1] || primary;
+        // Ensure secondary is visually distinct from primary
+        for (let j = 1; j < buckets.length; j++) {
+          const dr = Math.abs(buckets[j].r - primary.r);
+          const dg = Math.abs(buckets[j].g - primary.g);
+          const db = Math.abs(buckets[j].b - primary.b);
+          if (dr + dg + db > 100) { secondary = buckets[j]; break; }
+        }
+        resolve([toHex(primary), toHex(secondary)]);
+      };
+      img.onerror = () => resolve(['#0088ff', '#ff6600']);
+      img.src = dataUrl;
+    });
   }
 
   /** Downscale a data URL to `maxEdge`px longest side as JPEG. */
