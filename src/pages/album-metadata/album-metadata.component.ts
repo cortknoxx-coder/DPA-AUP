@@ -260,7 +260,9 @@ export class AlbumMetadataComponent {
     });
   }
 
-  /** Pull live artist/album + cover-existence from the device. */
+  /** Pull live artist/album + cover-existence from the device.
+   *  When cover art exists, also extract dominant colors and push
+   *  them as the playback LED theme so lights always match the album. */
   private async syncFromDevice() {
     const [meta, coverOk] = await Promise.all([
       this.connectionService.wifi.pullMetadata(),
@@ -271,6 +273,42 @@ export class AlbumMetadataComponent {
       this.deviceAlbum.set(meta.album);
     }
     this.coverArtOnDevice.set(coverOk);
+
+    // Auto-extract LED colors from existing cover art on device
+    if (coverOk) {
+      try {
+        const coverUrl = this.connectionService.wifi.coverArtUrl('/art/cover.jpg');
+        const dataUrl = await this.fetchImageAsDataUrl(coverUrl);
+        const [primary, secondary] = await this.extractDominantColors(dataUrl);
+        await this.connectionService.wifi.pushTheme({
+          led: {
+            playback: { color: primary, pattern: 'vu_classic' },
+          },
+        } as any, undefined, secondary);
+        console.log(`[SYNC→LED] Auto-pushed album colors from device cover: ${primary} / ${secondary}`);
+      } catch (e) {
+        console.warn('[SYNC→LED] Could not extract colors from device cover', e);
+      }
+    }
+  }
+
+  /** Fetch an image URL and return it as a data URL for canvas processing. */
+  private fetchImageAsDataUrl(url: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject('no canvas ctx'); return; }
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
   }
 
   /** Overwrite the local form with whatever the device says. */

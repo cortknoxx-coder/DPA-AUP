@@ -108,6 +108,11 @@ export class DeviceConnectionService {
         this.registrationStatus.set('registered');
         await this.refreshWifiLibrary();
       }
+
+      // Auto-sync LED colors from cover art on device (if present).
+      // Runs on any page — lights always match the album when connected.
+      this.syncLedColorsFromCover().catch(() => {});
+
       return true;
     }
     this.connectionError.set('Could not reach DPA over WiFi. Confirm you are on the DPA-Portal network and retry.');
@@ -259,6 +264,89 @@ export class DeviceConnectionService {
     } catch {
       // best effort only
     }
+  }
+
+  /**
+   * Auto-sync LED playback colors from the device's cover art.
+   * Fetches /art/cover.jpg from the device, extracts 2 dominant vibrant colors,
+   * and pushes them as play_color + gradEnd so the VU patterns match the album.
+   * Runs automatically on WiFi connect from any page.
+   */
+  private async syncLedColorsFromCover(): Promise<void> {
+    const coverOk = await this.wifi.verifyCoverArt();
+    if (!coverOk) return;
+
+    const url = this.wifi.coverArtUrl('/art/cover.jpg');
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        const ctx = c.getContext('2d');
+        if (!ctx) { reject('no ctx'); return; }
+        ctx.drawImage(img, 0, 0);
+        resolve(c.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+
+    // Extract dominant vibrant colors (same algo as album-metadata component)
+    const [primary, secondary] = await this.extractCoverColors(dataUrl);
+    await this.wifi.pushTheme({
+      led: { playback: { color: primary, pattern: 'vu_classic' } },
+    } as any, undefined, secondary);
+    console.log(`[AUTO-LED] Synced album colors from device cover: ${primary} / ${secondary}`);
+  }
+
+  /** Extract 2 dominant vibrant colors from a data URL via canvas sampling. */
+  private extractCoverColors(dataUrl: string): Promise<[string, string]> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const sz = 64;
+        const c = document.createElement('canvas');
+        c.width = sz; c.height = sz;
+        const ctx = c.getContext('2d');
+        if (!ctx) { resolve(['#0088ff', '#ff6600']); return; }
+        ctx.drawImage(img, 0, 0, sz, sz);
+        const px = ctx.getImageData(0, 0, sz, sz).data;
+
+        const buckets: { r: number; g: number; b: number; count: number }[] = [];
+        for (let i = 0; i < px.length; i += 4) {
+          const r = px[i], g = px[i + 1], b = px[i + 2];
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+          if (mx === 0 || (mx - mn) / mx < 0.25 || mx / 255 < 0.15) continue;
+          const qr = (r >> 4) << 4, qg = (g >> 4) << 4, qb = (b >> 4) << 4;
+          let found = false;
+          for (const bk of buckets) {
+            if (Math.abs(bk.r - qr) < 32 && Math.abs(bk.g - qg) < 32 && Math.abs(bk.b - qb) < 32) {
+              bk.r = (bk.r * bk.count + r) / (bk.count + 1);
+              bk.g = (bk.g * bk.count + g) / (bk.count + 1);
+              bk.b = (bk.b * bk.count + b) / (bk.count + 1);
+              bk.count++;
+              found = true;
+              break;
+            }
+          }
+          if (!found) buckets.push({ r, g, b, count: 1 });
+        }
+        buckets.sort((a, b) => b.count - a.count);
+        const hex = (v: { r: number; g: number; b: number }) =>
+          '#' + [v.r, v.g, v.b].map(n => Math.round(n).toString(16).padStart(2, '0')).join('');
+        const primary = buckets[0] || { r: 0, g: 136, b: 255 };
+        let secondary = buckets[1] || primary;
+        for (let j = 1; j < buckets.length; j++) {
+          if (Math.abs(buckets[j].r - primary.r) + Math.abs(buckets[j].g - primary.g) + Math.abs(buckets[j].b - primary.b) > 100) {
+            secondary = buckets[j]; break;
+          }
+        }
+        resolve([hex(primary), hex(secondary)]);
+      };
+      img.onerror = () => resolve(['#0088ff', '#ff6600']);
+      img.src = dataUrl;
+    });
   }
 
   async registerDevice(deviceId: string): Promise<boolean> {
