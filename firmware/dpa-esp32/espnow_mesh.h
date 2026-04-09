@@ -19,7 +19,7 @@
 #define DPA_ESPNOW_MESH_H
 
 #include <esp_now.h>
-#include <esp_wifi.h>   // ESP-IDF native (was WiFi.h)
+#include <WiFi.h>
 #include <Preferences.h>
 
 // ── Extern globals from .ino ──

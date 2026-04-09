@@ -222,9 +222,12 @@ body.is-playing .hero-art-wrap{box-shadow:0 16px 64px rgba(0,136,255,0.15), 0 0 
   display:flex;align-items:center;gap:12px;
   padding:12px 14px;border-radius:14px;
   background:var(--card);border:1px solid transparent;
-  margin-bottom:6px;cursor:pointer;transition:all 0.2s;
+  margin-bottom:6px;cursor:pointer;
+  transition:background 0.15s,border-color 0.15s;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  will-change:transform;
 }
-.home-track-row:active{transform:scale(0.98);background:rgba(255,255,255,0.06)}
+.home-track-row:active{transform:scale(0.97);background:rgba(255,255,255,0.08)}
 .home-track-row.now-playing{
   border-color:rgba(0,136,255,0.25);background:rgba(0,136,255,0.06);
   box-shadow:0 0 20px rgba(0,136,255,0.08),inset 0 0 20px rgba(0,136,255,0.03);
@@ -455,9 +458,11 @@ body.is-playing .np-play{animation:playPulse 2s ease-in-out infinite}
 .track-row{
   display:flex;align-items:center;gap:12px;
   padding:14px 16px;margin-bottom:8px;cursor:pointer;
-  transition:all 0.2s;border-radius:14px;
+  transition:background 0.15s,border-color 0.15s;border-radius:14px;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  will-change:transform;
 }
-.track-row:active{background:rgba(255,255,255,0.06)}
+.track-row:active{transform:scale(0.97);background:rgba(255,255,255,0.08)}
 .track-row.now-playing{background:rgba(0,136,255,0.03);border:1px solid rgba(0,136,255,0.06)}
 .track-num{
   width:28px;text-align:center;
@@ -752,9 +757,10 @@ body:not(.is-playing) .eq-bars span{animation-play-state:paused}
   cursor:pointer;transition:all 0.2s;
 }
 .pat-card.active{
-  background:rgba(0,136,255,0.1);
-  border-color:rgba(0,136,255,0.3);
-  color:var(--pink);
+  background:rgba(0,136,255,0.15);
+  border-color:var(--pink);
+  color:var(--bright);
+  box-shadow:0 0 12px rgba(0,136,255,0.3), inset 0 0 8px rgba(0,136,255,0.08);
 }
 .pat-card:active{transform:scale(0.93)}
 .pat-card .pat-icon{margin-bottom:6px;display:block;height:20px}
@@ -762,7 +768,7 @@ body:not(.is-playing) .eq-bars span{animation-play-state:paused}
 .pat-card .pat-subtitle{
   font-size:8px;color:var(--dim);letter-spacing:0.3px;margin-top:2px;opacity:0.6;
 }
-.pat-card.active .pat-subtitle{color:var(--pink);opacity:0.5}
+.pat-card.active .pat-subtitle{color:var(--pink);opacity:0.8}
 
 /* VU mini bar preview */
 /* VU bar animations removed */
@@ -1394,18 +1400,14 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
             <div class="booklet-page-inner">
               <div class="booklet-page-label">Credits</div>
               <div class="booklet-section">
-                <div class="booklet-credits glass">
+                <div class="booklet-credits glass" id="bookletCredits">
                   <div class="credit-row">
-                    <span class="credit-role">Produced by</span>
-                    <span class="credit-name">Cort Knoxx</span>
+                    <span class="credit-role">Artist</span>
+                    <span class="credit-name" id="creditArtist">--</span>
                   </div>
                   <div class="credit-row">
-                    <span class="credit-role">Engineered by</span>
-                    <span class="credit-name">Jordan Miles</span>
-                  </div>
-                  <div class="credit-row">
-                    <span class="credit-role">Mastered by</span>
-                    <span class="credit-name">Kai Tanaka</span>
+                    <span class="credit-role">Album</span>
+                    <span class="credit-name" id="creditAlbum">--</span>
                   </div>
                   <div class="credit-row">
                     <span class="credit-role">Label</span>
@@ -1458,57 +1460,79 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
       <div class="glass" style="padding:16px;margin-bottom:16px">
         <div class="led-strip pat-breathing" id="ledStrip"></div>
 
-        <!-- ── WHEN PLAYING — VU Meter Patterns ── -->
-        <div class="card-label" style="margin-top:16px;color:var(--pink)">When Playing — VU Mode</div>
+        <!-- ── WHEN PLAYING — VU Genre Modes ── -->
+        <div class="card-label" style="margin-top:16px;color:var(--pink)">When Playing — VU Beat</div>
         <div class="pattern-grid" id="playPatternGrid">
-          <div class="pat-card play-pat active" data-pat="vu_classic">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="3" height="8" rx="1"/><rect x="10.5" y="4" width="3" height="16" rx="1"/><rect x="17" y="10" width="3" height="6" rx="1"/></svg></span>Classic
-            <div class="pat-subtitle">Center-out</div>          </div>
-          <!-- vu_fill, vu_peak, vu_split, vu_bass, vu_energy removed -->
+          <div class="pat-card play-pat active" data-pat="vu_classic" data-color="#00ff88" data-grad="#ff0044">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M3 18 A9 9 0 0 1 21 18" stroke="#ff4444"/><path d="M5 18 A7 7 0 0 1 19 18" stroke="#ffaa00"/><path d="M7 18 A5 5 0 0 1 17 18" stroke="#44ff44"/><path d="M9 18 A3 3 0 0 1 15 18" stroke="#4488ff"/></svg></span>Rainbow
+            <div class="pat-subtitle">Green → red VU</div>          </div>
+          <div class="pat-card play-pat" data-pat="vu_classic" data-color="#dd1100" data-grad="#ff6600">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3v18M7 8l5-5 5 5" stroke="#dd1100"/><path d="M6 14h12" stroke="#ff4400" stroke-width="3" stroke-linecap="round"/></svg></span>Rock
+            <div class="pat-subtitle">Blood → fire</div>          </div>
+          <div class="pat-card play-pat" data-pat="vu_classic" data-color="#ff00ff" data-grad="#ffc800">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="10" r="4" stroke="#ff00ff"/><path d="M8 16h8M6 20h12" stroke="#ffc800" stroke-linecap="round"/></svg></span>Hip-Hop
+            <div class="pat-subtitle">Neon → gold</div>          </div>
+          <div class="pat-card play-pat" data-pat="vu_classic" data-color="#6600cc" data-grad="#ff3366">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3C7 3 3 7 3 12s4 9 9 9" stroke="#6600cc"/><path d="M12 3c5 0 9 4 9 9s-4 9-9 9" stroke="#ff3366"/></svg></span>R&B
+            <div class="pat-subtitle">Violet → rose</div>          </div>
+          <div class="pat-card play-pat" data-pat="vu_classic" data-color="#00ffff" data-grad="#ff00ff">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M2 12 Q6 4 10 12 Q14 20 18 12 Q20 8 22 10" stroke="#00ffff"/><path d="M2 14 Q6 6 10 14 Q14 22 18 14" stroke="#ff00ff" opacity="0.6"/></svg></span>EDM
+            <div class="pat-subtitle">Cyan → magenta</div>          </div>
+          <div class="pat-card play-pat" data-pat="vu_classic" data-color="#ff7700" data-grad="#cc0044">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 18V9l9-3v9" stroke="#ff7700"/><circle cx="6" cy="18" r="3" fill="none" stroke="#cc0044"/><circle cx="15" cy="15" r="3" fill="none" stroke="#ff7700"/></svg></span>Soul
+            <div class="pat-subtitle">Amber → wine</div>          </div>
+          <div class="pat-card play-pat" data-pat="vu_classic" data-color="#ff22cc" data-grad="#22ddff">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="8" stroke="#ff22cc"/><path d="M8 12h8M12 8v8" stroke="#22ddff" stroke-linecap="round"/></svg></span>Pop
+            <div class="pat-subtitle">Hot pink → electric</div>          </div>
+          <div class="pat-card play-pat" data-pat="vu_classic" data-color="#556677" data-grad="#bb0000">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M7 2l10 20M17 2L7 22" stroke="#556677" stroke-linecap="round"/><path d="M4 14h16" stroke="#bb0000" stroke-width="3" stroke-linecap="round"/></svg></span>Metal
+            <div class="pat-subtitle">Steel → blood</div>          </div>
+          <div class="pat-card play-pat" data-pat="vu_classic" data-color="#0099aa" data-grad="#003366">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M2 12 Q7 6 12 12 Q17 18 22 12" stroke="#0099aa"/><path d="M2 16 Q7 10 12 16 Q17 22 22 16" stroke="#003366" opacity="0.5"/></svg></span>Chill
+            <div class="pat-subtitle">Ocean → deep</div>          </div>
         </div>
 
-        <!-- ── WHEN IDLE — LED Patterns ── -->
-        <div class="card-label" style="margin-top:20px;color:var(--accent)">When Idle — LED Pattern</div>
+        <!-- ── WHEN IDLE — Genre Mood ── -->
+        <div class="card-label" style="margin-top:20px;color:var(--accent)">When Idle — Genre Mood</div>
         <div class="pattern-grid" id="idlePatternGrid">
-          <div class="pat-card idle-pat active" data-pat="breathing">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12 Q7 4 12 12 Q17 20 22 12"/></svg></span>Breathing
-            <div class="pat-subtitle">Slow fade</div>          </div>
-          <div class="pat-card idle-pat" data-pat="solid">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><rect x="8" y="8" width="8" height="8" rx="1" fill="currentColor" opacity="0.3"/></svg></span>Solid
-            <div class="pat-subtitle">Always on</div>          </div>
-          <div class="pat-card idle-pat" data-pat="pulse">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="2,12 6,12 9,4 12,20 15,8 18,12 22,12"/></svg></span>Pulse
-            <div class="pat-subtitle">Quick flash</div>          </div>
-          <div class="pat-card idle-pat" data-pat="rainbow">
+          <div class="pat-card idle-pat active" data-pat="rainbow" data-color="" data-grad="">
             <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M3 18 A9 9 0 0 1 21 18" stroke="#ff4444"/><path d="M5 18 A7 7 0 0 1 19 18" stroke="#ffaa00"/><path d="M7 18 A5 5 0 0 1 17 18" stroke="#44ff44"/><path d="M9 18 A3 3 0 0 1 15 18" stroke="#4488ff"/></svg></span>Rainbow
-            <div class="pat-subtitle">Color cycle</div>          </div>
-          <div class="pat-card idle-pat" data-pat="comet">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="8" r="3"/><path d="M15 10 L4 18" stroke-linecap="round"/><path d="M14 11 L6 16" stroke-width="1" opacity="0.4"/></svg></span>Comet
-            <div class="pat-subtitle">Spinning tail</div>          </div>
-          <div class="pat-card idle-pat" data-pat="wave">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12 Q5 6 8 12 Q11 18 14 12 Q17 6 20 12 Q23 18 24 14"/></svg></span>Wave
-            <div class="pat-subtitle">Rolling sine</div>          </div>
-          <div class="pat-card idle-pat" data-pat="sparkle">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 L13.5 8.5 L20 7 L14.5 11 L18 17 L12 13 L6 17 L9.5 11 L4 7 L10.5 8.5 Z" opacity="0.8"/></svg></span>Sparkle
-            <div class="pat-subtitle">Random flash</div>          </div>
-          <div class="pat-card idle-pat" data-pat="fire">
-            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22 C6 18 4 14 6 10 Q8 6 10 8 Q10 4 12 2 Q14 4 14 8 Q16 6 18 10 C20 14 18 18 12 22Z"/></svg></span>Fire
-            <div class="pat-subtitle">Warm flicker</div>          </div>
-          <div class="pat-card idle-pat" data-pat="off">
+            <div class="pat-subtitle">Full spectrum</div>          </div>
+          <div class="pat-card idle-pat" data-pat="rainbow" data-color="#dd1100" data-grad="#ff6600">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3v18M7 8l5-5 5 5" stroke="#dd1100"/><path d="M6 14h12" stroke="#ff4400" stroke-width="3" stroke-linecap="round"/><path d="M8 18h8" stroke="#ff6600" stroke-width="2" stroke-linecap="round"/></svg></span>Rock
+            <div class="pat-subtitle">Blood → fire</div>          </div>
+          <div class="pat-card idle-pat" data-pat="rainbow" data-color="#ff00ff" data-grad="#ffc800">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="10" r="4" stroke="#ff00ff"/><path d="M8 16h8M6 20h12" stroke="#ffc800" stroke-linecap="round"/><rect x="10" y="6" width="4" height="4" rx="1" fill="#ff00ff" opacity="0.3"/></svg></span>Hip-Hop
+            <div class="pat-subtitle">Neon → gold</div>          </div>
+          <div class="pat-card idle-pat" data-pat="rainbow" data-color="#6600cc" data-grad="#ff3366">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3C7 3 3 7 3 12s4 9 9 9" stroke="#6600cc"/><path d="M12 3c5 0 9 4 9 9s-4 9-9 9" stroke="#ff3366"/><circle cx="12" cy="12" r="3" fill="none" stroke="#9933aa" stroke-width="1.5"/></svg></span>R&B
+            <div class="pat-subtitle">Violet → rose</div>          </div>
+          <div class="pat-card idle-pat" data-pat="rainbow" data-color="#00ffff" data-grad="#ff00ff">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M2 12 Q6 4 10 12 Q14 20 18 12 Q20 8 22 10" stroke="#00ffff"/><path d="M2 14 Q6 6 10 14 Q14 22 18 14 Q20 10 22 12" stroke="#ff00ff" opacity="0.6"/></svg></span>EDM
+            <div class="pat-subtitle">Cyan → magenta</div>          </div>
+          <div class="pat-card idle-pat" data-pat="rainbow" data-color="#ff7700" data-grad="#cc0044">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 18V9l9-3v9" stroke="#ff7700"/><circle cx="6" cy="18" r="3" fill="none" stroke="#cc0044"/><circle cx="15" cy="15" r="3" fill="none" stroke="#ff7700"/></svg></span>Soul
+            <div class="pat-subtitle">Amber → wine</div>          </div>
+          <div class="pat-card idle-pat" data-pat="rainbow" data-color="#ff22cc" data-grad="#22ddff">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="8" stroke="#ff22cc"/><path d="M8 12h8M12 8v8" stroke="#22ddff" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="#ff22cc" opacity="0.2"/></svg></span>Pop
+            <div class="pat-subtitle">Hot pink → electric</div>          </div>
+          <div class="pat-card idle-pat" data-pat="rainbow" data-color="#556677" data-grad="#bb0000">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M7 2l10 20M17 2L7 22" stroke="#556677" stroke-linecap="round"/><path d="M4 14h16" stroke="#bb0000" stroke-width="3" stroke-linecap="round"/></svg></span>Metal
+            <div class="pat-subtitle">Steel → blood</div>          </div>
+          <div class="pat-card idle-pat" data-pat="rainbow" data-color="#0099aa" data-grad="#003366">
+            <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M2 12 Q7 6 12 12 Q17 18 22 12" stroke="#0099aa"/><path d="M2 16 Q7 10 12 16 Q17 22 22 16" stroke="#003366" opacity="0.5"/><circle cx="12" cy="8" r="2" fill="#0099aa" opacity="0.3"/></svg></span>Chill
+            <div class="pat-subtitle">Ocean → deep</div>          </div>
+          <div class="pat-card idle-pat" data-pat="off" data-color="" data-grad="">
             <span class="pat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>Off
             <div class="pat-subtitle">LEDs off</div>          </div>
         </div>
 
-        <!-- Gradient Colors -->
-        <div class="card-label" style="margin-top:16px">Start Color</div>
+        <!-- Color Override -->
+        <div class="card-label" style="margin-top:16px">Color</div>
         <div class="color-strip" id="colorStrip">
           <div class="color-indicator" id="colorIndicator" style="left:0%"></div>
         </div>
         <div class="grad-preview" id="gradPreview"></div>
-        <div class="card-label">End Color</div>
-        <div class="grad-strip" id="gradStrip">
-          <div class="grad-indicator" id="gradIndicator" style="left:30%"></div>
-        </div>
 
         <!-- Brightness -->
         <div class="card-label" style="margin-top:16px">Brightness</div>
@@ -1541,7 +1565,7 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
       <!-- Portal Section -->
       <div class="card-label" style="margin-top:16px">Portal</div>
       <div class="portal-section">
-        <div class="portal-card glass" onclick="window.open('#fan-portal','_blank')">
+        <div class="portal-card glass" onclick="window.open(S.portalUrl || 'https://dpaconsortium.org/fan','_blank')">
           <div class="portal-icon fan">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           </div>
@@ -1553,7 +1577,7 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
           </div>
         </div>
-        <div class="portal-card glass admin-section" onclick="window.open('#creator-portal','_blank')">
+        <div class="portal-card glass admin-section" onclick="window.open(S.creatorUrl || 'https://dpaconsortium.org/creator','_blank')">
           <div class="portal-icon creator">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
@@ -1762,6 +1786,7 @@ function loadRealTracks() {
       const trackList = d.tracks || d.wavs || [];
       if (trackList && trackList.length > 0) {
         realTracksLoaded = true;
+        const deviceArtist = S.deviceArtist || S.trackArtist || 'Artist';
         S.tracks = trackList.map((w, i) => {
           // Extract clean title from filename
           const fname = (w.path || '').split('/').pop().replace(/\.(wav|dpa)$/i, '');
@@ -1769,7 +1794,7 @@ function loadRealTracks() {
           return {
             id: 't' + (i + 1),
             title: title,
-            artist: 'Cort Knoxx',
+            artist: deviceArtist,
             durationMs: w.durationMs || 0,
             plays: 0,
             file: w.path,
@@ -1781,12 +1806,22 @@ function loadRealTracks() {
             format: w.format || 'wav',
           };
         });
-        // Load favorites from device, then rebuild UI
-        fetch(API_BASE + '/api/favorites').then(r=>r.json()).then(f=>{
-          S.favorites = f.favorites || [];
+        // Load analytics (play counts) + favorites, then rebuild UI
+        Promise.all([
+          fetch(API_BASE + '/api/analytics').then(r=>r.json()).catch(()=>({})),
+          fetch(API_BASE + '/api/favorites').then(r=>r.json()).catch(()=>({}))
+        ]).then(([analytics, favs]) => {
+          // Merge play counts by path or index
+          const aTracks = analytics.tracks || [];
+          for (var ai = 0; ai < aTracks.length; ai++) {
+            var a = aTracks[ai];
+            var matched = S.tracks.find(t => t.file === a.path) || S.tracks[a.idx];
+            if (matched) matched.plays = a.plays || 0;
+          }
+          S.favorites = favs.favorites || [];
           buildTrackList();
           buildHomeTrackList();
-        }).catch(()=>{ buildTrackList(); buildHomeTrackList(); });
+        });
         // Also rebuild non-favorite UI
         buildBookletTrackNotes();
         updateAlbumSummary();
@@ -1806,6 +1841,19 @@ function loadRealTracks() {
     });
 }
 
+function loadRealCapsules() {
+  fetch(API_BASE + '/api/capsules')
+    .then(r => r.json())
+    .then(d => {
+      const caps = d.capsules || [];
+      if (caps.length > 0) {
+        S.capsules = caps;
+        buildCapsuleList();
+      }
+    })
+    .catch(() => {});  // keep MOCK_CAPSULES as fallback
+}
+
 let statusTimer = null;
 let featuresTimer = null;
 let lastDebounce = {};
@@ -1823,21 +1871,18 @@ function init() {
   initVolumeSlider();
   initBrightnessSlider();
   initColorPicker();
-  initGradPicker();
+  // initGradPicker removed — genre presets auto-set gradEnd
   initEqButtons();
   initPatternGrid();
   initViz();
   initVizModeButtons();
   // initBeatSliders(); — removed, VU patterns handle beat internally
   updateUI();
-  startPolling();
-  loadRealTracks();
-  // Hide connecting overlay after short delay
-  setTimeout(() => {
-    document.getElementById('connectOverlay').classList.add('hidden');
-    S.connected = true;
-    updateConnectionDot();
-  }, 800);
+  startPolling();  // delayed 500ms internally to let page assets load
+  // Stagger data loads so they don't overlap with status polling.
+  setTimeout(loadRealTracks, 1500);
+  setTimeout(loadRealCapsules, 2500);
+  // Overlay stays visible until first successful status poll (see pollStatus).
 }
 
 // ── Tab Switching ────────────────────────────────────────────
@@ -1959,11 +2004,9 @@ function hydrateTrackArtThumbnails() {
     const idx = parseInt(el.getAttribute('data-idx') || '0', 10);
     const file = el.getAttribute('data-file') || '';
     const cands = trackArtCandidates(file);
+    // Fallback chain: per-track art → album cover → SVG placeholder
+    cands.push('/art/cover.jpg', '/art/cover.png');
     const svgFb = TRACK_ART[idx] || '';
-    if (!cands.length) {
-      el.outerHTML = svgFb;
-      return;
-    }
     const img = document.createElement('img');
     img.className = 'track-art-img';
     img.alt = '';
@@ -2028,10 +2071,16 @@ function fetchTimeout(ms) {
 }
 let statusBusy = false;
 let featuresBusy = false;
+let statusFailCount = 0;      // consecutive failures before going mock
+const MOCK_THRESHOLD = 3;     // 3 consecutive fails → mock mode
 
 function startPolling() {
-  pollStatus();
-  statusTimer = setInterval(pollStatus, 2000);  // 2s — was 1s, halved load
+  // Short delay lets page assets (HTML/CSS/JS) finish loading before API calls.
+  // ESP32 has ~5 AsyncTCP sockets — avoids flooding during page load.
+  setTimeout(function() {
+    pollStatus();
+    statusTimer = setInterval(pollStatus, 2000);  // 2s status poll
+  }, 500);
 }
 
 function pollStatus() {
@@ -2041,8 +2090,15 @@ function pollStatus() {
     .then(r => r.json())
     .then(d => {
       statusBusy = false;
+      statusFailCount = 0;     // reset on success
       S.mock = false;
       S.connected = true;
+      // Hide connecting overlay on first successful poll
+      var _ov = document.getElementById('connectOverlay');
+      if (_ov && !_ov.classList.contains('hidden')) {
+        _ov.classList.add('hidden');
+        updateConnectionDot();
+      }
       S.playing = d.player?.playing ?? false;
       S.trackIndex = d.player?.trackIndex ?? 0;
       S._fwTrackTitle = d.player?.trackTitle ?? 'Unknown';
@@ -2050,7 +2106,7 @@ function pollStatus() {
       S.deviceArtist = d.artist || '';
       S.deviceAlbum  = d.album  || '';
       S.coverBytes   = d.coverBytes || 0;
-      S.trackArtist  = d.artist || 'Cort Knoxx';
+      S.trackArtist  = d.artist || S.deviceArtist || 'Artist';
       const _newMetaKey = S.deviceArtist + '|' + S.deviceAlbum + '|' + S.coverBytes;
       if (_newMetaKey !== _prevMetaKey) S._metaDirty = true;
       S.posMs = d.player?.posMs ?? 0;
@@ -2064,6 +2120,8 @@ function pollStatus() {
       S.battVoltage = d.battery?.voltage ?? 0;
       S.fwVersion = d.ver ?? '--';
       S.admin = d.admin ?? false;
+      S.portalUrl = d.portalUrl ?? 'http://192.168.4.1';
+      S.creatorUrl = d.creatorUrl ?? 'http://192.168.4.1';
       S.uptime = d.uptime_s ?? 0;
       if (d.led) {
         const idleState = d.led.idle || {};
@@ -2084,7 +2142,7 @@ function pollStatus() {
       updateConnectionDot();
       // Start/stop features polling — 250ms (was 100ms, 4x less load)
       if (S.playing && !featuresTimer) {
-        featuresTimer = setInterval(pollFeatures, 500);  // 500ms — balances VU responsiveness vs socket load
+        featuresTimer = setInterval(pollFeatures, 1000);  // 1s — prevents socket exhaustion on ESP32
       } else if (!S.playing && featuresTimer) {
         clearInterval(featuresTimer);
         featuresTimer = null;
@@ -2094,13 +2152,31 @@ function pollStatus() {
     })
     .catch(() => {
       statusBusy = false;
-      S.mock = true;
+      statusFailCount++;
+      if (statusFailCount >= MOCK_THRESHOLD) {
+        S.mock = true;               // only go mock after 3 consecutive failures
+      }
       if (S.playing) mockAdvancePosition();
       updateUI();
     });
 }
 
 function pollFeatures() {
+  // Mock mode: generate local placeholder data, NEVER hit the device
+  if (S.mock) {
+    if (S.playing) {
+      S.audioFeatures = {
+        peakL: 0.3 + Math.random() * 0.6,
+        peakR: 0.3 + Math.random() * 0.6,
+        rms: 0.2 + Math.random() * 0.4,
+        envelope: 0.3 + Math.random() * 0.5,
+        bassEnergy: 0.2 + Math.random() * 0.7,
+        beatFlag: Math.random() > 0.85,
+      };
+      updateBeatIndicator();
+    }
+    return;
+  }
   if (featuresBusy) return;  // skip if previous request still in flight
   featuresBusy = true;
   fetch(API_BASE + '/api/audio/features', { signal: fetchTimeout(2000) })
@@ -2112,18 +2188,6 @@ function pollFeatures() {
     })
     .catch(() => {
       featuresBusy = false;
-      // Generate mock features when playing
-      if (S.playing) {
-        S.audioFeatures = {
-          peakL: 0.3 + Math.random() * 0.6,
-          peakR: 0.3 + Math.random() * 0.6,
-          rms: 0.2 + Math.random() * 0.4,
-          envelope: 0.3 + Math.random() * 0.5,
-          bassEnergy: 0.2 + Math.random() * 0.7,
-          beatFlag: Math.random() > 0.85,
-        };
-        updateBeatIndicator();
-      }
     });
 }
 
@@ -2205,7 +2269,13 @@ function updatePlayState() {
     _lastLedColor = '';
     _lastLedGrad = '';
     syncColorIndicator('colorStrip', 'colorIndicator', patColors.color);
-    syncColorIndicator('gradStrip', 'gradIndicator', patColors.gradEnd);
+  } else if (!isPlay && _genreColor) {
+    // Restore genre colors when switching back to idle
+    S.led.color = _genreColor;
+    S.led.gradEnd = _genreGrad;
+    _lastLedColor = '';
+    _lastLedGrad = '';
+    syncColorIndicator('colorStrip', 'colorIndicator', _genreColor);
   }
   updateLedMirror();
   // Expanded player icons
@@ -2221,9 +2291,9 @@ function updatePlayState() {
     // Adjust tab panel bottom padding for now-playing bar
     document.documentElement.style.setProperty('--np-bar-height', '88px');
   }
-  // Start mock features if playing in mock mode
+  // Start mock features if playing in mock mode (local data only, no fetches)
   if (S.mock && isPlay && !featuresTimer) {
-    featuresTimer = setInterval(pollFeatures, 100);
+    featuresTimer = setInterval(pollFeatures, 1000);
   } else if (!isPlay && featuresTimer && S.mock) {
     clearInterval(featuresTimer);
     featuresTimer = null;
@@ -2340,6 +2410,8 @@ function updateAlbumSummary() {
   setText('bookletAlbumTitle', albumTitle);
   setText('bookletAlbumArtist', albumArtist);
   setText('npArtist', albumArtist);
+  setText('creditArtist', albumArtist);
+  setText('creditAlbum', albumTitle);
   document.getElementById('homeTrackCount').textContent = S.tracks.length;
   if (S.tracks.length === 0) {
     setText('homeTotalDur', '--');
@@ -2497,9 +2569,33 @@ function playTrack(idx) {
   S.trackIndex = idx;
   S.playing = true;
   S.posMs = 0;
-  updatePlayState();
-  updateTrackInfo();
-  fetch(API_BASE + '/api/track?i=' + idx).catch(() => {});
+  // Instant visual feedback: highlight track + show play state
+  updateTrackListHighlight();
+  updateHomeTrackListHighlight();
+  document.body.classList.add('is-playing');
+  document.getElementById('playIcon').style.display = 'none';
+  document.getElementById('pauseIcon').style.display = 'block';
+  document.getElementById('npPlayIcon').style.display = 'none';
+  document.getElementById('npPauseIcon').style.display = 'block';
+  // Now-playing bar track title (instant)
+  var track = S.tracks[idx];
+  if (track) {
+    document.getElementById('npTitle').textContent = track.title;
+    document.getElementById('npArtist').textContent = track.artist;
+    document.getElementById('homeTitle').textContent = track.title;
+    document.getElementById('homeArtist').textContent = track.artist;
+    S.trackTitle = track.title;
+    S.trackArtist = track.artist;
+  }
+  var npBar = document.getElementById('nowPlayingBar');
+  if (S.tracks.length > 0) npBar.style.display = 'flex';
+  // Fire API call immediately (non-blocking)
+  fetch(API_BASE + '/api/track?i=' + idx).catch(function(){});
+  // Defer heavy work (hero cover, LED mirror, tint) to next frame
+  requestAnimationFrame(function() {
+    updatePlayState();
+    updateTrackInfo();
+  });
 }
 
 function toggleHeart(idx) {
@@ -2550,14 +2646,14 @@ function openTrackDetail(idx) {
     const titleSize = t.title.length > 20 ? 16 : 20;
     document.getElementById('trackDetailArt').innerHTML = heroSvg.replace('</svg>',
       `<text x="120" y="${titleY}" text-anchor="middle" font-size="${titleSize}" fill="#ffffff" font-weight="800" opacity="0.9" font-family="sans-serif">${escXml(t.title)}</text>` +
-      `<text x="120" y="${titleY + 20}" text-anchor="middle" font-size="9" fill="#aaa" font-weight="600" opacity="0.6" font-family="sans-serif" letter-spacing="2">${escXml(t.artist || 'Cort Knoxx')}</text></svg>`
+      `<text x="120" y="${titleY + 20}" text-anchor="middle" font-size="9" fill="#aaa" font-weight="600" opacity="0.6" font-family="sans-serif" letter-spacing="2">${escXml(t.artist || S.deviceArtist || 'Artist')}</text></svg>`
     );
   } else {
     document.getElementById('trackDetailArt').innerHTML = `<div style="width:100%;height:100%;background:var(--card);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px"><span style="font-size:20px;font-weight:800;color:var(--bright)">${esc(t.title)}</span><span style="font-size:11px;color:var(--dim);letter-spacing:2px">${esc(t.artist||'Cort Knoxx')}</span></div>`;
   }
 
   document.getElementById('trackDetailTitle').textContent = t.title;
-  document.getElementById('trackDetailArtist').textContent = t.artist || 'Cort Knoxx';
+  document.getElementById('trackDetailArtist').textContent = t.artist || S.deviceArtist || 'Artist';
 
   // Meta grid
   const meta = [];
@@ -2961,39 +3057,6 @@ function initColorPicker() {
   syncColorIndicator('colorStrip', 'colorIndicator', S.led.color);
 }
 
-// ── Gradient End Color Picker ────────────────────────────────
-function initGradPicker() {
-  const strip = document.getElementById('gradStrip');
-  const indicator = document.getElementById('gradIndicator');
-  if (!strip || !indicator) return;
-
-  function setGradFromX(x) {
-    const rect = strip.getBoundingClientRect();
-    let pct = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
-    indicator.style.left = (pct * 100) + '%';
-    const hue = Math.round(pct * 360);
-    const color = hslToHex(hue, 100, 50);
-    S.led.gradEnd = color;
-    indicator.style.backgroundColor = color;
-    _lastLedGrad = '';  // force LED mirror update
-    cachePatternColor('gradEnd', color);
-    updateLedMirror();
-    debounce('grad', () => {
-      const c = encodeURIComponent(color);
-      fetch(API_BASE + '/api/led/preview?gradEnd=' + c + '&mode=idle').catch(() => {});
-      fetch(API_BASE + '/api/led/preview?gradEnd=' + c + '&mode=playback').catch(() => {});
-    }, 200);
-  }
-
-  let dragging = false;
-  strip.addEventListener('pointerdown', (e) => { dragging = true; setGradFromX(e.clientX); });
-  document.addEventListener('pointermove', (e) => { if (dragging) setGradFromX(e.clientX); });
-  document.addEventListener('pointerup', () => { dragging = false; });
-
-  // Set initial indicator position and color
-  syncColorIndicator('gradStrip', 'gradIndicator', S.led.gradEnd);
-}
-
 // ── EQ Buttons ───────────────────────────────────────────────
 function initEqButtons() {
   document.querySelectorAll('.eq-pill').forEach(btn => {
@@ -3009,47 +3072,58 @@ function initEqButtons() {
 // ── Per-Pattern Default Colors ──────────────────────────────────
 // Each pattern starts with sensible defaults; user can modify via color strip
 const PATTERN_DEFAULTS = {
-  // Idle patterns
-  breathing: { color: '#0088ff', gradEnd: '#ff6600' },
-  solid:     { color: '#0088ff', gradEnd: '#0088ff' },
-  pulse:     { color: '#ff0066', gradEnd: '#ff6600' },
-  rainbow:   null,  // full spectrum — no color needed
-  comet:     { color: '#00ffaa', gradEnd: '#0088ff' },
-  wave:      { color: '#0088ff', gradEnd: '#00ff88' },
-  sparkle:   { color: '#ffffff', gradEnd: '#ffdd00' },
-  fire:      { color: '#ff4400', gradEnd: '#ffaa00' },
+  // Genre rainbow presets (all use rainbow pattern with hue range)
+  rainbow:   null,  // full spectrum — no color override
   off:       null,
   // VU / playback patterns
   vu_classic: { color: '#00ff88', gradEnd: '#ff0044' },
-  // removed: vu_fill, vu_peak, vu_split, vu_bass, vu_energy
 };
 
-// Per-pattern color cache (user modifications remembered during session)
+// Per-genre color cache (user modifications remembered during session)
 const _patternColors = {};
-let _lastClickedPat = 'breathing';  // tracks which pattern the color strip applies to
+let _lastClickedPat = 'rainbow';
+// Current genre colors (set by clicking a genre card)
+let _genreColor = '';
+let _genreGrad = '';
 
-// Apply default colors for a pattern and sync the color pickers
+// Apply colors for a genre preset (reads from genre card data attrs)
+function applyGenreColors(color, gradEnd) {
+  if (!color && !gradEnd) return;  // full rainbow / off — no color
+  S.led.color = color;
+  S.led.gradEnd = gradEnd;
+  _genreColor = color;
+  _genreGrad = gradEnd;
+  _lastLedColor = '';
+  _lastLedGrad = '';
+  syncColorIndicator('colorStrip', 'colorIndicator', color);
+}
+
+// Apply default colors for VU playback patterns
 function applyPatternDefaults(pat) {
-  _lastClickedPat = pat;  // color strip changes will cache to this pattern
-  // Use user-modified colors if available, otherwise use defaults
+  _lastClickedPat = pat;
   const cached = _patternColors[pat];
   const def = cached || PATTERN_DEFAULTS[pat];
-  if (!def) return;  // rainbow/off — no color change
+  if (!def) return;
   S.led.color = def.color;
   S.led.gradEnd = def.gradEnd;
   _lastLedColor = '';
   _lastLedGrad = '';
-  // Move color strip indicators to match
   syncColorIndicator('colorStrip', 'colorIndicator', def.color);
-  syncColorIndicator('gradStrip', 'gradIndicator', def.gradEnd);
 }
 
 // Cache a user's color modification for the last-clicked pattern
 function cachePatternColor(key, value) {
   const pat = _lastClickedPat;
-  if (!PATTERN_DEFAULTS[pat]) return;  // rainbow/off
+  if (key === 'color') {
+    S.led.color = value;
+    _lastLedColor = '';
+    // Also update gradEnd for genre rainbow if user drags color strip
+    // (keeps the genre feel but shifts the base hue)
+  }
   if (!_patternColors[pat]) {
-    _patternColors[pat] = { ...PATTERN_DEFAULTS[pat] };
+    const base = PATTERN_DEFAULTS[pat];
+    if (!base) return;
+    _patternColors[pat] = { ...base };
   }
   _patternColors[pat][key] = value;
 }
@@ -3078,41 +3152,55 @@ function syncColorIndicator(stripId, indicatorId, hex) {
 
 // ── Pattern Grids (separate idle + playback) ─────────────────
 function initPatternGrid() {
-  // Playback VU patterns
+  // Playback VU genre presets
   document.querySelectorAll('#playPatternGrid .pat-card').forEach(card => {
     card.addEventListener('click', () => {
       const pat = card.dataset.pat;
+      const genreColor = card.dataset.color || '';
+      const genreGrad  = card.dataset.grad  || '';
       S.led.playPattern = pat;
-      S.led.pattern = pat;  // keep legacy
+      S.led.pattern = pat;
       _lastLedPattern = '';
       document.querySelectorAll('#playPatternGrid .pat-card').forEach(c => c.classList.remove('active'));
       card.classList.add('active');
-      applyPatternDefaults(pat);
+      // Apply genre colors for VU gradient
+      if (genreColor && genreGrad) {
+        S.led.color = genreColor;
+        S.led.gradEnd = genreGrad;
+        _lastLedColor = '';
+        _lastLedGrad = '';
+        syncColorIndicator('colorStrip', 'colorIndicator', genreColor);
+      }
       updateLedMirror();
-      // Send pattern + default colors together so device doesn't flicker
-      const def = PATTERN_DEFAULTS[pat];
+      // Send pattern + genre colors to device
       let url = API_BASE + '/api/led/preview?pattern=' + encodeURIComponent(pat) + '&mode=playback';
-      if (def) url += '&color=' + encodeURIComponent(def.color) + '&gradEnd=' + encodeURIComponent(def.gradEnd);
+      if (genreColor) url += '&color=' + encodeURIComponent(genreColor);
+      if (genreGrad)  url += '&gradEnd=' + encodeURIComponent(genreGrad);
       fetch(url).catch(() => {});
     });
   });
-  // Idle LED patterns
+  // Idle LED genre presets
   document.querySelectorAll('#idlePatternGrid .pat-card').forEach(card => {
     card.addEventListener('click', () => {
       const pat = card.dataset.pat;
+      const genreColor = card.dataset.color || '';
+      const genreGrad  = card.dataset.grad  || '';
       S.led.idlePattern = pat;
       _lastLedPattern = '';
       document.querySelectorAll('#idlePatternGrid .pat-card').forEach(c => c.classList.remove('active'));
       card.classList.add('active');
-      applyPatternDefaults(pat);
+      // Apply genre colors (or clear for full rainbow/off)
+      if (genreColor && genreGrad) {
+        applyGenreColors(genreColor, genreGrad);
+      }
       if (!S.playing) {
         S.led.pattern = pat;
         updateLedMirror();
       }
-      // Send pattern + default colors together
-      const def = PATTERN_DEFAULTS[pat];
+      // Send pattern + genre colors to device
       let url = API_BASE + '/api/led/preview?pattern=' + encodeURIComponent(pat) + '&mode=idle';
-      if (def) url += '&color=' + encodeURIComponent(def.color) + '&gradEnd=' + encodeURIComponent(def.gradEnd);
+      if (genreColor) url += '&color=' + encodeURIComponent(genreColor);
+      if (genreGrad)  url += '&gradEnd=' + encodeURIComponent(genreGrad);
       fetch(url).catch(() => {});
     });
   });

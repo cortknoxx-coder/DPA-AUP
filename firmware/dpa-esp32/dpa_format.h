@@ -2,7 +2,7 @@
 #define DPA_FORMAT_H
 
 #include <Arduino.h>
-#include <cstdio>  // FILE*, fread, fseek
+#include <FS.h>
 
 // DPA1 media container magic.
 static const uint8_t DPA1_MAGIC_BYTES[4] = { 'D', 'P', 'A', '1' };
@@ -53,22 +53,22 @@ struct DpaFileHeader {
   bool valid;
 };
 
-static inline uint16_t dpaRd16(FILE* f) {
+static inline uint16_t dpaRd16(File& f) {
   uint8_t b[2] = {0, 0};
-  if (fread(b, 1, 2, f) != 2) return 0;
+  if (f.read(b, 2) != 2) return 0;
   return (uint16_t)(b[0] | (b[1] << 8));
 }
 
-static inline uint32_t dpaRd32(FILE* f) {
+static inline uint32_t dpaRd32(File& f) {
   uint8_t b[4] = {0, 0, 0, 0};
-  if (fread(b, 1, 4, f) != 4) return 0;
+  if (f.read(b, 4) != 4) return 0;
   return (uint32_t)(b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24));
 }
 
-static inline String dpaReadFixedString(FILE* f, size_t maxBytes) {
+static inline String dpaReadFixedString(File& f, size_t maxBytes) {
   uint8_t buf[96] = {0};
   size_t n = maxBytes > sizeof(buf) ? sizeof(buf) : maxBytes;
-  if (fread(buf, 1, n, f) != n) return "";
+  if (f.read(buf, n) != n) return "";
   size_t len = 0;
   while (len < n && buf[len] != 0) len++;
   String out = "";
@@ -76,19 +76,16 @@ static inline String dpaReadFixedString(FILE* f, size_t maxBytes) {
   return out;
 }
 
-static inline bool dpaReadHeader(FILE* f, DpaFileHeader& out) {
+static inline bool dpaReadHeader(File& f, DpaFileHeader& out) {
   out = {0, 0, 0, 0, 0, 0, 0, 0, 0, "", "", false};
-  fseek(f, 0, SEEK_SET);
+  f.seek(0);
 
   uint8_t magic[4] = {0, 0, 0, 0};
-  if (fread(magic, 1, 4, f) != 4) return false;
+  if (f.read(magic, 4) != 4) return false;
   if (memcmp(magic, DPA1_MAGIC_BYTES, 4) != 0) return false;
 
-  uint8_t byte;
-  if (fread(&byte, 1, 1, f) != 1) return false;
-  out.version = byte;
-  if (fread(&byte, 1, 1, f) != 1) return false;
-  out.flags = byte;
+  out.version = (uint8_t)f.read();
+  out.flags = (uint8_t)f.read();
   out.headerSize = dpaRd16(f);
   out.payloadFormat = dpaRd32(f);
   out.sampleRate = dpaRd32(f);

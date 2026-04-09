@@ -371,12 +371,32 @@ void ledTick() {
 
   else if (pattern == "rainbow") {
     // Rainbow Flow: smooth HSV gradient slides across strip
-    // 5-second full cycle, each LED offset by hue
+    // Supports genre mode: when color + gradEnd are set and different,
+    // cycles within that hue range instead of full spectrum.
     FastLED.setBrightness(bright);
     unsigned long ms = millis();
     uint8_t baseHue = (ms / 20) & 0xFF;  // ~5 sec full cycle
-    for (int i = 0; i < NUM_LEDS; i++) {
-      leds[i] = CHSV(baseHue + (i * 255 / NUM_LEDS), 240, 255);
+
+    CRGB gradEnd = getGradientEnd();
+    bool genreMode = (color.r | color.g | color.b) != 0
+                  && (gradEnd.r | gradEnd.g | gradEnd.b) != 0
+                  && (color != gradEnd);
+
+    if (genreMode) {
+      // Genre rainbow: cycle within the hue range defined by color → gradEnd
+      CHSV h1 = rgb2hsv_approximate(color);
+      CHSV h2 = rgb2hsv_approximate(gradEnd);
+      uint8_t hueSpan = h2.hue - h1.hue;  // wraps naturally in uint8_t
+      for (int i = 0; i < NUM_LEDS; i++) {
+        uint8_t pos = baseHue + (i * 255 / NUM_LEDS);
+        uint8_t hue = h1.hue + scale8(pos, hueSpan);
+        leds[i] = CHSV(hue, 240, 255);
+      }
+    } else {
+      // Classic full-spectrum rainbow
+      for (int i = 0; i < NUM_LEDS; i++) {
+        leds[i] = CHSV(baseHue + (i * 255 / NUM_LEDS), 240, 255);
+      }
     }
   }
 

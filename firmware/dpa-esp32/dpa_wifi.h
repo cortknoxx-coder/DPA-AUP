@@ -20,6 +20,7 @@
 #define DPA_WIFI_H
 
 #include <Arduino.h>      // String, Serial, millis, delay
+#include <WiFi.h>         // Arduino WiFi class — used for mode() init only
 #include <Preferences.h>  // NVS persistence (thin wrapper over esp_nvs)
 #include <esp_wifi.h>
 #include <esp_netif.h>
@@ -405,58 +406,30 @@ void wifiInit(const char* apPassword, int apChannel, int apMaxConn) {
   // Build dynamic SSID from stored metadata
   wifiBuildSSID();
 
-  // ── ESP-IDF network stack initialization ──
-  ESP_ERROR_CHECK(esp_netif_init());
-  // Event loop is already created by Arduino framework (initArduino)
+  // ── WiFi init: Use Arduino WiFi.softAP() + WiFi.enableSTA() to
+  // let the framework handle netif creation and driver init, then
+  // layer ESP-IDF event handlers + power control on top. ──
+  WiFi.mode(WIFI_MODE_APSTA);
+  WiFi.softAP(g_apSSID.c_str(), apPassword, apChannel, 0, apMaxConn);
+  WiFi.setSleep(false);  // WIFI_PS_NONE — prevents AP client drops
 
-  // Create network interfaces
-  g_apNetif  = esp_netif_create_default_wifi_ap();
-  g_staNetif = esp_netif_create_default_wifi_sta();
+  // Get netif handles for ESP-IDF accessors (IP info, station count)
+  g_apNetif  = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+  g_staNetif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
 
-  // Initialize WiFi driver with default config
-  wifi_init_config_t wifi_cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&wifi_cfg));
-
-  // Register event handlers
+  // Register our event handlers for disconnect reason codes + AP client tracking
   esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
                              &wifiEventHandler, NULL);
   esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
                              &wifiEventHandler, NULL);
 
-  // Set dual mode: AP always on + STA for home network
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
-
-  // ── Configure AP ──
-  wifi_config_t ap_cfg = {};
-  strncpy((char*)ap_cfg.ap.ssid, g_apSSID.c_str(),
-          sizeof(ap_cfg.ap.ssid) - 1);
-  ap_cfg.ap.ssid_len = g_apSSID.length();
-  strncpy((char*)ap_cfg.ap.password, apPassword,
-          sizeof(ap_cfg.ap.password) - 1);
-  ap_cfg.ap.channel = apChannel;
-  ap_cfg.ap.max_connection = apMaxConn;
-  ap_cfg.ap.authmode = strlen(apPassword) > 0
-                         ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
-  ap_cfg.ap.beacon_interval = 100;  // 100ms beacon for fast discovery
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg));
-
-  // Disable WiFi power saving — prevents AP from dropping clients
-  // during audio playback. Slight DAC noise tradeoff for rock-solid AP.
+  // Also force PS_NONE at ESP-IDF level for certainty
   esp_wifi_set_ps(WIFI_PS_NONE);
 
-  // Start WiFi
-  ESP_ERROR_CHECK(esp_wifi_start());
-
-  // Log AP info
-  esp_netif_ip_info_t ap_ip;
-  esp_netif_get_ip_info(g_apNetif, &ap_ip);
-  char ip_buf[16];
-  snprintf(ip_buf, sizeof(ip_buf), IPSTR, IP2STR(&ap_ip.ip));
-
-  Serial.println("[WIFI] AP started! (ESP-IDF native)");
+  Serial.println("[WIFI] AP started! (Arduino + ESP-IDF hybrid)");
   Serial.println("[WIFI] SSID: " + g_apSSID);
   Serial.println("[WIFI] Pass: " + String(apPassword));
-  Serial.printf("[WIFI] AP IP: %s\n", ip_buf);
+  Serial.println("[WIFI] AP IP: " + WiFi.softAPIP().toString());
 
   // If we have stored STA credentials, connect automatically
   if (g_staSSID.length() > 0) {
