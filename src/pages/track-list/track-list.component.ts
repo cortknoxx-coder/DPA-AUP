@@ -61,6 +61,9 @@ export class TrackListComponent {
       }
       return this.deviceTracks().map((t, i) => {
         const leaf = t.filename.split('/').pop() || t.filename;
+        // Per-track art: local DataService first, then device /api/art, then album cover fallback
+        const localArt = localByFilename.get(leaf);
+        const deviceArt = localArt || this.connectionService.wifi.trackArtUrl(t.filename);
         return {
           index: i,
           title: t.title,
@@ -74,7 +77,7 @@ export class TrackListComponent {
             counts[t.filename] ??
             counts[t.filename.split('/').pop() || ''] ??
             0,
-          artworkUrl: localByFilename.get(leaf) || '',
+          artworkUrl: deviceArt,
           isDevice: true,
         };
       });

@@ -16,6 +16,7 @@ export class FanAuthComponent {
 
   connectingVia = signal<'ble' | 'nfc' | 'wifi' | null>(null);
   wifiError = signal<string | null>(null);
+  autoProbing = signal(true);
 
   // Feature detection
   hasBle = this.deviceService.ble.isSupported;
@@ -25,6 +26,11 @@ export class FanAuthComponent {
     // If already connected when reaching this page, redirect immediately.
     if (this.deviceService.connectionStatus() !== 'disconnected') {
       this.router.navigate(['/fan/app/home']);
+      this.autoProbing.set(false);
+    } else {
+      // Auto-probe for device on page load — if user is already on device WiFi,
+      // skip the manual connect step entirely.
+      this.autoProbeDevice();
     }
 
     // Effect to react to connection status changes
@@ -33,6 +39,17 @@ export class FanAuthComponent {
         this.router.navigate(['/fan/app/home']);
       }
     });
+  }
+
+  private async autoProbeDevice() {
+    this.autoProbing.set(true);
+    try {
+      const ok = await this.deviceService.connectViaWifi();
+      if (ok) return; // effect above handles redirect
+    } catch {
+      // probe failed, show manual options
+    }
+    this.autoProbing.set(false);
   }
 
   connectUSB() {

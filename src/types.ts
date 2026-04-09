@@ -165,6 +165,8 @@ export interface FirmwareStatus {
   ver: string;
   env: string;
   duid: string;
+  artist?: string;
+  album?: string;
   admin?: boolean;
   ble: boolean;
   wifi: boolean;

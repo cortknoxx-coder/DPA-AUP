@@ -381,6 +381,35 @@ export class DataService {
     }));
   }
 
+  /** Sync device-sourced data into album without marking as needs-rebuild. */
+  syncAlbumFromDevice(albumId: string, data: {
+    artistName?: string;
+    title?: string;
+    tracks?: { title: string; durationSec: number; filename: string }[];
+    artworkUrl?: string;
+  }) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId === albumId || a.id === albumId) {
+        const updated: any = { ...a };
+        if (data.artistName) updated.artistName = data.artistName;
+        if (data.title) updated.title = data.title;
+        if (data.artworkUrl) updated.artworkUrl = data.artworkUrl;
+        if (data.tracks) {
+          updated.tracks = data.tracks.map((t, i) => ({
+            id: `dev-${i}`,
+            albumId: a.albumId,
+            trackIndex: i,
+            trackId: `device://${t.filename}`,
+            title: t.title,
+            durationSec: t.durationSec,
+          }));
+        }
+        return updated;
+      }
+      return a;
+    }));
+  }
+
   updateAlbumMetadata(albumId: string, metadata: Partial<Album>) {
     this.albumsSignal.update(list => list.map(a => {
       if (a.albumId === albumId) {

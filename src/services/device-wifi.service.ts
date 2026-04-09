@@ -150,6 +150,13 @@ export class DeviceWifiService {
     return `${this.baseUrl}/api/art?path=${encodeURIComponent(path)}&t=${Date.now()}`;
   }
 
+  /** Per-track artwork URL from device SD: /art/{stem}.jpg */
+  trackArtUrl(trackFilename: string): string {
+    const base = trackFilename.split('/').pop() || trackFilename;
+    const stem = base.replace(/\.(wav|dpa|WAV|DPA)$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'track';
+    return `${this.baseUrl}/api/art?path=${encodeURIComponent(`/art/${stem}.jpg`)}`;
+  }
+
   async getFanData(): Promise<any> {
     const response = await fetch(`${this.baseUrl}/api/fan.json`);
     return response.json();

@@ -107,6 +107,8 @@ export class DeviceConnectionService {
         });
         this.registrationStatus.set('registered');
         await this.refreshWifiLibrary();
+        // Sync device data into DataService so all portal components get real data
+        await this.syncDeviceIntoDataService(status);
       }
 
       // Auto-sync LED colors from cover art on device (if present).
@@ -218,9 +220,12 @@ export class DeviceConnectionService {
   private async refreshWifiLibrary() {
     const tracks = await this.wifi.getDeviceTracks();
     const duid = this.deviceInfo()?.serial ?? 'DPA';
+    // Use device-reported metadata when available, fall back to DataService
+    const status = this.wifi.lastStatus();
     const creatorAlbum = this.dataService.albums()?.[0];
-    const albumTitle = creatorAlbum?.title || 'DPA Album';
-    const albumArt = creatorAlbum ? `https://picsum.photos/seed/${creatorAlbum.albumId}/400/400` : '/assets/dpa-default-cover.png';
+    const albumTitle = status?.album || creatorAlbum?.title || 'DPA Album';
+    // Prefer real cover art from device SD card over picsum placeholder
+    const albumArt = this.wifi.coverArtUrl('/art/cover.jpg');
     this.deviceLibrary.set({
       albums: [
         {
@@ -263,6 +268,31 @@ export class DeviceConnectionService {
       });
     } catch {
       // best effort only
+    }
+  }
+
+  /**
+   * Pull device metadata + tracks into DataService so all portal components
+   * (fan-home, fan-album-detail, capsules, etc.) display real data instead of mock.
+   */
+  private async syncDeviceIntoDataService(status: FirmwareStatus) {
+    try {
+      const tracks = await this.wifi.getDeviceTracks();
+      const firstAlbum = this.dataService.albums()?.[0];
+      if (!firstAlbum) return;
+
+      this.dataService.syncAlbumFromDevice(firstAlbum.albumId, {
+        artistName: status.artist || undefined,
+        title: status.album || undefined,
+        artworkUrl: this.wifi.coverArtUrl('/art/cover.jpg'),
+        tracks: tracks.map(t => ({
+          title: t.title,
+          durationSec: Math.max(1, Math.round(t.durationMs / 1000)),
+          filename: t.filename,
+        })),
+      });
+    } catch {
+      // best effort — DataService retains existing data on failure
     }
   }
 

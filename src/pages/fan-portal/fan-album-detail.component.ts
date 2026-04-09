@@ -23,22 +23,38 @@ export class FanAlbumDetailComponent {
 
   @Input() id!: string;
 
-  // Use dataService for metadata, fall back to deviceLibrary info for firmware albums
+  // Use dataService for metadata, fall back to deviceLibrary info for firmware albums.
+  // When WiFi-connected, prefer device-reported artist/album over mock DataService.
   albumMetadata = computed(() => {
     const fromData = this.dataService.getAlbum(this.id)();
-    if (fromData) return fromData;
+
+    // Pull live artist/album from device status when WiFi connected
+    const status = this.wifi.lastStatus();
+    const deviceArtist = status?.artist || '';
+    const deviceAlbum = status?.album || '';
+
+    if (fromData) {
+      // Override mock names with real device data when connected
+      if (this.connectionService.connectionStatus() === 'wifi' && (deviceArtist || deviceAlbum)) {
+        return {
+          ...fromData,
+          artistName: deviceArtist || fromData.artistName,
+          title: deviceAlbum || fromData.title,
+        };
+      }
+      return fromData;
+    }
 
     const lib = this.connectionService.deviceLibrary();
     const libAlbum = lib?.albums?.find(a => a.id === this.id);
     if (libAlbum) {
-      const creatorAlbum = this.dataService.albums()?.[0];
       return {
         id: '0',
         albumId: libAlbum.id,
-        title: libAlbum.title,
-        artistName: creatorAlbum?.artistName || 'Artist',
-        genre: creatorAlbum?.genre || 'Audio',
-        releaseDate: creatorAlbum?.releaseDate || new Date().toISOString(),
+        title: deviceAlbum || libAlbum.title,
+        artistName: deviceArtist || 'Artist',
+        genre: 'Audio',
+        releaseDate: new Date().toISOString(),
         tracks: [],
         artworkUrl: libAlbum.artworkUrl || '',
         status: 'published' as const,
@@ -58,6 +74,24 @@ export class FanAlbumDetailComponent {
   /** Set of trackIds the fan has hearted */
   favorites = signal<Set<string>>(new Set());
   private firmwarePathByTrackId = signal<Record<string, string>>({});
+
+  /** Per-track artwork URLs from device */
+  trackArtUrls = computed(() => {
+    const paths = this.firmwarePathByTrackId();
+    const urls: Record<string, string> = {};
+    for (const [trackId, path] of Object.entries(paths)) {
+      urls[trackId] = this.wifi.trackArtUrl(path);
+    }
+    return urls;
+  });
+
+  /** Album cover URL from device (fallback for tracks without per-track art) */
+  albumCoverUrl = computed(() => {
+    if (this.connectionService.connectionStatus() === 'wifi') {
+      return this.wifi.coverArtUrl('/art/cover.jpg');
+    }
+    return this.albumMetadata()?.artworkUrl || '';
+  });
 
   constructor() {
     effect(() => {
@@ -242,7 +276,12 @@ export class FanAlbumDetailComponent {
     const path = this.firmwarePathByTrackId()[trackId];
     if (this.connectionService.connectionStatus() === 'wifi' && path) {
       const want = !this.favorites().has(trackId);
-      this.wifi.setFavorite(path, want).then(() => this.refreshFavoritesFromDevice());
+      this.wifi.setFavorite(path, want)
+        .then(ok => {
+          if (!ok) console.warn('[FanAlbum] setFavorite returned false for', path);
+          return this.refreshFavoritesFromDevice();
+        })
+        .catch(e => console.error('[FanAlbum] setFavorite failed:', e));
       return;
     }
     const current = new Set(this.favorites());
@@ -262,40 +301,51 @@ export class FanAlbumDetailComponent {
   }
 
   private async refreshFavoritesFromDevice() {
-    const paths = await this.wifi.getFavorites();
-    const reverse = this.firmwarePathByTrackId();
-    const next = new Set<string>();
-    for (const [trackId, path] of Object.entries(reverse)) {
-      if (paths.includes(path)) next.add(trackId);
+    try {
+      const paths = await this.wifi.getFavorites();
+      const reverse = this.firmwarePathByTrackId();
+      const next = new Set<string>();
+      for (const [trackId, path] of Object.entries(reverse)) {
+        if (paths.includes(path)) next.add(trackId);
+      }
+      this.favorites.set(next);
+    } catch (e) {
+      console.error('[FanAlbum] Failed to fetch favorites:', e);
     }
-    this.favorites.set(next);
   }
 
   private async refreshAnalyticsFromDevice(m: Manifest) {
-    const analytics = await this.wifi.getAnalytics();
-    const byPath = new Map<string, (typeof analytics)[0]>();
-    for (const a of analytics) {
-      if (a.path) {
-        byPath.set(this.normalizeFwPath(a.path), a);
-        const base = a.path.split('/').pop();
-        if (base) byPath.set(this.normalizeFwPath(base), a);
+    try {
+      const analytics = await this.wifi.getAnalytics();
+      if (!analytics.length) {
+        console.warn('[FanAlbum] Analytics returned empty — device may have no play history yet');
       }
-    }
-    const paths = this.firmwarePathByTrackId();
-    const counts: Record<string, number> = {};
-    for (const t of m.tracks) {
-      const rawPath = paths[t.trackId] || t.blobId || '';
-      let stat =
-        (rawPath && byPath.get(this.normalizeFwPath(rawPath))) ||
-        (rawPath && byPath.get(this.normalizeFwPath(rawPath.split('/').pop() || '')));
-      if (!stat) {
-        const match = t.trackId.match(/^fw-(\d+)$/);
-        const fwIdx = match ? Number(match[1]) : -1;
-        stat = analytics.find(a => a.idx === fwIdx);
+      const byPath = new Map<string, (typeof analytics)[0]>();
+      for (const a of analytics) {
+        if (a.path) {
+          byPath.set(this.normalizeFwPath(a.path), a);
+          const base = a.path.split('/').pop();
+          if (base) byPath.set(this.normalizeFwPath(base), a);
+        }
       }
-      counts[t.trackId] = stat?.plays ?? 0;
+      const paths = this.firmwarePathByTrackId();
+      const counts: Record<string, number> = {};
+      for (const t of m.tracks) {
+        const rawPath = paths[t.trackId] || t.blobId || '';
+        let stat =
+          (rawPath && byPath.get(this.normalizeFwPath(rawPath))) ||
+          (rawPath && byPath.get(this.normalizeFwPath(rawPath.split('/').pop() || '')));
+        if (!stat) {
+          const match = t.trackId.match(/^fw-(\d+)$/);
+          const fwIdx = match ? Number(match[1]) : -1;
+          stat = analytics.find(a => a.idx === fwIdx);
+        }
+        counts[t.trackId] = stat?.plays ?? 0;
+      }
+      this.trackPlayCounts.set(counts);
+    } catch (e) {
+      console.error('[FanAlbum] Failed to fetch analytics:', e);
     }
-    this.trackPlayCounts.set(counts);
   }
 
   private normalizeFwPath(p: string): string {

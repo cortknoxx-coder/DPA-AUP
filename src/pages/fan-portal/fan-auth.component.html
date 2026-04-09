@@ -9,10 +9,17 @@
       <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3" /></svg>
     </div>
     <h1 class="text-3xl font-bold text-slate-100 tracking-tight">Authenticate Your Device</h1>
-    <p class="text-slate-400 mt-2">Connect your DPA™ to unlock your library.</p>
+    @if (autoProbing()) {
+      <p class="text-teal-400 mt-2 flex items-center justify-center gap-2">
+        <span class="h-4 w-4 rounded-full border-2 border-teal-400/30 border-t-teal-400 animate-spin"></span>
+        Searching for DPA device...
+      </p>
+    } @else {
+      <p class="text-slate-400 mt-2">Connect your DPA™ to unlock your library.</p>
+    }
   </div>
 
-  <div class="w-full max-w-sm space-y-4 mt-12 z-10">
+  <div class="w-full max-w-sm space-y-4 mt-12 z-10" [class.opacity-50]="autoProbing()" [class.pointer-events-none]="autoProbing()">
     <!-- USB-C Bridge -->
     <button (click)="connectUSB()" [disabled]="connectingVia() !== null" class="w-full group relative flex items-center gap-4 px-6 py-4 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-slate-800/70 hover:border-teal-500/50 transition-all duration-300 transform hover:-translate-y-1 shadow-lg overflow-hidden disabled:opacity-50 disabled:hover:translate-y-0">
       <div class="absolute left-0 top-0 bottom-0 w-1 bg-teal-500 rounded-l-xl transition-transform duration-300 scale-y-0 group-hover:scale-y-100 origin-center"></div>

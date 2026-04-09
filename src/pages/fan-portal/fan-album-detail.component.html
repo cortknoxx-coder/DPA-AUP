@@ -83,6 +83,14 @@
                   }
                 </div>
 
+                <!-- Track thumbnail -->
+                <div class="w-10 h-10 rounded overflow-hidden bg-slate-800 shrink-0">
+                  <img [src]="trackArtUrls()[track.trackId] || albumCoverUrl()"
+                       class="w-full h-full object-cover"
+                       (error)="$any($event.target).src = albumCoverUrl() || '/assets/dpa-default-cover.png'"
+                       loading="lazy">
+                </div>
+
                 <!-- Track info + popularity bar -->
                 <div class="flex-1 min-w-0">
                    <div class="font-bold text-[15px] leading-snug truncate transition-colors duration-200"
