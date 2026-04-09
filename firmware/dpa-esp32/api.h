@@ -112,36 +112,44 @@ String escJson(const String& s);
 
 // Save capsules to SD as JSON array
 void capsulesSave() {
-  if (!SD.exists("/data")) SD.mkdir("/data");
-  File f = SD.open(CAPSULES_PATH, FILE_WRITE);
+  sdMkdir("/data");
+  FILE* f = sdFopen(CAPSULES_PATH, "w");
   if (!f) { Serial.println("[CAPSULE] Save failed"); return; }
-  f.print("[");
+  fprintf(f, "[");
   for (int i = 0; i < g_runtimeCapsuleCount; i++) {
-    if (i > 0) f.print(",");
-    f.print("{\"id\":\""); f.print(escJson(g_runtimeCapsules[i].id));
-    f.print("\",\"type\":\""); f.print(escJson(g_runtimeCapsules[i].type));
-    f.print("\",\"title\":\""); f.print(escJson(g_runtimeCapsules[i].title));
-    f.print("\",\"desc\":\""); f.print(escJson(g_runtimeCapsules[i].desc));
-    f.print("\",\"date\":\""); f.print(escJson(g_runtimeCapsules[i].date));
-    f.print("\",\"delivered\":"); f.print(g_runtimeCapsules[i].delivered ? "true" : "false");
-    f.print(",\"price\":"); f.print(String(g_runtimeCapsules[i].price, 2));
-    f.print(",\"ctaLabel\":\""); f.print(escJson(g_runtimeCapsules[i].ctaLabel));
-    f.print("\",\"ctaUrl\":\""); f.print(escJson(g_runtimeCapsules[i].ctaUrl));
-    f.print("\",\"hasImage\":"); f.print(g_runtimeCapsules[i].hasImage ? "true" : "false");
-    f.print("}");
+    if (i > 0) fprintf(f, ",");
+    fprintf(f, "{\"id\":\"%s\"", escJson(g_runtimeCapsules[i].id).c_str());
+    fprintf(f, ",\"type\":\"%s\"", escJson(g_runtimeCapsules[i].type).c_str());
+    fprintf(f, ",\"title\":\"%s\"", escJson(g_runtimeCapsules[i].title).c_str());
+    fprintf(f, ",\"desc\":\"%s\"", escJson(g_runtimeCapsules[i].desc).c_str());
+    fprintf(f, ",\"date\":\"%s\"", escJson(g_runtimeCapsules[i].date).c_str());
+    fprintf(f, ",\"delivered\":%s", g_runtimeCapsules[i].delivered ? "true" : "false");
+    fprintf(f, ",\"price\":%.2f", g_runtimeCapsules[i].price);
+    fprintf(f, ",\"ctaLabel\":\"%s\"", escJson(g_runtimeCapsules[i].ctaLabel).c_str());
+    fprintf(f, ",\"ctaUrl\":\"%s\"", escJson(g_runtimeCapsules[i].ctaUrl).c_str());
+    fprintf(f, ",\"hasImage\":%s}", g_runtimeCapsules[i].hasImage ? "true" : "false");
   }
-  f.print("]");
-  f.close();
+  fprintf(f, "]");
+  fclose(f);
   Serial.printf("[CAPSULE] Saved %d capsules to SD\n", g_runtimeCapsuleCount);
 }
 
 // Load capsules from SD JSON
 void capsulesLoad() {
-  if (!SD.exists(CAPSULES_PATH)) return;
-  File f = SD.open(CAPSULES_PATH, FILE_READ);
+  if (!sdExists(CAPSULES_PATH)) return;
+  FILE* f = sdFopen(CAPSULES_PATH, "r");
   if (!f) return;
-  String raw = f.readString();
-  f.close();
+  // Read entire file into String
+  fseek(f, 0, SEEK_END);
+  long sz = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  char* buf = (char*)malloc(sz + 1);
+  if (!buf) { fclose(f); return; }
+  fread(buf, 1, sz, f);
+  buf[sz] = '\0';
+  fclose(f);
+  String raw = String(buf);
+  free(buf);
   g_runtimeCapsuleCount = 0;
   int pos = 0;
   while (g_runtimeCapsuleCount < 24) {
@@ -230,17 +238,32 @@ static const char* mimeForArtPath(const String& path) {
   return "image/jpeg";
 }
 
-static void sendArtFromSd(AsyncWebServerRequest* req, const String& path) {
+static void sendArtFromSd(AsyncWebServerRequest* req, const String& relPath) {
   if (!g_sdMounted) {
     req->send(503, "application/json", "{\"error\":\"sd not mounted\"}");
     return;
   }
-  if (!SD.exists(path)) {
+  String fullPath = sdPath(relPath);
+  struct stat st;
+  if (stat(fullPath.c_str(), &st) != 0) {
     req->send(404, "application/json", "{\"error\":\"not found\"}");
     return;
   }
-  const char* ct = mimeForArtPath(path);
-  AsyncWebServerResponse* response = req->beginResponse(SD, path, ct);
+  const char* ct = mimeForArtPath(relPath);
+  size_t fileSize = st.st_size;
+
+  // Stream file in chunks via response filler callback
+  String capturedPath = fullPath;  // capture for lambda
+  AsyncWebServerResponse* response = req->beginResponse(
+    String(ct), fileSize,
+    [capturedPath](uint8_t* buffer, size_t maxLen, size_t index) -> size_t {
+      FILE* f = fopen(capturedPath.c_str(), "rb");
+      if (!f) return 0;
+      fseek(f, index, SEEK_SET);
+      size_t n = fread(buffer, 1, maxLen, f);
+      fclose(f);
+      return n;
+    });
   response->addHeader("Cache-Control", "public, max-age=86400");
   response->addHeader("Access-Control-Allow-Origin", "*");
   req->send(response);
@@ -256,88 +279,87 @@ String audioGetCurrentOrFirstPlayablePath() {
 
 int audioGetWavCount() {
   if (!g_sdMounted) return 0;
-  File dir = SD.open("/tracks");
-  if (!dir || !dir.isDirectory()) {
-    if (dir) dir.close();
-    return 0;
-  }
+  String dirPath = sdPath("/tracks");
+  DIR* dir = opendir(dirPath.c_str());
+  if (!dir) return 0;
   int count = 0;
-  while (true) {
-    File file = dir.openNextFile();
-    if (!file) break;
-    String name = String(file.name());
+  struct dirent* entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    String name = String(entry->d_name);
     if (name.endsWith(".dpa") || name.endsWith(".DPA") || name.endsWith(".wav") || name.endsWith(".WAV")) {
-      String full = name.startsWith("/") ? name : ("/tracks/" + name);
-      WavInfo info = audioParsePlayable(file, full);
+      String relPath = "/tracks/" + name;
+      String fullPath = sdPath(relPath);
+      FILE* f = fopen(fullPath.c_str(), "rb");
+      if (!f) continue;
+      WavInfo info = audioParsePlayable(f, relPath);
+      fclose(f);
       if (info.valid) count++;
     }
-    file.close();
   }
-  dir.close();
+  closedir(dir);
   return count;
 }
 
 String audioGetWavPathByIndex(int wanted) {
   if (!g_sdMounted || wanted < 0) return "";
-  File dir = SD.open("/tracks");
-  if (!dir || !dir.isDirectory()) {
-    if (dir) dir.close();
-    return "";
-  }
+  String dirPath = sdPath("/tracks");
+  DIR* dir = opendir(dirPath.c_str());
+  if (!dir) return "";
   int idx = 0;
   String result = "";
-  while (true) {
-    File file = dir.openNextFile();
-    if (!file) break;
-    String name = String(file.name());
+  struct dirent* entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    String name = String(entry->d_name);
     if (name.endsWith(".dpa") || name.endsWith(".DPA") || name.endsWith(".wav") || name.endsWith(".WAV")) {
-      String full = name.startsWith("/") ? name : ("/tracks/" + name);
-      WavInfo info = audioParsePlayable(file, full);
+      String relPath = "/tracks/" + name;
+      String fullPath = sdPath(relPath);
+      FILE* f = fopen(fullPath.c_str(), "rb");
+      if (!f) continue;
+      WavInfo info = audioParsePlayable(f, relPath);
+      fclose(f);
       if (info.valid) {
         if (idx == wanted) {
-          result = full;
-          file.close();
-          break;
+          result = relPath;
+          closedir(dir);
+          return result;
         }
         idx++;
       }
     }
-    file.close();
   }
-  dir.close();
+  closedir(dir);
   return result;
 }
 
 int audioGetCurrentPlayableIndex() {
   String current = audioGetCurrentOrFirstPlayablePath();
   if (!g_sdMounted || current.length() == 0) return -1;
-
-  File dir = SD.open("/tracks");
-  if (!dir || !dir.isDirectory()) {
-    if (dir) dir.close();
-    return -1;
-  }
+  String dirPath = sdPath("/tracks");
+  DIR* dir = opendir(dirPath.c_str());
+  if (!dir) return -1;
   int idx = 0;
   int found = -1;
-  while (true) {
-    File file = dir.openNextFile();
-    if (!file) break;
-    String name = String(file.name());
+  struct dirent* entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    String name = String(entry->d_name);
     if (name.endsWith(".dpa") || name.endsWith(".DPA") || name.endsWith(".wav") || name.endsWith(".WAV")) {
-      String full = name.startsWith("/") ? name : ("/tracks/" + name);
-      WavInfo info = audioParsePlayable(file, full);
+      String relPath = "/tracks/" + name;
+      String fullPath = sdPath(relPath);
+      FILE* f = fopen(fullPath.c_str(), "rb");
+      if (!f) continue;
+      WavInfo info = audioParsePlayable(f, relPath);
+      fclose(f);
       if (info.valid) {
-        if (full == current) {
+        if (relPath == current) {
           found = idx;
-          file.close();
-          break;
+          closedir(dir);
+          return found;
         }
         idx++;
       }
     }
-    file.close();
   }
-  dir.close();
+  closedir(dir);
   return found;
 }
 
@@ -390,12 +412,8 @@ String buildStatusJson() {
   {
     unsigned long _coverBytes = 0;
     if (g_sdMounted) {
-      File _cf = SD.open("/art/cover.jpg");
-      if (_cf) { _coverBytes = _cf.size(); _cf.close(); }
-      else {
-        File _cfp = SD.open("/art/cover.png");
-        if (_cfp) { _coverBytes = _cfp.size(); _cfp.close(); }
-      }
+      _coverBytes = sdFileSize("/art/cover.jpg");
+      if (_coverBytes == 0) _coverBytes = sdFileSize("/art/cover.png");
     }
     j += "\"coverBytes\":" + String(_coverBytes) + ",";
   }
@@ -589,7 +607,7 @@ void registerApiRoutes(AsyncWebServer& server) {
       int idx = req->getParam("i")->value().toInt();
       path = audioGetWavPathByIndex(idx);
       if (path.length() > 0) {
-        if (g_sdCurrentHz != SD_FAST_HZ) sdMountFast();
+        if (g_sdCurrentKHz != SD_FAST_KHZ) sdMountFast();
         ok = audioPlayFile(path.c_str());
         if (ok) {
           g_trackIndex = idx;
@@ -746,7 +764,7 @@ void registerApiRoutes(AsyncWebServer& server) {
     Serial.printf("[API] /api/audio/play request: '%s'\n", path.c_str());
 
     // Remount SD at fast speed for playback
-    if (g_sdCurrentHz != SD_FAST_HZ) {
+    if (g_sdCurrentKHz != SD_FAST_KHZ) {
       sdMountFast();
     }
 
@@ -886,7 +904,7 @@ void registerApiRoutes(AsyncWebServer& server) {
 
   // ── POST /api/sd/upload?path=/tracks/song.wav ──── [ADMIN]
   // Multipart upload — persistent file handle + 8KB buffered writes (matches DPAC uploader pattern)
-  static File g_mpUploadFile;
+  static FILE* g_mpUploadFile = nullptr;
   static String g_mpUploadFinalPath;
   static String g_mpUploadTempPath;
   static size_t g_mpBytesWritten = 0;
@@ -899,33 +917,34 @@ void registerApiRoutes(AsyncWebServer& server) {
     [](AsyncWebServerRequest* req) {
       // Flush remaining staged bytes
       if (g_mpUploadFile && g_mpStageUsed > 0 && !g_mpWriteError) {
-        size_t w = g_mpUploadFile.write(g_mpStageBuf, g_mpStageUsed);
+        size_t w = fwrite(g_mpStageBuf, 1, g_mpStageUsed, g_mpUploadFile);
         if (w == g_mpStageUsed) g_mpBytesWritten += w;
         else g_mpWriteError = true;
         g_mpStageUsed = 0;
       }
       if (g_mpUploadFile) {
-        g_mpUploadFile.flush();
-        g_mpUploadFile.close();
+        fflush(g_mpUploadFile);
+        fclose(g_mpUploadFile);
+        g_mpUploadFile = nullptr;
       }
 
       bool ok = false;
-      if (!g_mpWriteError && g_mpBytesWritten > 0 && SD.exists(g_mpUploadTempPath)) {
-        if (SD.exists(g_mpUploadFinalPath)) SD.remove(g_mpUploadFinalPath);
-        ok = SD.rename(g_mpUploadTempPath, g_mpUploadFinalPath);
+      if (!g_mpWriteError && g_mpBytesWritten > 0 && sdExists(g_mpUploadTempPath)) {
+        if (sdExists(g_mpUploadFinalPath)) sdRemove(g_mpUploadFinalPath);
+        ok = sdRename(g_mpUploadTempPath, g_mpUploadFinalPath);
         Serial.printf("[SD] Upload finalized: %s (%u bytes, rename=%s)\n",
           g_mpUploadFinalPath.c_str(), (unsigned)g_mpBytesWritten, ok ? "OK" : "FAIL");
       } else {
         Serial.printf("[SD] Upload FAILED: writeErr=%d bytes=%u\n",
           g_mpWriteError, (unsigned)g_mpBytesWritten);
-        if (SD.exists(g_mpUploadTempPath)) SD.remove(g_mpUploadTempPath);
+        if (sdExists(g_mpUploadTempPath)) sdRemove(g_mpUploadTempPath);
       }
 
       // Upload done — resume background tasks
       extern volatile bool g_uploadInProgress;
       g_uploadInProgress = false;
 
-      // Remount fast for playback + rescan
+      // Switch to fast clock for playback + rescan
       sdMountFast();
       sdRefreshStats();
       scanWavList();
@@ -938,8 +957,8 @@ void registerApiRoutes(AsyncWebServer& server) {
       if (index == 0) {
         if (g_audioPlaying) { audioStop(); delay(100); }
 
-        // Match DPAC uploader: disable WiFi sleep to prevent SPI bus contention
-        WiFi.setSleep(false);
+        // Disable WiFi sleep to prevent SPI bus contention during upload
+        wifiSetSleep(false);
 
         sdMountSlow();
 
@@ -948,12 +967,12 @@ void registerApiRoutes(AsyncWebServer& server) {
         g_mpUploadTempPath = g_mpUploadFinalPath + ".part";
 
         String dir = g_mpUploadFinalPath.substring(0, g_mpUploadFinalPath.lastIndexOf('/'));
-        if (dir.length() > 0 && !SD.exists(dir)) SD.mkdir(dir);
+        if (dir.length() > 0 && !sdExists(dir)) sdMkdir(dir);
 
-        if (SD.exists(g_mpUploadTempPath)) SD.remove(g_mpUploadTempPath);
-        if (SD.exists(g_mpUploadFinalPath)) SD.remove(g_mpUploadFinalPath);
+        if (sdExists(g_mpUploadTempPath)) sdRemove(g_mpUploadTempPath);
+        if (sdExists(g_mpUploadFinalPath)) sdRemove(g_mpUploadFinalPath);
 
-        g_mpUploadFile = SD.open(g_mpUploadTempPath, FILE_WRITE);
+        g_mpUploadFile = sdFopen(g_mpUploadTempPath, "wb");
         g_mpBytesWritten = 0;
         g_mpWriteError = false;
         g_mpStageUsed = 0;
@@ -982,7 +1001,7 @@ void registerApiRoutes(AsyncWebServer& server) {
             int retries = 0;
             while (w < MP_STAGE_SIZE && retries < 4) {
               size_t chunk = min(MP_STAGE_SIZE - w, (size_t)8192);
-              size_t wrote = g_mpUploadFile.write(g_mpStageBuf + w, chunk);
+              size_t wrote = fwrite(g_mpStageBuf + w, 1, chunk, g_mpUploadFile);
               if (wrote > 0) { w += wrote; retries = 0; }
               else { retries++; delay(10); }
             }
@@ -1011,7 +1030,7 @@ void registerApiRoutes(AsyncWebServer& server) {
   // ── POST /api/sd/upload-raw?path=/file.wav ────── [ADMIN]
   // Streams large files to SD — keeps file handle open across chunks
   // Uses .part temp file, renames on success
-  static File g_uploadFile;
+  static FILE* g_uploadFile = nullptr;
   static String g_uploadPath;
   server.on("/api/sd/upload-raw", HTTP_POST,
     // onRequest — called when upload is complete
@@ -1021,12 +1040,13 @@ void registerApiRoutes(AsyncWebServer& server) {
         return;
       }
       if (g_uploadFile) {
-        g_uploadFile.close();
+        fclose(g_uploadFile);
+        g_uploadFile = nullptr;
         // Rename .part to final
-        String partPath = g_uploadPath + ".part";
-        if (SD.exists(partPath)) {
-          if (SD.exists(g_uploadPath)) SD.remove(g_uploadPath);
-          SD.rename(partPath, g_uploadPath);
+        String partRel = g_uploadPath + ".part";
+        if (sdExists(partRel)) {
+          if (sdExists(g_uploadPath)) sdRemove(g_uploadPath);
+          sdRename(partRel, g_uploadPath);
         }
         Serial.printf("[SD] Upload complete: %s\n", g_uploadPath.c_str());
         sdRefreshStats();
@@ -1055,12 +1075,12 @@ void registerApiRoutes(AsyncWebServer& server) {
         String rawPath = req->hasParam("path") ? req->getParam("path")->value() : "/upload.bin";
         g_uploadPath = sanitizePath(rawPath);
         String dir = g_uploadPath.substring(0, g_uploadPath.lastIndexOf('/'));
-        if (dir.length() > 0 && !SD.exists(dir)) SD.mkdir(dir);
+        if (dir.length() > 0 && !sdExists(dir)) sdMkdir(dir);
 
-        String partPath = g_uploadPath + ".part";
-        if (SD.exists(partPath)) SD.remove(partPath);
+        String partRel = g_uploadPath + ".part";
+        if (sdExists(partRel)) sdRemove(partRel);
         Serial.printf("[SD] Upload start: %s (%u bytes)\n", g_uploadPath.c_str(), (unsigned int)total);
-        g_uploadFile = SD.open(partPath, FILE_WRITE);
+        g_uploadFile = sdFopen(partRel, "wb");
       }
 
       if (g_uploadFile) {
@@ -1069,7 +1089,7 @@ void registerApiRoutes(AsyncWebServer& server) {
         int retries = 0;
         while (written < len && retries < 4) {
           size_t chunk = min(len - written, (size_t)8192);
-          size_t w = g_uploadFile.write(data + written, chunk);
+          size_t w = fwrite(data + written, 1, chunk, g_uploadFile);
           if (w > 0) {
             written += w;
             retries = 0;
@@ -1103,7 +1123,7 @@ void registerApiRoutes(AsyncWebServer& server) {
       return;
     }
     String path = req->getParam("path")->value();
-    bool ok = SD.remove(path);
+    bool ok = sdRemove(path);
     Serial.printf("[SD] Delete %s: %s\n", path.c_str(), ok ? "ok" : "failed");
     sdRefreshStats();
     // Rescan playable track list if a track was deleted
@@ -1123,7 +1143,7 @@ void registerApiRoutes(AsyncWebServer& server) {
     j += "\"freeMB\":" + String(g_sdFreeMB, 0) + ",";
     j += "\"trackCount\":" + String(g_wavCount) + ",";
     j += "\"capsuleCount\":" + String(NUM_CAPSULES) + ",\"videoCount\":1,";
-    j += "\"sdSpeed\":" + String(g_sdCurrentHz) + ",";
+    j += "\"sdSpeed\":" + String(g_sdCurrentKHz * 1000) + ",";
     j += "\"files\":" + sdListFilesJson("/tracks") + "}";
     req->send(200, "application/json", j);
   });
@@ -1301,7 +1321,7 @@ void registerApiRoutes(AsyncWebServer& server) {
 
   // ── GET /api/wifi/status ────────────────────────────────────
   server.on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest* req) {
-    String j = "{\"ap\":{\"ssid\":\"" + escJson(g_apSSID) + "\",\"ip\":\"" + WiFi.softAPIP().toString() + "\",\"clients\":" + String(WiFi.softAPgetStationNum()) + "},";
+    String j = "{\"ap\":{\"ssid\":\"" + escJson(g_apSSID) + "\",\"ip\":\"" + wifiGetApIPStr() + "\",\"clients\":" + String(wifiGetApStationCount()) + "},";
     j += "\"sta\":{\"connected\":" + String(g_staConnected ? "true" : "false");
     j += ",\"ssid\":\"" + escJson(g_staSSID) + "\"";
     j += ",\"ip\":\"" + g_staIP + "\"";

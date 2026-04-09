@@ -17,8 +17,12 @@
 #ifndef DPA_INTELLIGENCE_H
 #define DPA_INTELLIGENCE_H
 
-#include <SD.h>
+#include <Arduino.h>     // String, Serial, millis
+#include <cstdio>        // FILE*, fopen, fread, fwrite, fclose
+#include <sys/stat.h>    // stat
+#include <unistd.h>      // unlink
 #include <mbedtls/sha256.h>
+#include "sd_card.h"     // sdPath(), sdExists(), sdMkdir(), sdRemove()
 
 // ── Extern globals from .ino ──
 extern String g_duid;
@@ -41,7 +45,7 @@ struct TrackStats {
 // 20 bytes per track × 32 max = 640 bytes
 
 static TrackStats g_trackStats[32] = {};
-static const char* ANALYTICS_PATH = "/data/analytics.bin";
+static const char* ANALYTICS_REL_PATH = "/data/analytics.bin";
 static bool g_analyticsDirty = false;  // deferred save flag
 
 // ── Playlist State ──────────────────────────────────────────
@@ -56,35 +60,40 @@ static uint32_t g_currentTrackDurationMs = 0;
 void analyticsInit() {
   memset(g_trackStats, 0, sizeof(g_trackStats));
 
-  if (!SD.exists(ANALYTICS_PATH)) {
+  if (!sdExists(ANALYTICS_REL_PATH)) {
     Serial.println("[INTEL] No analytics file — starting fresh");
     return;
   }
 
-  File f = SD.open(ANALYTICS_PATH, FILE_READ);
+  FILE* f = sdFopen(ANALYTICS_REL_PATH, "rb");
   if (!f) return;
 
-  int count = f.size() / sizeof(TrackStats);
+  // Get file size
+  fseek(f, 0, SEEK_END);
+  long sz = ftell(f);
+  fseek(f, 0, SEEK_SET);
+
+  int count = sz / sizeof(TrackStats);
   if (count > 32) count = 32;
-  f.read((uint8_t*)g_trackStats, count * sizeof(TrackStats));
-  f.close();
+  fread(g_trackStats, sizeof(TrackStats), count, f);
+  fclose(f);
   Serial.printf("[INTEL] Loaded analytics for %d tracks\n", count);
 }
 
 // ── Save Analytics to SD ────────────────────────────────────
 // Uses .part temp file strategy to prevent corruption on power loss
 void analyticsSave() {
-  if (!SD.exists("/data")) SD.mkdir("/data");
-  const char* partPath = "/data/analytics.bin.part";
-  if (SD.exists(partPath)) SD.remove(partPath);
-  File f = SD.open(partPath, FILE_WRITE);
+  sdMkdir("/data");
+  const char* partRel = "/data/analytics.bin.part";
+  if (sdExists(partRel)) sdRemove(partRel);
+  FILE* f = sdFopen(partRel, "wb");
   if (!f) { Serial.println("[INTEL] Failed to save analytics"); return; }
   int count = g_wavCount > 32 ? 32 : g_wavCount;
-  f.write((uint8_t*)g_trackStats, count * sizeof(TrackStats));
-  f.close();
+  fwrite(g_trackStats, sizeof(TrackStats), count, f);
+  fclose(f);
   // Atomic rename
-  if (SD.exists(ANALYTICS_PATH)) SD.remove(ANALYTICS_PATH);
-  SD.rename(partPath, ANALYTICS_PATH);
+  if (sdExists(ANALYTICS_REL_PATH)) sdRemove(ANALYTICS_REL_PATH);
+  sdRename(partRel, ANALYTICS_REL_PATH);
   g_analyticsDirty = false;
   Serial.printf("[INTEL] Saved analytics for %d tracks\n", count);
 }
@@ -215,13 +224,14 @@ static String contentHash(const String& filename) {
 // Create binding key file for a track
 bool contentBind(const String& filename) {
   String hash = contentHash(filename);
-  String keyPath = "/data/auth/" + hash + ".key";
-  if (!SD.exists("/data/auth")) { SD.mkdir("/data"); SD.mkdir("/data/auth"); }
-  if (SD.exists(keyPath)) return true;  // already bound
-  File f = SD.open(keyPath, FILE_WRITE);
+  String keyRelPath = "/data/auth/" + hash + ".key";
+  sdMkdir("/data");
+  sdMkdir("/data/auth");
+  if (sdExists(keyRelPath)) return true;  // already bound
+  FILE* f = sdFopen(keyRelPath, "w");
   if (!f) return false;
-  f.println(filename);
-  f.close();
+  fprintf(f, "%s\n", filename.c_str());
+  fclose(f);
   Serial.printf("[INTEL] Content bound: %s → %s\n", filename.c_str(), hash.c_str());
   return true;
 }
@@ -229,8 +239,8 @@ bool contentBind(const String& filename) {
 // Verify a track is bound to this device
 bool contentVerify(const String& filename) {
   String hash = contentHash(filename);
-  String keyPath = "/data/auth/" + hash + ".key";
-  return SD.exists(keyPath);
+  String keyRelPath = "/data/auth/" + hash + ".key";
+  return sdExists(keyRelPath);
 }
 
 // ── JSON Builders for API ───────────────────────────────────

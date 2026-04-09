@@ -33,7 +33,10 @@
 
 extern int g_volume;
 extern String g_eq;
-#include <SD.h>
+#include <cstdio>       // FILE*, fopen, fread, fseek, ftell, fclose
+#include <sys/stat.h>   // stat, for file size
+#include <dirent.h>     // opendir, readdir, closedir
+#include "sd_card.h"    // sdPath(), SD_MOUNT
 #include "dpa_format.h"
 #include "audio_reactive.h"  // Audio feature extraction for LED reactivity
 
@@ -300,40 +303,46 @@ static size_t   g_audioCarryLen = 0;
 static int32_t  g_audioOutBuf[11264];
 
 // ── WAV Parser Helpers ──────────────────────────────────────
-static uint16_t audioRd16(File& f) {
+static uint16_t audioRd16(FILE* f) {
   uint8_t b[2] = {0, 0};
-  if (f.read(b, 2) != 2) return 0;
+  if (fread(b, 1, 2, f) != 2) return 0;
   return (uint16_t)(b[0] | (b[1] << 8));
 }
 
-static uint32_t audioRd32(File& f) {
+static uint32_t audioRd32(FILE* f) {
   uint8_t b[4] = {0, 0, 0, 0};
-  if (f.read(b, 4) != 4) return 0;
+  if (fread(b, 1, 4, f) != 4) return 0;
   return (uint32_t)(b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24));
 }
 
 // ── Parse WAV Header (robust chunk-based parser) ────────────
-static WavInfo audioParseWavAt(File& f, uint32_t startOffset) {
+static WavInfo audioParseWavAt(FILE* f, uint32_t startOffset) {
   WavInfo info = {0, 0, 0, 0, 0, 0, 0, false, "wav", "", false};
   char id[5] = {0};
 
-  f.seek(startOffset);
+  fseek(f, startOffset, SEEK_SET);
 
-  if (f.read((uint8_t*)id, 4) != 4) return info;
+  if (fread(id, 1, 4, f) != 4) return info;
   if (memcmp(id, "RIFF", 4) != 0) return info;
 
   audioRd32(f); // file size
 
   memset(id, 0, sizeof(id));
-  if (f.read((uint8_t*)id, 4) != 4) return info;
+  if (fread(id, 1, 4, f) != 4) return info;
   if (memcmp(id, "WAVE", 4) != 0) return info;
+
+  // Get file size for bounds checking
+  long savedPos = ftell(f);
+  fseek(f, 0, SEEK_END);
+  long fileSize = ftell(f);
+  fseek(f, savedPos, SEEK_SET);
 
   bool gotFmt = false;
   bool gotData = false;
 
-  while (f.available()) {
+  while (ftell(f) < fileSize) {
     memset(id, 0, sizeof(id));
-    if (f.read((uint8_t*)id, 4) != 4) break;
+    if (fread(id, 1, 4, f) != 4) break;
     uint32_t chunkSize = audioRd32(f);
     if (memcmp(id, "fmt ", 4) == 0) {
       info.audioFormat   = audioRd16(f);
@@ -344,17 +353,17 @@ static WavInfo audioParseWavAt(File& f, uint32_t startOffset) {
       info.bitsPerSample = audioRd16(f);
 
       if (chunkSize > 16) {
-        f.seek(f.position() + (chunkSize - 16));
+        fseek(f, chunkSize - 16, SEEK_CUR);
       }
 
       if (info.audioFormat == 1 || info.audioFormat == 3) gotFmt = true;  // 1=PCM int, 3=IEEE float
     } else if (memcmp(id, "data", 4) == 0) {
-      info.dataOffset = f.position();
+      info.dataOffset = (uint32_t)ftell(f);
       info.dataSize = chunkSize;
-      f.seek(f.position() + chunkSize);
+      fseek(f, chunkSize, SEEK_CUR);
       gotData = true;
     } else {
-      f.seek(f.position() + chunkSize);
+      fseek(f, chunkSize, SEEK_CUR);
     }
 
     if (gotFmt && gotData) break;
@@ -370,11 +379,11 @@ static WavInfo audioParseWavAt(File& f, uint32_t startOffset) {
   return info;
 }
 
-static WavInfo audioParseWav(File& f) {
+static WavInfo audioParseWav(FILE* f) {
   return audioParseWavAt(f, 0);
 }
 
-static WavInfo audioParseDpa(File& f) {
+static WavInfo audioParseDpa(FILE* f) {
   WavInfo info = {0, 0, 0, 0, 0, 0, 0, false, "dpa", "", false};
   DpaFileHeader header;
   if (!dpaReadHeader(f, header) || !header.valid) return info;
@@ -389,7 +398,7 @@ static WavInfo audioParseDpa(File& f) {
   return embedded;
 }
 
-static WavInfo audioParsePlayable(File& f, const String& path) {
+static WavInfo audioParsePlayable(FILE* f, const String& path) {
   if (path.endsWith(".dpa") || path.endsWith(".DPA")) {
     return audioParseDpa(f);
   }
@@ -566,45 +575,45 @@ static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavIn
 
 // ── Scan /tracks for First Valid Playable Track ─────────────
 String audioFindFirstPlayable() {
-  File dir = SD.open("/tracks");
+  String dirFullPath = sdPath("/tracks");
+  DIR* dir = opendir(dirFullPath.c_str());
   if (!dir) {
     Serial.println("[AUDIO] Failed to open /tracks");
     return "";
   }
-  if (!dir.isDirectory()) {
-    dir.close();
-    Serial.println("[AUDIO] /tracks is not a directory");
-    return "";
-  }
 
-  while (true) {
-    File file = dir.openNextFile();
-    if (!file) break;
-
-    String name = String(file.name());
+  struct dirent* entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    String name = String(entry->d_name);
     if (name.endsWith(".dpa") || name.endsWith(".DPA") ||
         name.endsWith(".wav") || name.endsWith(".WAV")) {
-      String fullPath = name.startsWith("/") ? name : ("/tracks/" + name);
-      Serial.printf("[AUDIO] Checking %s (%llu bytes)\n", fullPath.c_str(), (unsigned long long)file.size());
-      WavInfo info = audioParsePlayable(file, fullPath);
-      file.close();
+      String relPath = "/tracks/" + name;
+      String fullPath = sdPath(relPath);
+
+      struct stat st;
+      stat(fullPath.c_str(), &st);
+      Serial.printf("[AUDIO] Checking %s (%llu bytes)\n",
+                    relPath.c_str(), (unsigned long long)st.st_size);
+
+      FILE* f = fopen(fullPath.c_str(), "rb");
+      if (!f) continue;
+
+      WavInfo info = audioParsePlayable(f, relPath);
+      fclose(f);
 
       if (info.valid) {
         Serial.printf("[AUDIO] Valid %s: %s | %lu Hz | %u ch | %u-bit\n",
-                      info.format.c_str(), fullPath.c_str(), (unsigned long)info.sampleRate,
+                      info.format.c_str(), relPath.c_str(), (unsigned long)info.sampleRate,
                       info.channels, info.bitsPerSample);
-        dir.close();
-        return fullPath;
+        closedir(dir);
+        return relPath;
       } else {
-        Serial.printf("[AUDIO] Skipping unsupported: %s\n", fullPath.c_str());
+        Serial.printf("[AUDIO] Skipping unsupported: %s\n", relPath.c_str());
       }
-    }
-    else {
-      file.close();
     }
   }
 
-  dir.close();
+  closedir(dir);
   return "";
 }
 
@@ -615,12 +624,17 @@ String audioListTracksJson() {
   String json = "[";
 
   for (int i = 0; i < g_wavCount; i++) {
-    File file = SD.open(g_wavPaths[i], FILE_READ);
+    String fullPath = sdPath(g_wavPaths[i]);
+    FILE* file = fopen(fullPath.c_str(), "rb");
     if (!file) continue;
 
-    size_t fsize = file.size();
+    // Get file size
+    fseek(file, 0, SEEK_END);
+    size_t fsize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
     WavInfo info = audioParsePlayable(file, g_wavPaths[i]);
-    file.close();
+    fclose(file);
 
     if (!info.valid) continue;  // safety net — shouldn't happen
 
@@ -652,7 +666,8 @@ static void audioPlaybackTask(void* param) {
 
   Serial.printf("[AUDIO] Playback task start: %s\n", path.c_str());
 
-  File f = SD.open(path, FILE_READ);
+  String fullPath = sdPath(path);
+  FILE* f = fopen(fullPath.c_str(), "rb");
   if (!f) {
     Serial.printf("[AUDIO] Failed to open: %s\n", path.c_str());
     g_audioStopRequested = true;  // prevent auto-advance on error
@@ -662,10 +677,15 @@ static void audioPlaybackTask(void* param) {
     return;
   }
 
+  // Get file size for bounds checking
+  fseek(f, 0, SEEK_END);
+  long fileSize = ftell(f);
+  fseek(f, 0, SEEK_SET);
+
   WavInfo info = audioParsePlayable(f, path);
   if (!info.valid) {
     Serial.printf("[AUDIO] Unsupported track: %s\n", path.c_str());
-    f.close();
+    fclose(f);
     g_audioStopRequested = true;  // prevent auto-advance on error
     g_audioPlaying = false;
     g_playbackTaskHandle = nullptr;
@@ -675,7 +695,7 @@ static void audioPlaybackTask(void* param) {
 
   if (!audioInitI2S(info.sampleRate)) {
     Serial.printf("[AUDIO] I2S init failed for %lu Hz — cannot play this track\n", (unsigned long)info.sampleRate);
-    f.close();
+    fclose(f);
     g_audioStopRequested = true;  // prevent auto-advance to next track
     g_audioPlaying = false;
     g_playbackTaskHandle = nullptr;
@@ -696,7 +716,7 @@ static void audioPlaybackTask(void* param) {
                 info.format.c_str(), path.c_str(), (unsigned long)info.sampleRate,
                 info.channels, info.bitsPerSample, (unsigned long)info.dataSize);
 
-  f.seek(info.dataOffset);
+  fseek(f, info.dataOffset, SEEK_SET);
   g_audioCarryLen = 0;
 
   g_audioStopRequested = false;
@@ -706,7 +726,7 @@ static void audioPlaybackTask(void* param) {
   // Apply EQ preset at the file's native sample rate
   eqSetPreset(g_eq, info.sampleRate);
 
-  while (!g_audioStopRequested && f.available()) {
+  while (!g_audioStopRequested && ftell(f) < fileSize) {
     // Handle seek request from API/UI
     if (g_audioSeekRequested) {
       g_audioSeekRequested = false;
@@ -715,7 +735,7 @@ static void audioPlaybackTask(void* param) {
       if (targetByte > info.dataSize) targetByte = info.dataSize;
       // Align to block boundary
       targetByte = (targetByte / info.blockAlign) * info.blockAlign;
-      f.seek(info.dataOffset + targetByte);
+      fseek(f, info.dataOffset + targetByte, SEEK_SET);
       g_wavBytesRead = targetByte;
       g_audioCarryLen = 0;  // discard any partial frame
       eqResetState();       // reset EQ filters to avoid pop
@@ -723,7 +743,8 @@ static void audioPlaybackTask(void* param) {
       continue;
     }
 
-    size_t n = f.read(g_audioInBuf + g_audioCarryLen, sizeof(g_audioInBuf) - g_audioCarryLen);
+    size_t n = fread(g_audioInBuf + g_audioCarryLen, 1,
+                     sizeof(g_audioInBuf) - g_audioCarryLen, f);
     if (n == 0) break;
 
     n += g_audioCarryLen;
@@ -761,7 +782,7 @@ static void audioPlaybackTask(void* param) {
     g_audioCarryLen = leftover;
   }
 
-  f.close();
+  fclose(f);
   audioShutdownI2S();
 
   bool wasStop = g_audioStopRequested;

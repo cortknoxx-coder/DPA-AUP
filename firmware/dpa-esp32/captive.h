@@ -26,18 +26,23 @@
 #define DPA_CAPTIVE_H
 
 #include <DNSServer.h>
-#include <WiFi.h>
 #include <ESPAsyncWebServer.h>
+#include "dpa_wifi.h"  // wifiGetApIPStr()
 
 static DNSServer g_dnsServer;
 static const uint16_t DNS_PORT = 53;
 
 // ── Init: start DNS server that resolves ALL queries to AP IP ──
 void captiveInit() {
-  IPAddress apIP = WiFi.softAPIP();
+  String apIP = wifiGetApIPStr();
+
+  // Parse IP string back to IPAddress for DNSServer
+  IPAddress ip;
+  ip.fromString(apIP);
+
   g_dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
-  g_dnsServer.start(DNS_PORT, "*", apIP);
-  Serial.printf("[CAPTIVE] DNS hijack active — all queries → %s\n", apIP.toString().c_str());
+  g_dnsServer.start(DNS_PORT, "*", ip);
+  Serial.printf("[CAPTIVE] DNS hijack active — all queries → %s\n", apIP.c_str());
 }
 
 // ── Tick: process DNS queries (call from main loop) ──
@@ -117,7 +122,8 @@ void captiveRegisterProbes(AsyncWebServer& server) {
   // AsyncWebServer uses first-match, so registering here would block the dashboard.
   server.on("/captive-check", HTTP_GET, [](AsyncWebServerRequest* req) {
     String host = req->host();
-    if (host.length() > 0 && host != "192.168.4.1" && host != WiFi.softAPIP().toString()) {
+    String apIP = wifiGetApIPStr();
+    if (host.length() > 0 && host != "192.168.4.1" && host != apIP) {
       Serial.printf("[CAPTIVE] Foreign host '%s' → redirect to AP\n", host.c_str());
       req->redirect("http://192.168.4.1/");
       return;

@@ -23,8 +23,8 @@
  *   - FastLED
  *   - ESPAsyncWebServer  (github.com/mathieucarbou/ESPAsyncWebServer)
  *   - AsyncTCP           (github.com/mathieucarbou/AsyncTCP)
- *   - SD                 (built-in)
- *   - SPI                (built-in)
+ *   - SD/SPI replaced by ESP-IDF sdspi + VFS (sd_card.h)
+ *   - WiFi replaced by ESP-IDF esp_wifi/esp_netif (dpa_wifi.h)
  *
  * Board settings (Arduino IDE):
  *   Board:            ESP32S3 Dev Module
@@ -37,9 +37,11 @@
  * Updated: 2026-04-01
  */
 
-#include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
+#include <dirent.h>
+#include <cstdio>
+#include <sys/stat.h>
 
 // ── Pin Definitions ─────────────────────────────────────────
 #define SD_CS    10
@@ -241,28 +243,28 @@ void loadOrGenerateDUID() {
 // g_wavPaths[] naming is kept for compatibility with existing analytics/favorites code.
 void scanWavList() {
   g_wavCount = 0;
-  File dir = SD.open("/tracks");
-  if (!dir || !dir.isDirectory()) { if (dir) dir.close(); return; }
-  while (g_wavCount < 32) {
-    File f = dir.openNextFile();
-    if (!f) break;
-    String name = String(f.name());
-    if (name.endsWith(".dpa") || name.endsWith(".DPA") ||
-        name.endsWith(".wav") || name.endsWith(".WAV")) {
-      String fullPath = name.startsWith("/") ? name : ("/tracks/" + name);
-      // Validate playable track header — skip corrupt/invalid assets.
-      WavInfo info = audioParsePlayable(f, fullPath);
-      if (info.valid) {
-        g_wavPaths[g_wavCount++] = fullPath;
-        Serial.printf("[SCAN] Track %d: %s [%s] (%luHz %u-bit)\n", g_wavCount, fullPath.c_str(),
-                      info.format.c_str(), (unsigned long)info.sampleRate, info.bitsPerSample);
-      } else {
-        Serial.printf("[SCAN] SKIP invalid track: %s\n", fullPath.c_str());
-      }
+  DIR* dir = opendir(sdPath("/tracks"));
+  if (!dir) return;
+  struct dirent* ent;
+  while ((ent = readdir(dir)) != nullptr && g_wavCount < 32) {
+    String name = String(ent->d_name);
+    if (!(name.endsWith(".dpa") || name.endsWith(".DPA") ||
+          name.endsWith(".wav") || name.endsWith(".WAV"))) continue;
+    String fullPath = "/tracks/" + name;
+    // Validate playable track header — skip corrupt/invalid assets.
+    FILE* f = fopen(sdPath(fullPath), "rb");
+    if (!f) continue;
+    WavInfo info = audioParsePlayable(f, fullPath);
+    fclose(f);
+    if (info.valid) {
+      g_wavPaths[g_wavCount++] = fullPath;
+      Serial.printf("[SCAN] Track %d: %s [%s] (%luHz %u-bit)\n", g_wavCount, fullPath.c_str(),
+                    info.format.c_str(), (unsigned long)info.sampleRate, info.bitsPerSample);
+    } else {
+      Serial.printf("[SCAN] SKIP invalid track: %s\n", fullPath.c_str());
     }
-    f.close();
   }
-  dir.close();
+  closedir(dir);
   Serial.printf("[SCAN] Found %d valid playable files\n", g_wavCount);
   if (g_wavCount > 0) g_firstPlayableWav = g_wavPaths[0];
 }
@@ -270,16 +272,17 @@ void scanWavList() {
 // ── Favorites: Load/Save to SD /data/favorites.txt ───────────
 void loadFavorites() {
   g_favCount = 0;
-  File f = SD.open("/data/favorites.txt", FILE_READ);
+  FILE* f = sdFopen("/data/favorites.txt", "r");
   if (!f) return;
-  while (f.available() && g_favCount < 32) {
-    String line = f.readStringUntil('\n');
+  char buf[256];
+  while (fgets(buf, sizeof(buf), f) && g_favCount < 32) {
+    String line = String(buf);
     line.trim();
     if (line.length() > 0) {
       g_favorites[g_favCount++] = line;
     }
   }
-  f.close();
+  fclose(f);
   Serial.printf("[FAV] Loaded %d favorites\n", g_favCount);
 }
 
@@ -292,13 +295,13 @@ void saveFavorites() {
     Serial.println("[FAV] Deferred save (audio playing)");
     return;
   }
-  if (!SD.exists("/data")) SD.mkdir("/data");
-  File f = SD.open("/data/favorites.txt", FILE_WRITE);
+  sdMkdir("/data");
+  FILE* f = sdFopen("/data/favorites.txt", "w");
   if (!f) { Serial.println("[FAV] Failed to save"); return; }
   for (int i = 0; i < g_favCount; i++) {
-    f.println(g_favorites[i]);
+    fprintf(f, "%s\n", g_favorites[i].c_str());
   }
-  f.close();
+  fclose(f);
   g_favsDirty = false;
   Serial.printf("[FAV] Saved %d favorites\n", g_favCount);
 }
@@ -357,7 +360,7 @@ void playTrackByIndex(int idx) {
   g_trackIndex = idx;
 
   // Ensure SD is at fast speed for playback
-  if (g_sdCurrentHz != SD_FAST_HZ) {
+  if (g_sdCurrentKHz != SD_FAST_KHZ) {
     sdMountFast();
   }
 
@@ -495,7 +498,7 @@ void buttonsTick() {
 // persistent file handle, 8KB staging buffer, 4-retry writes.
 // ESPAsyncWebServer (port 80) has known bugs with large file uploads.
 
-static File g_syncUploadFile;
+static FILE* g_syncUploadFile = nullptr;
 static String g_syncFinalPath;
 static String g_syncTempPath;
 static size_t g_syncBytesWritten = 0;
@@ -511,7 +514,7 @@ static bool syncFlushStage() {
   int retries = 0;
   while (w < g_syncStageUsed && retries < 4) {
     size_t chunk = min(g_syncStageUsed - w, (size_t)8192);
-    size_t wrote = g_syncUploadFile.write(g_syncStageBuf + w, chunk);
+    size_t wrote = fwrite(g_syncStageBuf + w, 1, chunk, g_syncUploadFile);
     if (wrote > 0) { w += wrote; retries = 0; }
     else { retries++; delay(10); }
   }
@@ -554,7 +557,7 @@ void handleSyncFileUpload() {
 
   if (upload.status == UPLOAD_FILE_START) {
     if (g_audioPlaying) { audioStop(); delay(100); }
-    WiFi.setSleep(false);
+    wifiSetSleep(false);
     g_uploadInProgress = true;
 
     // Stop EVERYTHING that touches the network/SPI to eliminate bus contention
@@ -575,16 +578,16 @@ void handleSyncFileUpload() {
       int _slash = safeName.lastIndexOf('/');
       if (_slash > 0) {
         String _dir = safeName.substring(0, _slash);
-        if (_dir.length() > 0 && !SD.exists(_dir)) SD.mkdir(_dir);
+        if (_dir.length() > 0 && !sdExists(_dir)) sdMkdir(_dir);
       }
     }
     g_syncFinalPath = safeName;
     g_syncTempPath = safeName + ".part";
 
-    if (SD.exists(g_syncTempPath)) SD.remove(g_syncTempPath);
-    if (SD.exists(g_syncFinalPath)) SD.remove(g_syncFinalPath);
+    if (sdExists(g_syncTempPath)) sdRemove(g_syncTempPath);
+    if (sdExists(g_syncFinalPath)) sdRemove(g_syncFinalPath);
 
-    g_syncUploadFile = SD.open(g_syncTempPath, FILE_WRITE);
+    g_syncUploadFile = sdFopen(g_syncTempPath, "wb");
     g_syncBytesWritten = 0;
     g_syncWriteError = false;
     g_syncCompleted = false;
@@ -613,16 +616,17 @@ void handleSyncFileUpload() {
       if (!syncFlushStage()) g_syncWriteError = true;
     }
     if (g_syncUploadFile) {
-      g_syncUploadFile.flush();
-      g_syncUploadFile.close();
+      fflush(g_syncUploadFile);
+      fclose(g_syncUploadFile);
+      g_syncUploadFile = nullptr;
     }
 
     bool renamed = false;
     if (!g_syncWriteError && g_syncBytesWritten > 0) {
-      if (SD.exists(g_syncFinalPath)) SD.remove(g_syncFinalPath);
-      renamed = SD.rename(g_syncTempPath, g_syncFinalPath);
+      if (sdExists(g_syncFinalPath)) sdRemove(g_syncFinalPath);
+      renamed = sdRename(g_syncTempPath, g_syncFinalPath);
     }
-    if (!renamed && SD.exists(g_syncTempPath)) SD.remove(g_syncTempPath);
+    if (!renamed && sdExists(g_syncTempPath)) sdRemove(g_syncTempPath);
 
     g_syncCompleted = renamed;
     g_uploadInProgress = false;
@@ -642,8 +646,8 @@ void handleSyncFileUpload() {
       (unsigned)g_syncBytesWritten, renamed ? "YES" : "NO", g_syncFinalPath.c_str());
   }
   else if (upload.status == UPLOAD_FILE_ABORTED) {
-    if (g_syncUploadFile) g_syncUploadFile.close();
-    if (g_syncTempPath.length() && SD.exists(g_syncTempPath)) SD.remove(g_syncTempPath);
+    if (g_syncUploadFile) { fclose(g_syncUploadFile); g_syncUploadFile = nullptr; }
+    if (g_syncTempPath.length() && sdExists(g_syncTempPath)) sdRemove(g_syncTempPath);
     g_uploadInProgress = false;
     g_syncWriteError = true;
     g_syncCompleted = false;
@@ -724,10 +728,9 @@ void setup() {
     loadFavorites();
 
     // Cover + per-track artwork folder (portal uploads to /art/)
-    if (!SD.exists("/art")) {
-      if (SD.mkdir("/art")) {
-        Serial.println("[SD] Created /art");
-      }
+    if (!sdExists("/art")) {
+      sdMkdir("/art");
+      Serial.println("[SD] Created /art");
     }
 
     // Init on-device intelligence (analytics + capsules)
@@ -754,7 +757,7 @@ void setup() {
 
   // 6. Start WiFi (AP always on + STA if credentials stored)
   wifiInit(AP_PASSWORD, AP_CHANNEL, AP_MAX_CONN);
-  // WiFi.setSleep(false) is set only during uploads to avoid power rail noise on DAC line-out
+  // wifiSetSleep(false) is set only during uploads to avoid power rail noise on DAC line-out
 
   // 6b. Captive portal (DNS hijack — phones auto-open dashboard on WiFi connect)
   captiveInit();
@@ -815,7 +818,7 @@ void setup() {
       return;
     }
     // Any foreign host → redirect to dashboard
-    if (host.length() > 0 && host != "192.168.4.1" && host != WiFi.softAPIP().toString()) {
+    if (host.length() > 0 && host != "192.168.4.1" && host != wifiGetApIPStr()) {
       req->redirect("http://192.168.4.1/");
       return;
     }
@@ -841,7 +844,7 @@ void setup() {
   }
   Serial.printf("[BOOT] LED: %d external + onboard on GP%d/GP%d\n", NUM_LEDS, LED_PIN, ONBOARD_LED_PIN);
   Serial.printf("[BOOT] SD card: %s", g_sdMounted ? "mounted" : "not detected");
-  if (g_sdMounted) Serial.printf(" (%.0fMB, %dMHz)", g_sdTotalMB, (int)(g_sdCurrentHz / 1000000));
+  if (g_sdMounted) Serial.printf(" (%.0fMB, %dMHz)", g_sdTotalMB, (int)(g_sdCurrentKHz / 1000));
   Serial.println();
   Serial.printf("[BOOT] Audio DAC: %s\n", g_audioReady ? "ready (ws_inv=true)" : "not detected");
   Serial.printf("[BOOT] Buttons: BOOT+GP1=play/pause, GP2=next, GP3=prev, GP4=heart\n");
