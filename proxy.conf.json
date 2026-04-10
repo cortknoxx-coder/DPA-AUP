@@ -4,6 +4,9 @@
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug",
+    "headers": {
+      "Connection": "close"
+    },
     "pathRewrite": { "^/dpa-api": "" }
   },
   "/dpa-upload": {
@@ -11,6 +14,9 @@
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug",
+    "headers": {
+      "Connection": "close"
+    },
     "pathRewrite": { "^/dpa-upload": "" }
   }
 }

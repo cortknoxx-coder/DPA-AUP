@@ -7,6 +7,7 @@ import { UserService } from '../../services/user.service';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { CryptoService } from '../../services/crypto.service';
 import { DcnpEvent, DcnpEventType } from '../../types';
+import { mergeCapsuleFeeds } from '../../services/device-content.utils';
 
 type FilterType = 'all' | DcnpEventType;
 
@@ -31,7 +32,14 @@ export class FanCapsulesComponent {
   private connectionService = inject(DeviceConnectionService);
   private cryptoService = inject(CryptoService);
 
-  allCapsules = this.dataService.getAllCapsules();
+  portalCapsules = this.dataService.getAllCapsules();
+  allCapsules = computed(() =>
+    mergeCapsuleFeeds(this.portalCapsules(), this.connectionService.deviceCapsules(), {
+      albumId: this.connectionService.deviceLibrary()?.albums?.[0]?.id,
+      albumTitle: this.connectionService.deviceLibrary()?.albums?.[0]?.title,
+      artistName: this.dataService.albums()?.[0]?.artistName,
+    })
+  );
 
   // --- Filter state ---
   activeFilter = signal<FilterType>('all');

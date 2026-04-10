@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" role="img" aria-labelledby="title desc">
+<title id="title">DPA default album cover</title>
+<desc id="desc">Minimal fallback artwork for Digital Playback Asset releases.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0%" stop-color="#0f172a"/>
+<stop offset="45%" stop-color="#111827"/>
+<stop offset="100%" stop-color="#020617"/>
+</linearGradient>
+<linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0%" stop-color="#14b8a6"/>
+<stop offset="100%" stop-color="#818cf8"/>
+</linearGradient>
+<radialGradient id="glow" cx="50%" cy="35%" r="55%">
+<stop offset="0%" stop-color="#22d3ee" stop-opacity="0.22"/>
+<stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+</radialGradient>
+</defs>
+<rect width="1200" height="1200" fill="url(#bg)"/>
+<rect width="1200" height="1200" fill="url(#glow)"/>
+<g opacity="0.9">
+<rect x="174" y="174" width="852" height="852" rx="68" fill="none" stroke="rgba(255,255,255,0.08)"/>
+<rect x="228" y="228" width="744" height="744" rx="44" fill="none" stroke="url(#accent)" stroke-width="8"/>
+<circle cx="600" cy="474" r="178" fill="none" stroke="url(#accent)" stroke-width="10"/>
+<circle cx="600" cy="474" r="34" fill="#e2e8f0" fill-opacity="0.92"/>
+<path d="M312 762c98-72 196-108 288-108s190 36 288 108" fill="none" stroke="#94a3b8" stroke-opacity="0.8" stroke-width="18" stroke-linecap="round"/>
+</g>
+<g fill="#e2e8f0" font-family="Inter, Arial, sans-serif" text-anchor="middle">
+<text x="600" y="872" font-size="92" font-weight="700" letter-spacing="10">DPA</text>
+<text x="600" y="938" font-size="28" font-weight="600" letter-spacing="12" fill="#94a3b8">DIGITAL PLAYBACK ASSET</text>
+</g>
+</svg>

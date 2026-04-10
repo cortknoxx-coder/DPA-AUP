@@ -1,10 +1,12 @@
 
-import { Component, inject, computed, signal, effect } from '@angular/core';
+import { Component, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { RouterLink, Router } from '@angular/router';
 import { DataService } from '../../services/data.service';
 import { PlayerService } from '../../services/player.service';
+import { mergeCapsuleFeeds } from '../../services/device-content.utils';
+import { DEFAULT_COVER_DATA_URL } from '../../default-cover';
 
 @Component({
   selector: 'app-fan-home',
@@ -17,42 +19,17 @@ export class FanHomeComponent {
   playerService = inject(PlayerService);
   private dataService = inject(DataService);
   private router = inject(Router);
-  private wifi = this.connectionService.wifi;
-
-  // Use backend-sourced capsule data
+  defaultCover = DEFAULT_COVER_DATA_URL;
   allCapsules = this.dataService.getAllCapsules();
-
-  // Use device-sourced library data
   library = computed(() => this.connectionService.deviceLibrary());
-  liveCapsules = signal<any[]>([]);
-  capsules = computed(() => this.liveCapsules().length > 0 ? this.liveCapsules() : this.allCapsules());
+  capsules = computed(() =>
+    mergeCapsuleFeeds(this.allCapsules(), this.connectionService.deviceCapsules(), {
+      albumId: this.library()?.albums?.[0]?.id,
+      albumTitle: this.library()?.albums?.[0]?.title,
+      artistName: this.dataService.albums()?.[0]?.artistName,
+    })
+  );
   latestCapsule = computed(() => this.capsules()?.[0]);
-
-  constructor() {
-    effect(() => {
-      if (this.connectionService.connectionStatus() === 'wifi') {
-        this.refreshLiveCapsules();
-      } else {
-        this.liveCapsules.set([]);
-      }
-    }, { allowSignalWrites: true });
-  }
-
-  private async refreshLiveCapsules() {
-    try {
-      const raw = await this.wifi.getCapsules();
-      const normalized = raw.map((c: any) => ({
-        ...c,
-        payload: {
-          title: c.title ?? 'Untitled Capsule',
-          description: c.desc ?? '',
-        }
-      }));
-      this.liveCapsules.set(normalized);
-    } catch {
-      // keep DataService fallback
-    }
-  }
 
   logout() {
     this.router.navigate(['/login']);

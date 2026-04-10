@@ -130,6 +130,19 @@ float  g_sdTotalMB   = 0;
 float  g_sdUsedMB    = 0;
 float  g_sdFreeMB    = 0;
 int    g_sdFileCount = 0;
+String g_sdState     = "uninitialized";
+
+// Runtime readiness / observability
+String g_bootState          = "booting";
+String g_uploadState        = "idle";
+String g_degradedReason     = "";
+String g_httpMode           = "starting";
+String g_wifiMaintenanceMode = "normal";
+String g_lastUploadPath     = "";
+size_t g_lastUploadBytes    = 0;
+bool   g_httpReady          = false;
+bool   g_wifiReady          = false;
+bool   g_audioHardwareVerified = false;
 
 // Battery (real ADC on BATT_ADC_PIN, or USB-powered if no divider wired)
 float  g_battVoltage = 0;
@@ -194,6 +207,27 @@ void batteryRead() {
 unsigned long g_bootTime = 0;
 int g_playCount = 0, g_pauseCount = 0;
 int g_nextCount = 0, g_prevCount = 0;
+
+static void refreshRuntimeState() {
+  String degraded = "";
+  if (g_sdState == "error" || !g_sdMounted) {
+    degraded = "sd_unavailable";
+  } else if (!g_audioHardwareVerified) {
+    degraded = "audio_unverified";
+  } else if (g_uploadState == "error") {
+    degraded = "upload_failed";
+  }
+
+  g_degradedReason = degraded;
+
+  if (!g_wifiReady || !g_httpReady) {
+    g_bootState = "booting";
+  } else if (g_degradedReason.length() > 0) {
+    g_bootState = "degraded";
+  } else {
+    g_bootState = "ready";
+  }
+}
 
 // ── Include Modules ──────────────────────────────────────────
 // (Must come after globals since headers reference them as extern)
@@ -432,6 +466,13 @@ void buttonsTick() {
 
         uint8_t pin = g_buttons[b].pin;
 
+        if (g_uploadInProgress &&
+            (pin == BOOT_BTN_PIN || pin == BTN_PLAY_PIN || pin == BTN_NEXT_PIN || pin == BTN_PREV_PIN)) {
+          Serial.println("[BTN] Upload active — playback controls temporarily blocked");
+          ledNotify("#ffaa33", "fade_out", 250);
+          continue;
+        }
+
         // ── PLAY/PAUSE (BOOT or GP1) ──
         if (pin == BOOT_BTN_PIN || pin == BTN_PLAY_PIN) {
           if (g_audioPlaying) {
@@ -512,8 +553,15 @@ static bool syncFlushStage() {
   while (w < g_syncStageUsed && retries < 4) {
     size_t chunk = min(g_syncStageUsed - w, (size_t)8192);
     size_t wrote = g_syncUploadFile.write(g_syncStageBuf + w, chunk);
-    if (wrote > 0) { w += wrote; retries = 0; }
-    else { retries++; delay(10); }
+    if (wrote > 0) {
+      w += wrote;
+      retries = 0;
+    } else {
+      retries++;
+      uint32_t backoffMs = 15U * retries * retries;
+      Serial.printf("[UPLOAD] Stage flush retry %d after %ums\n", retries, (unsigned)backoffMs);
+      delay(backoffMs);
+    }
   }
   if (w == g_syncStageUsed) {
     g_syncBytesWritten += w;
@@ -547,6 +595,10 @@ void handleSyncUploadDone() {
   }
   uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
   uploadServer.send(200, "application/json", j);
+  if (g_syncCompleted) {
+    g_uploadState = "idle";
+    refreshRuntimeState();
+  }
 }
 
 void handleSyncFileUpload() {
@@ -556,13 +608,26 @@ void handleSyncFileUpload() {
     if (g_audioPlaying) { audioStop(); delay(100); }
     WiFi.setSleep(false);
     g_uploadInProgress = true;
+    g_uploadState = "preparing";
+    g_wifiMaintenanceMode = "upload-lite";
+    g_httpMode = "minimal";
+    g_httpReady = true;
+    refreshRuntimeState();
 
     // Stop EVERYTHING that touches the network/SPI to eliminate bus contention
     server.end();         // Stop async HTTP server
     g_dnsServer.stop();   // Stop captive DNS server
     delay(100);
 
-    sdMountSlow();
+    if (!sdMountSlow()) {
+      g_sdState = "error";
+      g_uploadState = "error";
+      refreshRuntimeState();
+      Serial.println("[UPLOAD] Failed to remount SD at slow speed");
+    } else {
+      g_sdState = "mounted";
+      refreshRuntimeState();
+    }
 
     // Honor ?path= query param if provided (e.g. /art/cover.jpg for cover uploads);
     // otherwise fall back to legacy /tracks/<filename> behavior so the 24/96 + 32/96
@@ -580,6 +645,8 @@ void handleSyncFileUpload() {
     }
     g_syncFinalPath = safeName;
     g_syncTempPath = safeName + ".part";
+    g_lastUploadPath = safeName;
+    g_lastUploadBytes = 0;
 
     if (SD.exists(g_syncTempPath)) SD.remove(g_syncTempPath);
     if (SD.exists(g_syncFinalPath)) SD.remove(g_syncFinalPath);
@@ -599,8 +666,14 @@ void handleSyncFileUpload() {
   }
   else if (upload.status == UPLOAD_FILE_WRITE) {
     if (g_syncUploadFile && !g_syncWriteError) {
+      if (g_uploadState != "receiving") {
+        g_uploadState = "receiving";
+        refreshRuntimeState();
+      }
       if (!syncStageData(upload.buf, upload.currentSize)) {
         g_syncWriteError = true;
+        g_uploadState = "error";
+        refreshRuntimeState();
         Serial.printf("[UPLOAD] WRITE FAILED at %u bytes\n", (unsigned)g_syncBytesWritten);
       }
       if ((g_syncBytesWritten + g_syncStageUsed) % 524288 < upload.currentSize) {
@@ -609,6 +682,8 @@ void handleSyncFileUpload() {
     }
   }
   else if (upload.status == UPLOAD_FILE_END) {
+    g_uploadState = "verifying";
+    refreshRuntimeState();
     if (g_syncUploadFile && !g_syncWriteError) {
       if (!syncFlushStage()) g_syncWriteError = true;
     }
@@ -619,15 +694,38 @@ void handleSyncFileUpload() {
 
     bool renamed = false;
     if (!g_syncWriteError && g_syncBytesWritten > 0) {
+      g_uploadState = "finalizing";
+      refreshRuntimeState();
       if (SD.exists(g_syncFinalPath)) SD.remove(g_syncFinalPath);
       renamed = SD.rename(g_syncTempPath, g_syncFinalPath);
+      if (renamed) {
+        File verify = SD.open(g_syncFinalPath, FILE_READ);
+        if (!verify) {
+          renamed = false;
+        } else {
+          size_t finalBytes = verify.size();
+          verify.close();
+          if (finalBytes != g_syncBytesWritten) {
+            Serial.printf("[UPLOAD] VERIFY FAILED: expected=%u actual=%u\n",
+              (unsigned)g_syncBytesWritten, (unsigned)finalBytes);
+            SD.remove(g_syncFinalPath);
+            renamed = false;
+          }
+        }
+      }
     }
     if (!renamed && SD.exists(g_syncTempPath)) SD.remove(g_syncTempPath);
 
     g_syncCompleted = renamed;
     g_uploadInProgress = false;
+    g_lastUploadBytes = g_syncBytesWritten;
 
-    sdMountFast();
+    bool remountedFast = sdMountFast();
+    if (!remountedFast) {
+      Serial.println("[UPLOAD] Fast SD remount failed, falling back to slow mount");
+      remountedFast = sdMountSlow();
+    }
+    g_sdState = remountedFast ? "mounted" : "error";
     sdRefreshStats();
     scanWavList();
 
@@ -636,6 +734,11 @@ void handleSyncFileUpload() {
     // wifiInit() already set WIFI_PS_NONE + setSleep(false) for AP stability.
     captiveInit();
     server.begin();
+    g_httpMode = "full";
+    g_httpReady = true;
+    g_wifiMaintenanceMode = "normal";
+    g_uploadState = renamed ? "complete" : "error";
+    refreshRuntimeState();
     Serial.println("[HTTP] Async server + DNS restarted");
 
     Serial.printf("[UPLOAD] End: wrote=%u renamed=%s path=%s\n",
@@ -648,8 +751,12 @@ void handleSyncFileUpload() {
     g_syncWriteError = true;
     g_syncCompleted = false;
     g_syncStageUsed = 0;
+    g_uploadState = "error";
+    g_httpMode = "full";
+    g_wifiMaintenanceMode = "normal";
     captiveInit();
     server.begin();
+    refreshRuntimeState();
     Serial.println("[HTTP] Async server + DNS restarted");
     Serial.println("[UPLOAD] Aborted");
   }
@@ -663,6 +770,14 @@ void handleSyncOptions() {
 }
 
 void setupSyncUploadServer() {
+  uploadServer.on("/api/status", HTTP_GET, []() {
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    uploadServer.sendHeader("Pragma", "no-cache");
+    uploadServer.sendHeader("Connection", "close");
+    uploadServer.send(200, "application/json", buildStatusJson());
+  });
+  uploadServer.on("/api/status", HTTP_OPTIONS, handleSyncOptions);
   uploadServer.on("/api/sd/upload", HTTP_POST, handleSyncUploadDone, handleSyncFileUpload);
   uploadServer.on("/api/sd/upload", HTTP_OPTIONS, handleSyncOptions);
   uploadServer.begin();
@@ -704,12 +819,23 @@ void setup() {
   Serial.printf("[BOOT] Onboard LED on GPIO %d\n", ONBOARD_LED_PIN);
 
   // 4. Init SD card (SPI: CS=GP10, MOSI=GP11, CLK=GP12, MISO=GP13)
+  g_sdState = "mounting";
+  refreshRuntimeState();
   if (sdInit()) {
+    g_sdState = "mounted";
     Serial.printf("[BOOT] SD card: %.0f MB total, %d files\n", g_sdTotalMB, g_sdFileCount);
 
     // Remount at fast speed for playback
     if (sdMountFast()) {
       Serial.println("[BOOT] SD remounted at 20MHz for playback");
+      g_sdState = "mounted";
+    } else {
+      Serial.println("[BOOT] Fast SD remount failed, keeping slow mount");
+      if (sdMountSlow()) {
+        g_sdState = "mounted";
+      } else {
+        g_sdState = "error";
+      }
     }
 
     // Scan all WAVs into track list
@@ -734,15 +860,20 @@ void setup() {
     analyticsInit();
     capsulesLoad();
   } else {
+    g_sdState = "error";
     Serial.println("[BOOT] SD card not available (continuing without storage)");
   }
+  refreshRuntimeState();
 
   // 5. Init audio engine (I2S created per-file, just marks ready)
   if (audioInit()) {
+    g_audioHardwareVerified = true;
     Serial.println("[BOOT] Audio DAC ready (PCM5122 via I2S, ws_inv=true)");
   } else {
+    g_audioHardwareVerified = false;
     Serial.println("[BOOT] Audio DAC not available (continuing without audio)");
   }
+  refreshRuntimeState();
 
   // 5b. Init battery ADC (GP9 + GP14 charge detect)
   batteryInit();
@@ -754,6 +885,8 @@ void setup() {
 
   // 6. Start WiFi (AP always on + STA if credentials stored)
   wifiInit(AP_PASSWORD, AP_CHANNEL, AP_MAX_CONN);
+  g_wifiReady = true;
+  refreshRuntimeState();
   // WiFi.setSleep(false) is set only during uploads to avoid power rail noise on DAC line-out
 
   // 6b. Captive portal (DNS hijack — phones auto-open dashboard on WiFi connect)
@@ -828,6 +961,9 @@ void setup() {
 
   // 12b. Start synchronous upload server (port 81) — reliable for large files
   setupSyncUploadServer();
+  g_httpReady = true;
+  g_httpMode = "full";
+  refreshRuntimeState();
 
   // 13. Record boot time for uptime calculation
   g_bootTime = millis();
@@ -835,7 +971,7 @@ void setup() {
   // 14. Summary
   Serial.println();
   Serial.printf("[BOOT] Free heap at boot: %u bytes\n", ESP.getFreeHeap());
-  Serial.println("[BOOT] Ready! Firmware v" + g_fwVersion);
+  Serial.println("[BOOT] State: " + g_bootState + " | Firmware v" + g_fwVersion);
   Serial.println("[BOOT] AP dashboard: http://192.168.4.1");
   if (g_staConnected) {
     Serial.println("[BOOT] Portal access: http://" + g_staIP);
@@ -845,6 +981,11 @@ void setup() {
   if (g_sdMounted) Serial.printf(" (%.0fMB, %dMHz)", g_sdTotalMB, (int)(g_sdCurrentHz / 1000000));
   Serial.println();
   Serial.printf("[BOOT] Audio DAC: %s\n", g_audioReady ? "ready (ws_inv=true)" : "not detected");
+  Serial.printf("[BOOT] Runtime: sd=%s upload=%s http=%s degradedReason=%s\n",
+    g_sdState.c_str(),
+    g_uploadState.c_str(),
+    g_httpMode.c_str(),
+    g_degradedReason.length() ? g_degradedReason.c_str() : "none");
   Serial.printf("[BOOT] Buttons: BOOT+GP1=play/pause, GP2=next, GP3=prev, GP4=heart\n");
   Serial.printf("[BOOT] Admin mode: HEART+NEXT 3s hold, or GET /api/admin/unlock?key=<DUID>\n");
   Serial.printf("[BOOT] Tracks: %d | Favorites: %d\n", g_wavCount, g_favCount);
@@ -859,8 +1000,24 @@ void loop() {
   // Handle synchronous upload server (port 81) — must run in loop
   uploadServer.handleClient();
 
-  // During uploads: give max CPU to upload server, skip everything else
+  // During uploads: keep a minimal maintenance/status plane alive without
+  // reintroducing the heavier background work that causes contention.
   if (g_uploadInProgress) {
+    adminComboTick();
+    buttonsTick();
+
+    static unsigned long lastUploadWifiCheck = 0;
+    if (millis() - lastUploadWifiCheck > 2000) {
+      wifiTick();
+      lastUploadWifiCheck = millis();
+    }
+
+    static unsigned long lastUploadBattRead = 0;
+    if (millis() - lastUploadBattRead > BATT_READ_INTERVAL) {
+      batteryRead();
+      lastUploadBattRead = millis();
+    }
+
     delay(1);
     return;
   }
@@ -941,9 +1098,15 @@ void loop() {
     uint32_t freeHeap = ESP.getFreeHeap();
     if (freeHeap < 40000) {
       Serial.printf("[HEAP] Low heap: %u bytes — restarting async server\n", freeHeap);
+      g_httpReady = false;
+      g_httpMode = "starting";
+      refreshRuntimeState();
       server.end();
       delay(50);
       server.begin();
+      g_httpReady = true;
+      g_httpMode = "full";
+      refreshRuntimeState();
       Serial.printf("[HEAP] Server restarted, heap now: %u\n", ESP.getFreeHeap());
     }
   }

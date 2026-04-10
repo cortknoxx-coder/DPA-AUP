@@ -7,7 +7,7 @@
       <!-- Hero Header -->
       <header class="flex flex-col md:flex-row gap-8 items-end relative">
         <div class="relative group shrink-0">
-           <img [src]="$any(a).artworkUrl || '/assets/dpa-default-cover.png'" 
+           <img [src]="albumCoverUrl() || defaultCover" 
                 alt="Album Cover" 
                 class="w-64 h-64 md:w-80 md:h-80 rounded-lg shadow-2xl shadow-black/80 object-cover border border-white/10">
            
@@ -42,7 +42,58 @@
         </div>
       }
 
+      <div class="flex flex-wrap gap-2 rounded-xl border border-slate-800 bg-slate-900/40 p-2">
+        <button
+          type="button"
+          (click)="activeSection.set('tracks')"
+          class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+          [class.bg-white]="activeSection() === 'tracks'"
+          [class.text-black]="activeSection() === 'tracks'"
+          [class.text-slate-400]="activeSection() !== 'tracks'">
+          Tracks
+        </button>
+        @if (hasExtendedContent()) {
+          <button
+            type="button"
+            (click)="activeSection.set('booklet')"
+            class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+            [class.bg-white]="activeSection() === 'booklet'"
+            [class.text-black]="activeSection() === 'booklet'"
+            [class.text-slate-400]="activeSection() !== 'booklet'">
+            Booklet
+          </button>
+          <button
+            type="button"
+            (click)="activeSection.set('lyrics')"
+            class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+            [class.bg-white]="activeSection() === 'lyrics'"
+            [class.text-black]="activeSection() === 'lyrics'"
+            [class.text-slate-400]="activeSection() !== 'lyrics'">
+            Lyrics
+          </button>
+          <button
+            type="button"
+            (click)="activeSection.set('gallery')"
+            class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+            [class.bg-white]="activeSection() === 'gallery'"
+            [class.text-black]="activeSection() === 'gallery'"
+            [class.text-slate-400]="activeSection() !== 'gallery'">
+            Gallery
+          </button>
+          <button
+            type="button"
+            (click)="activeSection.set('videos')"
+            class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+            [class.bg-white]="activeSection() === 'videos'"
+            [class.text-black]="activeSection() === 'videos'"
+            [class.text-slate-400]="activeSection() !== 'videos'">
+            Videos
+          </button>
+        }
+      </div>
+
       <!-- TRACKS -->
+      @if (activeSection() === 'tracks') {
       <section id="tracks">
          <!-- Equalizer keyframes -->
          <style>
@@ -87,7 +138,7 @@
                 <div class="w-10 h-10 rounded overflow-hidden bg-slate-800 shrink-0">
                   <img [src]="trackArtUrls()[track.trackId] || albumCoverUrl()"
                        class="w-full h-full object-cover"
-                       (error)="$any($event.target).src = albumCoverUrl() || '/assets/dpa-default-cover.png'"
+                       (error)="$any($event.target).src = albumCoverUrl() || defaultCover"
                        loading="lazy">
                 </div>
 
@@ -146,8 +197,110 @@
             }
          </div>
       </section>
+      }
 
-      <!-- More sections can go here -->
+      @if (activeSection() === 'booklet') {
+        <section class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
+            <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Liner Notes</div>
+            <div class="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-300">
+              {{ a.description || 'No booklet notes uploaded yet.' }}
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
+              <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Credits</div>
+              <div class="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                {{ a.booklet?.credits || 'No credits uploaded yet.' }}
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
+              <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Album Details</div>
+              <div class="mt-4 flex flex-wrap gap-2 text-xs">
+                @if (a.genre) {
+                  <span class="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300">{{ a.genre }}</span>
+                }
+                @if (a.recordLabel) {
+                  <span class="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300">{{ a.recordLabel }}</span>
+                }
+                @if (a.releaseDate) {
+                  <span class="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300">{{ a.releaseDate | date:'longDate' }}</span>
+                }
+                @if (a.parentalAdvisory) {
+                  <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-amber-300">Parental Advisory</span>
+                }
+                @if (!a.genre && !a.recordLabel && !a.releaseDate && !a.parentalAdvisory) {
+                  <span class="text-slate-500">No extended album details uploaded yet.</span>
+                }
+              </div>
+            </div>
+          </div>
+        </section>
+      }
+
+      @if (activeSection() === 'lyrics') {
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
+          <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Lyrics</div>
+          <div class="mt-4 whitespace-pre-wrap font-serif text-sm leading-8 text-slate-300">
+            {{ a.lyrics || 'No lyrics uploaded yet.' }}
+          </div>
+        </section>
+      }
+
+      @if (activeSection() === 'gallery') {
+        <section class="space-y-4">
+          <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Gallery</div>
+          @if (galleryImages().length > 0) {
+            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              @for (image of galleryImages(); track image) {
+                <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/40">
+                  <img [src]="image" class="aspect-square w-full object-cover" loading="lazy">
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-10 text-center text-sm text-slate-500">
+              No gallery images uploaded yet.
+            </div>
+          }
+        </section>
+      }
+
+      @if (activeSection() === 'videos') {
+        <section class="space-y-4">
+          <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Videos</div>
+          @if (bookletVideos().length > 0) {
+            <div class="grid gap-4 lg:grid-cols-2">
+              @for (video of bookletVideos(); track video.id) {
+                <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/40">
+                  <div class="aspect-video bg-slate-950">
+                    @if (video.poster) {
+                      <img [src]="video.poster" class="h-full w-full object-cover" loading="lazy">
+                    } @else {
+                      <div class="flex h-full items-center justify-center text-slate-600">No poster</div>
+                    }
+                  </div>
+                  <div class="space-y-3 p-5">
+                    <div class="text-lg font-semibold text-white">{{ video.title }}</div>
+                    <div class="text-sm text-slate-400 break-all">{{ video.url || 'No video URL uploaded yet.' }}</div>
+                    @if (video.url) {
+                      <a [href]="video.url" target="_blank" rel="noreferrer" class="inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-slate-200">
+                        Open Video
+                      </a>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-10 text-center text-sm text-slate-500">
+              No booklet videos uploaded yet.
+            </div>
+          }
+        </section>
+      }
     </div>
   }
 } @else {

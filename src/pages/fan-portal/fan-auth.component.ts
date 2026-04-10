@@ -44,7 +44,7 @@ export class FanAuthComponent {
   private async autoProbeDevice() {
     this.autoProbing.set(true);
     try {
-      const ok = await this.deviceService.connectViaWifi();
+      const ok = await this.deviceService.detectConnectedDevice({ silent: true, preferCurrent: false });
       if (ok) return; // effect above handles redirect
     } catch {
       // probe failed, show manual options

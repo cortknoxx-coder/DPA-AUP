@@ -38,6 +38,7 @@
 // SD clock speeds
 #define SD_SLOW_HZ   400000      // 400kHz — reliable for XTSD writes/uploads
 #define SD_FAST_HZ   20000000    // 20MHz — proven for audio playback
+#define SD_BOOT_SETTLE_MS 450    // brief power/card settle before first mount
 
 // ── Globals owned by .ino ────────────────────────────────────
 extern bool  g_sdMounted;
@@ -100,8 +101,38 @@ static String dpaJsonEscape(const String& s) {
   return out;
 }
 
+static void sdPopulateStats() {
+  uint64_t totalBytes = SD.cardSize();
+  if (totalBytes > 0) {
+    g_sdTotalMB = (float)totalBytes / (1024.0f * 1024.0f);
+  }
+
+  // Use FAT metadata for used-bytes (O(1), no directory walk).
+  // A recursive walker at 400kHz can hang boot if root contains pathological
+  // entries. Real track count is populated by scanWavList() on /tracks only.
+  uint64_t usedBytes = SD.usedBytes();
+  g_sdFileCount = 0;
+  g_sdUsedMB = (float)usedBytes / (1024.0f * 1024.0f);
+  g_sdFreeMB = g_sdTotalMB - g_sdUsedMB;
+  if (g_sdFreeMB < 0) g_sdFreeMB = 0;
+}
+
+static void sdEnsureCoreDirs() {
+  if (!SD.exists("/data")) {
+    SD.mkdir("/data");
+    Serial.println("[SD] Created /data directory");
+  }
+
+  if (!SD.exists("/tracks")) {
+    SD.mkdir("/tracks");
+    Serial.println("[SD] Created /tracks directory");
+  }
+}
+
 // ── Mount SD at a specific speed ─────────────────────────────
 static bool sdMountAt(uint32_t hz) {
+  g_sdMounted = false;
+
   // Unmount first if already mounted
   SD.end();
   delay(50);
@@ -132,6 +163,7 @@ static bool sdMountAt(uint32_t hz) {
       uint8_t cardType = SD.cardType();
       if (cardType != CARD_NONE) {
         g_sdCurrentHz = hz;
+        g_sdMounted = true;
         Serial.printf("[SD] Mounted at %lu Hz\n", (unsigned long)hz);
         return true;
       }
@@ -139,7 +171,7 @@ static bool sdMountAt(uint32_t hz) {
     } else {
       Serial.println("[SD] SD.begin failed");
     }
-    delay(300);
+    delay(120 * attempt);
   }
 
   return false;
@@ -174,30 +206,19 @@ static bool sdInit() {
   uint32_t speeds[] = { SD_SLOW_HZ, 1000000, 4000000 };
   bool mounted = false;
 
-  // Setup SPI bus
+  // Give the card and regulator a bounded settle window on cold boot.
   pinMode(DPA_SD_CS_PIN, OUTPUT);
   digitalWrite(DPA_SD_CS_PIN, HIGH);
-  delay(50);
-  SPI.begin(DPA_SD_SCK_PIN, DPA_SD_MISO_PIN, DPA_SD_MOSI_PIN, DPA_SD_CS_PIN);
-  g_sdSpiReady = true;
-  delay(100);
+  for (int elapsed = 0; elapsed < SD_BOOT_SETTLE_MS; elapsed += 75) {
+    delay(75);
+    yield();
+  }
 
   for (int i = 0; i < 3; i++) {
-    Serial.printf("[SD] Trying %lu Hz...\n", (unsigned long)speeds[i]);
-    SD.end();
-    delay(100);
-    digitalWrite(DPA_SD_CS_PIN, HIGH);
-    delay(50);
-    if (SD.begin(DPA_SD_CS_PIN, SPI, speeds[i])) {
-      if (SD.cardType() != CARD_NONE) {
-        mounted = true;
-        g_sdCurrentHz = speeds[i];
-        Serial.printf("[SD] Mounted at %lu Hz!\n", (unsigned long)speeds[i]);
-        break;
-      }
-      SD.end();
+    if (sdMountAt(speeds[i])) {
+      mounted = true;
+      break;
     }
-    delay(100);
   }
 
   if (!mounted) {
@@ -208,32 +229,8 @@ static bool sdInit() {
   }
 
   g_sdMounted = true;
-
-  uint64_t totalBytes = SD.cardSize();
-  if (totalBytes > 0) {
-    g_sdTotalMB = (float)totalBytes / (1024.0f * 1024.0f);
-  }
-
-  // Use FAT metadata for used-bytes (O(1), no directory walk).
-  // A recursive walker at 400kHz can hang boot if root contains pathological
-  // entries. Real track count is populated by scanWavList() on /tracks only.
-  uint64_t usedBytes = SD.usedBytes();
-  g_sdFileCount = 0;
-  g_sdUsedMB = (float)usedBytes / (1024.0f * 1024.0f);
-  g_sdFreeMB = g_sdTotalMB - g_sdUsedMB;
-  if (g_sdFreeMB < 0) g_sdFreeMB = 0;
-
-  // Ensure /data directory exists
-  if (!SD.exists("/data")) {
-    SD.mkdir("/data");
-    Serial.println("[SD] Created /data directory");
-  }
-
-  // Ensure /tracks directory exists
-  if (!SD.exists("/tracks")) {
-    SD.mkdir("/tracks");
-    Serial.println("[SD] Created /tracks directory");
-  }
+  sdPopulateStats();
+  sdEnsureCoreDirs();
 
   Serial.printf("[SD] mounted: total=%.2fMB used=%.2fMB free=%.2fMB files=%d\n",
                 g_sdTotalMB, g_sdUsedMB, g_sdFreeMB, g_sdFileCount);
@@ -254,16 +251,7 @@ static void sdRefreshStats() {
     return;
   }
 
-  uint64_t totalBytes = SD.cardSize();
-  if (totalBytes > 0) {
-    g_sdTotalMB = (float)totalBytes / (1024.0f * 1024.0f);
-  }
-
-  uint64_t usedBytes = SD.usedBytes();
-  g_sdFileCount = 0;
-  g_sdUsedMB = (float)usedBytes / (1024.0f * 1024.0f);
-  g_sdFreeMB = g_sdTotalMB - g_sdUsedMB;
-  if (g_sdFreeMB < 0) g_sdFreeMB = 0;
+  sdPopulateStats();
 }
 
 static String sdListFilesJson(const char* dirPath) {

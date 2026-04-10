@@ -5,11 +5,13 @@ import { DeviceBleService } from './device-ble.service';
 import { DeviceWifiService } from './device-wifi.service';
 import { DeviceNfcService } from './device-nfc.service';
 import { ApiService } from './api.service';
-import { DpaDeviceInfo, LibraryIndex, Album, Track, FirmwareStatus } from '../types';
+import { DpaDeviceInfo, LibraryIndex, Album, Track, FirmwareStatus, DeviceCapsuleRecord, DeviceRuntimeStatus } from '../types';
 import { DataService } from './data.service';
+import { normalizeDeviceAlbumMetaPayload, normalizeDeviceBookletPayload } from './device-content.utils';
 
 export type ConnectionStatus = 'disconnected' | 'usb' | 'bluetooth' | 'wifi';
 export type RegistrationStatus = 'unregistered' | 'analyzing' | 'registered' | 'lost';
+export type ConnectionAction = ConnectionStatus | 'nfc' | 'detect';
 
 @Injectable({
   providedIn: 'root'
@@ -27,36 +29,190 @@ export class DeviceConnectionService {
   connectionStatus = signal<ConnectionStatus>('disconnected');
   registrationStatus = signal<RegistrationStatus>('unregistered');
   connectionError = signal<string>('');
+  connectionBusy = signal<ConnectionAction | null>(null);
 
   // --- Device-Sourced State ---
   deviceInfo = signal<DpaDeviceInfo | null>(null);
   deviceLibrary = signal<LibraryIndex | null>(null);
+  deviceCapsules = signal<DeviceCapsuleRecord[]>([]);
+  deviceRuntime = computed<DeviceRuntimeStatus | null>(() => {
+    if (this.connectionStatus() !== 'wifi') return null;
+    const status = this.wifi.lastStatus();
+    if (!status) return null;
+    return {
+      bootState: status.bootState ?? 'ready',
+      sdState: status.sdState ?? 'unknown',
+      uploadState: status.uploadState ?? 'idle',
+      degradedReason: status.degradedReason ?? '',
+      httpReady: status.httpReady ?? true,
+      httpMode: status.httpMode ?? 'full',
+      audioVerified: status.audioVerified ?? status.player?.audioReady ?? false,
+      wifiMaintenance: status.wifiMaintenance ?? 'normal',
+      lastUploadPath: status.lastUploadPath ?? '',
+      lastUploadBytes: status.lastUploadBytes ?? 0,
+    };
+  });
+  deviceRuntimeMessage = computed(() => this.describeRuntime(this.deviceRuntime()));
+  deviceReadyForWrites = computed(() => {
+    if (this.connectionStatus() !== 'wifi') return false;
+    const runtime = this.deviceRuntime();
+    if (!runtime) return true;
+    return runtime.bootState !== 'booting'
+      && runtime.sdState !== 'error'
+      && runtime.uploadState === 'idle';
+  });
 
   // --- Derived State for UI ---
   isSnippetMode = computed(() => this.registrationStatus() !== 'registered');
   registeredDeviceId = computed(() => this.deviceInfo()?.serial ?? null);
+  connectionTransportLabel = computed(() => {
+    if (this.isSimulationMode()) return 'Simulator';
+    switch (this.connectionStatus()) {
+      case 'wifi': return 'WiFi Direct';
+      case 'usb': return 'USB-C Bridge';
+      case 'bluetooth': return 'Bluetooth LE';
+      default: return 'Disconnected';
+    }
+  });
+  connectionSummary = computed(() => {
+    if (this.isSimulationMode()) return 'Simulator active';
+    if (this.connectionStatus() === 'wifi') {
+      const status = this.wifi.lastStatus();
+      return status?.duid || status?.album || this.deviceInfo()?.serial || 'DPA connected over WiFi';
+    }
+    if (this.connectionStatus() === 'usb') {
+      return this.deviceInfo()?.serial || 'Bridge connected';
+    }
+    if (this.connectionStatus() === 'bluetooth') {
+      return this.deviceInfo()?.serial || 'Bluetooth connected';
+    }
+    return 'No device detected';
+  });
 
   // --- Internal State ---
   private isSimulated = signal(false);
+  private wifiStatusPollTimer: ReturnType<typeof setInterval> | null = null;
+  private wifiPollFailures = 0;
+  private lastUploadBusy = false;
+  private postUploadRecoveryInFlight = false;
+  private detectConnectedDevicePromise: Promise<ConnectionStatus | null> | null = null;
+  private wifiHydrationPromise: Promise<void> | null = null;
+  private lastCoverSyncKey = '';
+  private lastLedSyncKey = '';
 
   constructor() {
     // Simulator is opt-in only — user must explicitly click "Use Simulator"
     // on the fan auth page. No auto-activation to avoid mock fallback in live paths.
+
+    // Auto-probe device WiFi on startup so ALL portal pages (creator + fan)
+    // get real data synced into DataService regardless of entry point.
+    this.autoProbeConnectedDevice();
+  }
+
+  /**
+   * Background WiFi probe — if user is already on the DPA network,
+   * connect and sync device data into DataService immediately.
+   * Runs silently; no UI spinners or error messages.
+   */
+  private autoProbeConnectedDevice() {
+    void this.detectConnectedDevice({ silent: true, preferCurrent: false });
+  }
+
+  async detectConnectedDevice(options?: { silent?: boolean; preferCurrent?: boolean }): Promise<ConnectionStatus | null> {
+    if (this.detectConnectedDevicePromise) return this.detectConnectedDevicePromise;
+
+    this.detectConnectedDevicePromise = (async () => {
+      this.connectionBusy.set('detect');
+      const silent = options?.silent === true;
+      const preferCurrent = options?.preferCurrent !== false;
+      try {
+        if (preferCurrent) {
+          if (this.connectionStatus() === 'wifi' && await this.refreshWifiConnection(true)) {
+            return 'wifi';
+          }
+          if (this.connectionStatus() === 'usb' && await this.refreshBridgeConnection(true)) {
+            return 'usb';
+          }
+        }
+
+        if (await this.connectViaWifi(undefined, { silent: true })) {
+          return 'wifi';
+        }
+
+        if (await this.connectToBridge({ silent: true })) {
+          return 'usb';
+        }
+
+        if (!silent) {
+          this.connectionError.set('No connected DPA was detected yet. If the device is already attached, try Refresh Detection or choose a specific method below.');
+        }
+        return null;
+      } finally {
+        this.connectionBusy.set(null);
+        this.detectConnectedDevicePromise = null;
+      }
+    })();
+
+    return this.detectConnectedDevicePromise;
+  }
+
+  private async refreshWifiConnection(silent = false): Promise<boolean> {
+    try {
+      const ok = await this.wifi.getStatus().then(() => true).catch(() => false);
+      if (!ok) return false;
+      this.connectionStatus.set('wifi');
+      const status = this.wifi.lastStatus();
+      if (status) {
+        this.updateDeviceInfoFromStatus(status);
+        this.registrationStatus.set('registered');
+        this.lastUploadBusy = this.isUploadBusy(status);
+        void this.scheduleWifiHydration(status);
+      }
+      this.startWifiStatusPolling();
+      return true;
+    } catch {
+      if (!silent && this.connectionStatus() === 'wifi') {
+        this.connectionError.set('Connected WiFi session could not be refreshed. Rejoin the DPA network and retry.');
+      }
+      return false;
+    }
+  }
+
+  private async refreshBridgeConnection(silent = false): Promise<boolean> {
+    try {
+      if (!this.bridge.isConnected()) return false;
+      this.connectionError.set('');
+      this.stopWifiStatusPolling();
+      if (this.wifi.isConnected()) this.wifi.disconnect();
+      if (this.ble.isConnected()) this.ble.disconnect();
+      this.connectionStatus.set('usb');
+      this.isSimulated.set(false);
+      await this.checkDevice();
+      return this.connectionStatus() === 'usb' && !!this.deviceInfo();
+    } catch {
+      if (!silent) {
+        this.connectionError.set('The USB-C bridge is reachable, but the attached DPA did not answer cleanly.');
+      }
+      return false;
+    }
   }
 
   // --- USB Bridge Connection ---
 
-  async connectToBridge() {
+  async connectToBridge(options?: { silent?: boolean }): Promise<boolean> {
     this.connectionError.set('');
+    if (await this.refreshBridgeConnection(true)) {
+      return true;
+    }
+
     const connected = await this.bridge.connect();
     if (connected) {
-      this.connectionStatus.set('usb');
-      this.isSimulated.set(false);
-      await this.checkDevice();
-    } else {
-      this.connectionError.set('Failed to connect to DPA Desktop Bridge. Is the application running on your computer?');
-      this.disconnectDevice();
+      return this.refreshBridgeConnection(options?.silent === true);
     }
+    if (!options?.silent) {
+      this.connectionError.set('Failed to connect to DPA Desktop Bridge. Is the application running on your computer?');
+    }
+    return false;
   }
 
   // --- BLE Connection ---
@@ -88,36 +244,35 @@ export class DeviceConnectionService {
 
   // --- WiFi Connection ---
 
-  async connectViaWifi(ip?: string): Promise<boolean> {
+  async connectViaWifi(ip?: string, options?: { silent?: boolean }): Promise<boolean> {
     this.connectionError.set('');
+    if (!ip && this.connectionStatus() === 'wifi' && await this.refreshWifiConnection(true)) {
+      return true;
+    }
     const success = ip ? await this.wifi.probe(ip) : await this.wifi.autoConnect();
     if (success) {
+      this.stopWifiStatusPolling();
+      if (this.bridge.isConnected()) this.bridge.disconnect();
+      if (this.ble.isConnected()) this.ble.disconnect();
       this.connectionError.set('');
       this.connectionStatus.set('wifi');
       this.isSimulated.set(false);
 
       const status = this.wifi.lastStatus();
       if (status) {
-        this.deviceInfo.set({
-          serial: status.duid,
-          model: status.name,
-          firmwareVersion: status.ver,
-          capabilities: ['audio', 'portal', 'mesh'],
-          pubkeyB64: '',
-        });
+        this.updateDeviceInfoFromStatus(status);
         this.registrationStatus.set('registered');
-        await this.refreshWifiLibrary();
-        // Sync device data into DataService so all portal components get real data
-        await this.syncDeviceIntoDataService(status);
+        this.lastUploadBusy = this.isUploadBusy(status);
+        // Make the link feel instant first, then hydrate heavy album assets in the background.
+        void this.scheduleWifiHydration(status);
       }
-
-      // Auto-sync LED colors from cover art on device (if present).
-      // Runs on any page — lights always match the album when connected.
-      this.syncLedColorsFromCover().catch(() => {});
+      this.startWifiStatusPolling();
 
       return true;
     }
-    this.connectionError.set('Could not reach DPA over WiFi. Confirm you are on the DPA-Portal network and retry.');
+    if (!options?.silent) {
+      this.connectionError.set('Could not reach DPA over WiFi. Confirm you are on the DPA-Portal network and retry.');
+    }
     return false;
   }
 
@@ -183,14 +338,18 @@ export class DeviceConnectionService {
     // Disconnect all transports
     if (this.ble.isConnected()) this.ble.disconnect();
     if (this.wifi.isConnected()) this.wifi.disconnect();
+    if (this.bridge.isConnected()) this.bridge.disconnect();
     if (this.nfc.isScanning()) this.nfc.stopScan();
+    this.stopWifiStatusPolling();
 
     this.connectionStatus.set('disconnected');
     this.connectionError.set('');
     this.isSimulated.set(false);
     this.deviceInfo.set(null);
     this.deviceLibrary.set(null);
+    this.deviceCapsules.set([]);
     this.registrationStatus.set('unregistered');
+    this.wifiHydrationPromise = null;
   }
 
   private populateMockLibrary() {
@@ -246,6 +405,18 @@ export class DeviceConnectionService {
     await this.syncWifiStatusIntoLibrary();
   }
 
+  async refreshDeviceCapsules() {
+    if (this.connectionStatus() !== 'wifi') {
+      this.deviceCapsules.set([]);
+      return;
+    }
+    try {
+      this.deviceCapsules.set(await this.wifi.getCapsules());
+    } catch {
+      this.deviceCapsules.set([]);
+    }
+  }
+
   private async syncWifiStatusIntoLibrary() {
     try {
       const status: FirmwareStatus = await this.wifi.getStatus();
@@ -271,6 +442,27 @@ export class DeviceConnectionService {
     }
   }
 
+  private async fetchDeviceCoverDataUrl(): Promise<string | undefined> {
+    const hasCover = await this.wifi.verifyCoverArt();
+    if (!hasCover) return undefined;
+    try {
+      const response = await fetch(this.wifi.coverArtUrl('/art/cover.jpg'));
+      if (!response.ok) return undefined;
+      const blob = await response.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') resolve(reader.result);
+          else reject(new Error('Cover art did not decode into a data URL.'));
+        };
+        reader.onerror = () => reject(reader.error || new Error('Cover art read failed.'));
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return undefined;
+    }
+  }
+
   /**
    * Pull device metadata + tracks into DataService so all portal components
    * (fan-home, fan-album-detail, capsules, etc.) display real data instead of mock.
@@ -278,18 +470,40 @@ export class DeviceConnectionService {
   private async syncDeviceIntoDataService(status: FirmwareStatus) {
     try {
       const tracks = await this.wifi.getDeviceTracks();
+      const bookletPayload = await this.wifi.getBookletData();
+      const albumMetaPayload = await this.wifi.getAlbumMeta();
+      let coverDataUrl: string | undefined;
+      const coverKey = this.coverSyncKey(status);
+      if (coverKey && coverKey !== this.lastCoverSyncKey) {
+        coverDataUrl = await this.fetchDeviceCoverDataUrl();
+        if (coverDataUrl) {
+          this.lastCoverSyncKey = coverKey;
+        }
+      }
       const firstAlbum = this.dataService.albums()?.[0];
       if (!firstAlbum) return;
+
+      const booklet = normalizeDeviceBookletPayload(bookletPayload);
+      const albumMeta = normalizeDeviceAlbumMetaPayload(albumMetaPayload);
 
       this.dataService.syncAlbumFromDevice(firstAlbum.albumId, {
         artistName: status.artist || undefined,
         title: status.album || undefined,
-        artworkUrl: this.wifi.coverArtUrl('/art/cover.jpg'),
+        artworkUrl: coverDataUrl,
         tracks: tracks.map(t => ({
           title: t.title,
           durationSec: Math.max(1, Math.round(t.durationMs / 1000)),
           filename: t.filename,
         })),
+        description: booklet?.description,
+        lyrics: booklet?.lyrics,
+        booklet: booklet?.booklet,
+        genre: albumMeta?.genre,
+        recordLabel: albumMeta?.recordLabel,
+        copyright: albumMeta?.copyright,
+        releaseDate: albumMeta?.releaseDate,
+        upcCode: albumMeta?.upcCode,
+        parentalAdvisory: albumMeta?.parentalAdvisory,
       });
     } catch {
       // best effort — DataService retains existing data on failure
@@ -302,7 +516,9 @@ export class DeviceConnectionService {
    * and pushes them as play_color + gradEnd so the VU patterns match the album.
    * Runs automatically on WiFi connect from any page.
    */
-  private async syncLedColorsFromCover(): Promise<void> {
+  private async syncLedColorsFromCover(status?: FirmwareStatus): Promise<void> {
+    const syncKey = this.coverSyncKey(status ?? this.wifi.lastStatus());
+    if (syncKey && syncKey === this.lastLedSyncKey) return;
     const coverOk = await this.wifi.verifyCoverArt();
     if (!coverOk) return;
 
@@ -327,7 +543,32 @@ export class DeviceConnectionService {
     await this.wifi.pushTheme({
       led: { playback: { color: primary, pattern: 'vu_classic' } },
     } as any, undefined, secondary);
+    if (syncKey) this.lastLedSyncKey = syncKey;
     console.log(`[AUTO-LED] Synced album colors from device cover: ${primary} / ${secondary}`);
+  }
+
+  private scheduleWifiHydration(status: FirmwareStatus): Promise<void> {
+    if (this.wifiHydrationPromise) return this.wifiHydrationPromise;
+
+    this.wifiHydrationPromise = (async () => {
+      // Let the initial connect settle before pulling heavier metadata/art assets.
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      await this.refreshWifiLibrary();
+      await this.refreshDeviceCapsules();
+      await this.syncDeviceIntoDataService(status);
+      await this.syncLedColorsFromCover(status);
+    })().finally(() => {
+      this.wifiHydrationPromise = null;
+    });
+
+    return this.wifiHydrationPromise;
+  }
+
+  private coverSyncKey(status: FirmwareStatus | null | undefined): string {
+    if (!status) return '';
+    const coverBytes = Number(status.coverBytes ?? 0);
+    if (coverBytes <= 0) return '';
+    return `${status.duid || 'DPA'}|${status.artist || ''}|${status.album || ''}|${coverBytes}`;
   }
 
   /** Extract 2 dominant vibrant colors from a data URL via canvas sampling. */
@@ -421,5 +662,123 @@ export class DeviceConnectionService {
 
   isSimulationMode() {
     return this.isSimulated();
+  }
+
+  private updateDeviceInfoFromStatus(status: FirmwareStatus) {
+    this.deviceInfo.set({
+      serial: status.duid,
+      model: status.name,
+      firmwareVersion: status.ver,
+      capabilities: ['audio', 'portal', 'mesh'],
+      pubkeyB64: '',
+    });
+  }
+
+  private startWifiStatusPolling() {
+    this.stopWifiStatusPolling();
+    this.wifiPollFailures = 0;
+    this.wifiStatusPollTimer = setInterval(() => {
+      void this.pollWifiStatus();
+    }, 2500);
+  }
+
+  private stopWifiStatusPolling() {
+    if (this.wifiStatusPollTimer) {
+      clearInterval(this.wifiStatusPollTimer);
+      this.wifiStatusPollTimer = null;
+    }
+    this.wifiPollFailures = 0;
+  }
+
+  private async pollWifiStatus() {
+    if (this.connectionStatus() !== 'wifi') {
+      this.stopWifiStatusPolling();
+      return;
+    }
+
+    try {
+      const status = await this.wifi.getStatus();
+      this.wifiPollFailures = 0;
+      this.connectionError.set('');
+      this.updateDeviceInfoFromStatus(status);
+
+      const uploadBusy = this.isUploadBusy(status);
+      if ((this.lastUploadBusy && !uploadBusy) || !this.deviceLibrary()) {
+        await this.runPostUploadRecovery(status);
+      }
+      this.lastUploadBusy = uploadBusy;
+    } catch {
+      this.wifiPollFailures += 1;
+      if (this.wifiPollFailures < 2) return;
+
+      const recovered = await this.wifi.autoConnect();
+      if (recovered) {
+        this.connectionStatus.set('wifi');
+        const status = this.wifi.lastStatus();
+        this.wifiPollFailures = 0;
+        this.connectionError.set('');
+        if (status) {
+          this.updateDeviceInfoFromStatus(status);
+          await this.runPostUploadRecovery(status);
+          this.lastUploadBusy = this.isUploadBusy(status);
+        }
+        return;
+      }
+
+      if (this.wifiPollFailures >= 6) {
+        this.disconnectDevice();
+        this.connectionError.set('Device WiFi was lost. Rejoin the DPA network and retry.');
+      }
+    }
+  }
+
+  private async runPostUploadRecovery(status: FirmwareStatus) {
+    if (this.postUploadRecoveryInFlight) return;
+    this.postUploadRecoveryInFlight = true;
+    try {
+      await this.refreshWifiLibrary();
+      await this.refreshDeviceCapsules();
+      await this.syncDeviceIntoDataService(status);
+    } finally {
+      this.postUploadRecoveryInFlight = false;
+    }
+  }
+
+  private isUploadBusy(status: FirmwareStatus | null | undefined): boolean {
+    const uploadState = status?.uploadState ?? 'idle';
+    return ['preparing', 'receiving', 'verifying', 'finalizing'].includes(uploadState);
+  }
+
+  private describeRuntime(runtime: DeviceRuntimeStatus | null): string {
+    if (!runtime) return '';
+
+    if (runtime.uploadState === 'error') {
+      return 'The last upload failed verification on-device. Wait for idle, then retry the transfer.';
+    }
+
+    if (runtime.uploadState !== 'idle' && runtime.uploadState !== 'complete') {
+      return runtime.httpMode === 'minimal'
+        ? 'Large upload in progress. Minimal status stays online while playback controls stay blocked.'
+        : 'Large upload in progress. The device will return to full control mode when the transfer settles.';
+    }
+
+    if (runtime.bootState === 'booting') {
+      return 'Device is still booting and validating SD, audio, WiFi, and HTTP readiness.';
+    }
+
+    if (runtime.bootState === 'degraded') {
+      switch (runtime.degradedReason) {
+        case 'sd_unavailable':
+          return 'SD storage is not mounted. Tracks, cover art, and booklet data will stay unavailable until storage recovers.';
+        case 'audio_unverified':
+          return 'Audio hardware did not verify cleanly at boot. Playback should be treated as unavailable until the device recovers.';
+        case 'upload_failed':
+          return 'The last upload did not finalize cleanly. Check the runtime state before retrying.';
+        default:
+          return 'Device is online but running in a degraded state.';
+      }
+    }
+
+    return '';
   }
 }

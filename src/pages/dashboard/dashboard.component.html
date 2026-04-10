@@ -2,6 +2,7 @@
 <div class="space-y-6">
   <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
     <div>
+      <app-brand-mark tone="teal" size="compact" suffix="CREATOR"></app-brand-mark>
       <h1 class="text-2xl font-bold text-slate-50">Dashboard</h1>
       <p class="text-sm text-slate-400 mt-1">Manage your DPA™ projects and releases.</p>
     </div>
@@ -23,14 +24,11 @@
           <div class="relative w-full aspect-[16/10] bg-gradient-to-br from-slate-200 via-slate-50 to-slate-400 overflow-hidden">
             <!-- Skin -->
             <div class="absolute inset-0 h-[75%] bg-slate-300 overflow-hidden border-b border-slate-400/30">
-              <img [src]="album.artworkUrl || ('https://picsum.photos/seed/' + album.albumId + '/400/400')" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300">
+              <img [src]="album.artworkUrl || defaultCover" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300">
             </div>
             <!-- Chin -->
             <div class="absolute bottom-0 left-0 right-0 h-[25%] px-4 flex items-center justify-end">
-              <div class="text-right">
-                <div class="text-[10px] font-bold text-slate-500 tracking-tighter">DPA<span class="align-top text-[6px] font-normal">TM</span></div>
-                <div class="text-[6px] font-semibold text-slate-400 uppercase tracking-widest -mt-1">Audio</div>
-              </div>
+              <app-brand-mark size="micro" tone="slate" descriptor="AUDIO" [framed]="false"></app-brand-mark>
             </div>
           </div>
           <!-- Authenticity Badge -->

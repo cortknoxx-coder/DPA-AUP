@@ -30,6 +30,10 @@ extern unsigned long g_bootTime;
 extern int g_playCount, g_pauseCount, g_nextCount, g_prevCount;
 extern String g_firstPlayableWav;
 extern bool g_sdMounted;
+extern String g_bootState, g_sdState, g_uploadState, g_degradedReason;
+extern String g_httpMode, g_wifiMaintenanceMode, g_lastUploadPath;
+extern size_t g_lastUploadBytes;
+extern bool g_httpReady, g_wifiReady, g_audioHardwareVerified;
 extern String g_wavPaths[];
 extern int g_wavCount;
 extern String g_favorites[];
@@ -104,6 +108,8 @@ struct RuntimeCapsule {
 static RuntimeCapsule g_runtimeCapsules[24];
 static int g_runtimeCapsuleCount = 0;
 static const char* CAPSULES_PATH = "/data/capsules.json";
+static const char* BOOKLET_PATH = "/data/booklet.json";
+static const char* ALBUM_META_PATH = "/data/album_meta.json";
 
 // Forward declarations for JSON helpers (defined later in this file)
 String jsonVal(const String& body, const String& key);
@@ -243,6 +249,23 @@ static void sendArtFromSd(AsyncWebServerRequest* req, const String& path) {
   AsyncWebServerResponse* response = req->beginResponse(SD, path, ct);
   response->addHeader("Cache-Control", "public, max-age=86400");
   response->addHeader("Access-Control-Allow-Origin", "*");
+  req->send(response);
+}
+
+static void sendJsonFromSd(AsyncWebServerRequest* req, const char* path) {
+  if (!g_sdMounted) {
+    req->send(503, "application/json", "{\"error\":\"sd not mounted\"}");
+    return;
+  }
+  if (!SD.exists(path)) {
+    req->send(404, "application/json", "{\"error\":\"not found\"}");
+    return;
+  }
+  AsyncWebServerResponse* response = req->beginResponse(SD, path, "application/json");
+  response->addHeader("Cache-Control", "no-store");
+  response->addHeader("Access-Control-Allow-Origin", "*");
+  response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  response->addHeader("Access-Control-Allow-Headers", "Content-Type");
   req->send(response);
 }
 
@@ -404,6 +427,16 @@ String buildStatusJson() {
   j += ",\"ssid\":\"" + escJson(g_staSSID) + "\"";
   j += ",\"ip\":\"" + g_staIP + "\"";
   j += ",\"rssi\":" + String(g_staRSSI) + "},";
+  j += "\"bootState\":\"" + escJson(g_bootState) + "\",";
+  j += "\"sdState\":\"" + escJson(g_sdState) + "\",";
+  j += "\"uploadState\":\"" + escJson(g_uploadState) + "\",";
+  j += "\"degradedReason\":\"" + escJson(g_degradedReason) + "\",";
+  j += "\"httpReady\":" + String(g_httpReady ? "true" : "false") + ",";
+  j += "\"httpMode\":\"" + escJson(g_httpMode) + "\",";
+  j += "\"audioVerified\":" + String(g_audioHardwareVerified ? "true" : "false") + ",";
+  j += "\"wifiMaintenance\":\"" + escJson(g_wifiMaintenanceMode) + "\",";
+  j += "\"lastUploadPath\":\"" + escJson(g_lastUploadPath) + "\",";
+  j += "\"lastUploadBytes\":" + String((unsigned long)g_lastUploadBytes) + ",";
   j += "\"uptime_s\":" + String(uptime) + ",";
   j += "\"battery\":{\"voltage\":" + String(g_battVoltage, 2) + ",";
   j += "\"percent\":" + String(g_battPercent) + ",";
@@ -419,7 +452,7 @@ String buildStatusJson() {
     j += "\"storage\":{\"totalMB\":0,\"usedMB\":0,\"freeMB\":0,";
   }
   j += "\"trackCount\":" + String(g_wavCount) + ",";
-  j += "\"capsuleCount\":" + String(NUM_CAPSULES) + ",\"videoCount\":1,";
+  j += "\"capsuleCount\":" + String(g_runtimeCapsuleCount) + ",\"videoCount\":1,";
   j += "\"sdMounted\":" + String(g_sdMounted ? "true" : "false") + "},";
   j += "\"player\":{\"trackIndex\":" + String(g_trackIndex) + ",";
   j += "\"trackId\":\"" + escJson(currentPath) + "\",";
@@ -547,7 +580,11 @@ void registerApiRoutes(AsyncWebServer& server) {
 
   // ── GET /api/status ────────────────────────────────────────
   server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* req) {
-    req->send(200, "application/json", buildStatusJson());
+    AsyncWebServerResponse* response = req->beginResponse(200, "application/json", buildStatusJson());
+    response->addHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    response->addHeader("Pragma", "no-cache");
+    response->addHeader("Connection", "close");
+    req->send(response);
   });
 
   // ── GET /api/admin/unlock?key=<DUID> ──────────────────────
@@ -869,6 +906,30 @@ void registerApiRoutes(AsyncWebServer& server) {
     req->send(response);
   });
 
+  // ── GET /api/booklet ─────────────────────────────────────────
+  server.on("/api/booklet", HTTP_GET, [](AsyncWebServerRequest* req) {
+    sendJsonFromSd(req, BOOKLET_PATH);
+  });
+  server.on("/api/booklet", HTTP_OPTIONS, [](AsyncWebServerRequest* req) {
+    AsyncWebServerResponse* response = req->beginResponse(204);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+    req->send(response);
+  });
+
+  // ── GET /api/album/meta ──────────────────────────────────────
+  server.on("/api/album/meta", HTTP_GET, [](AsyncWebServerRequest* req) {
+    sendJsonFromSd(req, ALBUM_META_PATH);
+  });
+  server.on("/api/album/meta", HTTP_OPTIONS, [](AsyncWebServerRequest* req) {
+    AsyncWebServerResponse* response = req->beginResponse(204);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+    req->send(response);
+  });
+
   // ── GET /api/sd/files?dir=/ ────────────────────────── [ADMIN]
   server.on("/api/sd/files", HTTP_GET, [](AsyncWebServerRequest* req) {
     if (!g_adminMode) {
@@ -1122,7 +1183,7 @@ void registerApiRoutes(AsyncWebServer& server) {
     j += "\"usedMB\":" + String(g_sdUsedMB, 0) + ",";
     j += "\"freeMB\":" + String(g_sdFreeMB, 0) + ",";
     j += "\"trackCount\":" + String(g_wavCount) + ",";
-    j += "\"capsuleCount\":" + String(NUM_CAPSULES) + ",\"videoCount\":1,";
+    j += "\"capsuleCount\":" + String(g_runtimeCapsuleCount) + ",\"videoCount\":1,";
     j += "\"sdSpeed\":" + String(g_sdCurrentHz) + ",";
     j += "\"files\":" + sdListFilesJson("/tracks") + "}";
     req->send(200, "application/json", j);

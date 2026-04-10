@@ -64,6 +64,22 @@ export class DeviceBridgeService {
     }
   }
 
+  disconnect(): void {
+    for (const [, pending] of this.pending) {
+      pending.reject(new Error('Bridge disconnected'));
+    }
+    this.pending.clear();
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch {
+        // best effort
+      }
+      this.ws = undefined;
+    }
+    this.isConnected.set(false);
+  }
+
   private uuidv4(): string {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
       const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);

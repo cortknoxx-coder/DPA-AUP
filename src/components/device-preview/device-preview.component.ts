@@ -2,11 +2,12 @@
 import { Component, input, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LedPattern } from '../../types';
+import { BrandMarkComponent } from '../brand-mark/brand-mark.component';
 
 @Component({
   selector: 'app-device-preview',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, BrandMarkComponent],
   templateUrl: './device-preview.component.html',
 })
 export class DevicePreviewComponent {

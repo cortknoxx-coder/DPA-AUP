@@ -3,9 +3,8 @@
   
   <!-- Mobile Header -->
   <header class="lg:hidden h-16 bg-slate-950 border-b border-slate-900 flex items-center justify-between px-4 shrink-0 z-30">
-    <a routerLink="/fan/app/home" class="flex items-center gap-2">
-      <div class="h-6 w-6 rounded bg-indigo-600 shadow-[0_0_12px_rgba(79,70,229,0.5)]"></div>
-      <span class="font-bold text-lg tracking-tight text-white">DPA™</span>
+    <a routerLink="/fan/app/home" class="flex items-center">
+      <app-brand-mark tone="indigo" size="compact" [framed]="false"></app-brand-mark>
     </a>
     <div class="flex items-center gap-4">
       <button (click)="toggleCartOverlay()" class="text-slate-400 hover:text-white relative">
@@ -27,9 +26,8 @@
     <nav class="w-64 bg-slate-950 border-r border-slate-900 flex-shrink-0 hidden lg:flex flex-col">
       <div class="p-6">
         <div class="flex items-center justify-between mb-8">
-          <a routerLink="/fan/app/home" class="flex items-center gap-2">
-            <div class="h-6 w-6 rounded bg-indigo-600 shadow-[0_0_12px_rgba(79,70,229,0.5)]"></div>
-            <span class="font-bold text-lg tracking-tight text-white">DPA™ <span class="text-slate-500 font-normal">Player</span></span>
+          <a routerLink="/fan/app/home" class="flex items-center">
+            <app-brand-mark tone="indigo" size="nav" suffix="PLAYER"></app-brand-mark>
           </a>
            <button (click)="toggleCartOverlay()" class="text-slate-400 hover:text-white relative">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
@@ -72,7 +70,7 @@
           <div class="mt-2 space-y-1">
             @for (album of connectionService.deviceLibrary()?.albums; track album.id) {
               <a [routerLink]="['/fan/app/album', album.id]" routerLinkActive="text-indigo-400" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
-                 <img [src]="album.artworkUrl" class="h-5 w-5 rounded object-cover bg-slate-800">
+                 <img [src]="album.artworkUrl || defaultCover" class="h-5 w-5 rounded object-cover bg-slate-800">
                  <span class="truncate">{{ album.title }}</span>
               </a>
             }
@@ -144,10 +142,7 @@
       </div>
       <div class="lg:hidden fixed inset-y-0 left-0 w-64 bg-slate-950 border-r border-slate-900 z-50 flex flex-col animate-fade-in-up" style="animation-duration: 0.2s">
         <div class="p-4 border-b border-slate-900">
-          <div class="flex items-center gap-2">
-            <div class="h-6 w-6 rounded bg-indigo-600"></div>
-            <span class="font-bold text-lg text-white">DPA™ Player</span>
-          </div>
+          <app-brand-mark tone="indigo" size="nav" suffix="PLAYER"></app-brand-mark>
         </div>
         <div class="p-4 space-y-1">
           <a (click)="sidebarOpen.set(false)" routerLink="/fan/app/home" routerLinkActive="bg-white/10 text-white" [routerLinkActiveOptions]="{ exact: true }" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
@@ -182,6 +177,7 @@
     <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 relative"
           [class.pb-28]="!!playerService.currentTrack()">
       <div class="max-w-7xl mx-auto">
+        <app-device-runtime-banner />
         <router-outlet></router-outlet>
       </div>
     </main>

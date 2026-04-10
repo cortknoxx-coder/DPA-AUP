@@ -6,11 +6,14 @@ import { UserService } from './services/user.service';
 import { filter } from 'rxjs/operators';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
+import { DeviceHudOverlayComponent } from './components/device-hud-overlay/device-hud-overlay.component';
+import { DeviceNotificationCenterComponent } from './components/device-notification-center/device-notification-center.component';
+import { BrandMarkComponent } from './components/brand-mark/brand-mark.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink],
+  imports: [RouterOutlet, RouterLink, DeviceHudOverlayComponent, DeviceNotificationCenterComponent, BrandMarkComponent],
   templateUrl: './app.component.html'
 })
 export class AppComponent {
@@ -19,6 +22,7 @@ export class AppComponent {
   private router = inject(Router);
 
   showConnectionMenu = signal(false);
+  connectionAction = signal<'detect' | 'wifi' | 'usb' | 'nfc' | null>(null);
 
   // Check if current route is NOT Artist portal
   // We hide the global nav on Login and Fan Portal routes
@@ -28,6 +32,14 @@ export class AppComponent {
       map((e: any) => e.url.startsWith('/fan') || e.url.startsWith('/login') || e.url === '/')
     ),
     { initialValue: true } // Default to hidden (Login screen)
+  );
+
+  showGlobalDeviceUi = toSignal(
+    this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd),
+      map((e: any) => !(e.url.startsWith('/login') || e.url === '/'))
+    ),
+    { initialValue: false }
   );
 
   userInitials = computed(() => {
@@ -42,5 +54,37 @@ export class AppComponent {
 
   toggleConnectionMenu() {
     this.showConnectionMenu.update(v => !v);
+  }
+
+  private async runConnectionAction(
+    action: 'detect' | 'wifi' | 'usb' | 'nfc',
+    task: () => Promise<boolean | string | null | undefined>
+  ) {
+    if (this.connectionAction()) return;
+    this.connectionAction.set(action);
+    try {
+      const result = await task();
+      if (result) {
+        this.showConnectionMenu.set(false);
+      }
+    } finally {
+      this.connectionAction.set(null);
+    }
+  }
+
+  detectConnectedDevice() {
+    return this.runConnectionAction('detect', () => this.connectionService.detectConnectedDevice());
+  }
+
+  connectWifi() {
+    return this.runConnectionAction('wifi', () => this.connectionService.connectViaWifi());
+  }
+
+  connectUsb() {
+    return this.runConnectionAction('usb', () => this.connectionService.connectToBridge());
+  }
+
+  connectNfc() {
+    return this.runConnectionAction('nfc', () => this.connectionService.connectViaNfc());
   }
 }

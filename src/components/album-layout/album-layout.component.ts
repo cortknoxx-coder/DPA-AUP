@@ -2,11 +2,12 @@ import { Component, Input, computed, inject, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { DataService } from '../../services/data.service';
+import { DeviceRuntimeBannerComponent } from '../device-runtime-banner/device-runtime-banner.component';
 
 @Component({
   selector: 'app-album-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, DeviceRuntimeBannerComponent],
   templateUrl: './album-layout.component.html'
 })
 export class AlbumLayoutComponent {

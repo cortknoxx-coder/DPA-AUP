@@ -5,6 +5,7 @@ import { DeviceBridgeService } from './device-bridge.service';
 import { CryptoService } from './crypto.service';
 import { BLE_CMD } from './device-ble.service';
 import { Manifest, TrackRef } from '../types';
+import { DEFAULT_COVER_DATA_URL } from '../default-cover';
 
 export interface PlayerTrack {
   id: string;
@@ -86,7 +87,7 @@ export class PlayerService {
       artist: albumInfo.artist,
       album: albumInfo.title,
       duration: t.durationSec,
-      coverUrl: '/assets/dpa-default-cover.png',
+      coverUrl: DEFAULT_COVER_DATA_URL,
       blobId: t.blobId
     }));
     this.queue.set(newQueue);
@@ -296,7 +297,9 @@ export class PlayerService {
         return;
       }
       try {
-        const status = await this.deviceService.wifi.getStatus();
+        // Reuse the shared WiFi status stream whenever it is fresh so the
+        // player does not create a second high-frequency poll loop.
+        const status = await this.deviceService.wifi.getStatus({ maxAgeMs: 5000, timeoutMs: 2500 });
         if (!status?.player) return;
 
         this.isPlaying.set(status.player.playing);
@@ -327,7 +330,7 @@ export class PlayerService {
       } catch {
         // network hiccup — keep polling
       }
-    }, 1500);
+    }, 2000);
   }
 
   private stopWifiPolling() {

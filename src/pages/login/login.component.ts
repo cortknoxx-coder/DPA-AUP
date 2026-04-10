@@ -1,12 +1,14 @@
 
-import { Component } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { BrandMarkComponent } from '../../components/brand-mark/brand-mark.component';
+import { UserService } from '../../services/user.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, BrandMarkComponent],
   template: `
     <div class="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <!-- Background Effects -->
@@ -14,16 +16,22 @@ import { Router } from '@angular/router';
       <div class="absolute bottom-0 right-0 w-96 h-96 bg-indigo-900/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div class="mb-12 text-center z-10">
-        <div class="inline-flex items-center justify-center h-16 w-16 rounded-xl bg-gradient-to-br from-teal-500 to-indigo-600 shadow-[0_0_30px_rgba(20,184,166,0.3)] mb-6">
-          <span class="text-3xl font-bold text-white">DPA™</span>
-        </div>
-        <h1 class="text-3xl font-bold text-slate-100 tracking-tight">Welcome to DPA™ Ecosystem</h1>
+        <app-brand-mark tone="teal" size="hero" class="justify-center"></app-brand-mark>
+        <h1 class="mt-6 text-3xl font-bold text-slate-100 tracking-tight">Welcome to the DPA Ecosystem</h1>
         <p class="text-slate-400 mt-2">Digital Playback Asset Management & Experience</p>
+        <div class="mt-4 inline-flex rounded-full border border-slate-800 bg-slate-900/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+          Mock License: {{ licenseTier() }}
+        </div>
       </div>
 
       <div class="grid md:grid-cols-2 gap-6 max-w-4xl w-full z-10">
         <!-- Artist / Label Portal -->
-        <div (click)="login('artist')" class="group cursor-pointer relative rounded-2xl border border-slate-800 bg-slate-900/50 p-8 hover:bg-slate-900 transition-all hover:border-teal-500/50 hover:shadow-[0_0_30px_rgba(20,184,166,0.1)]">
+        <div
+          (click)="login('artist')"
+          class="group relative rounded-2xl border border-slate-800 bg-slate-900/50 p-8 hover:bg-slate-900 transition-all hover:border-teal-500/50 hover:shadow-[0_0_30px_rgba(20,184,166,0.1)]"
+          [class.cursor-pointer]="creatorPortalEnabled()"
+          [class.pointer-events-none]="!creatorPortalEnabled()"
+          [class.opacity-60]="!creatorPortalEnabled()">
           <div class="absolute inset-0 bg-gradient-to-br from-teal-500/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
           
           <div class="h-12 w-12 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
@@ -36,13 +44,27 @@ import { Router } from '@angular/router';
           <p class="text-sm text-slate-400 leading-relaxed">
             Manage releases, upload masters, design themes, and push perks (DCNP). The command center for creating Digital Playback Assets.
           </p>
-          <div class="mt-6 flex items-center text-xs font-semibold text-teal-400 group-hover:translate-x-1 transition-transform">
-            ENTER PORTAL <span class="ml-1">→</span>
-          </div>
+          @if (creatorPortalEnabled()) {
+            <div class="mt-6 flex items-center text-xs font-semibold text-teal-400 group-hover:translate-x-1 transition-transform">
+              ENTER PORTAL <span class="ml-1">→</span>
+            </div>
+          } @else {
+            <div class="mt-6 text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">
+              License Required
+            </div>
+            <p class="mt-2 text-xs leading-5 text-slate-500">
+              Creator access is blocked until this account is licensed for creator or dual-role access.
+            </p>
+          }
         </div>
 
         <!-- Fan / Owner Portal -->
-        <div (click)="login('fan')" class="group cursor-pointer relative rounded-2xl border border-slate-800 bg-slate-900/50 p-8 hover:bg-slate-900 transition-all hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.1)]">
+        <div
+          (click)="login('fan')"
+          class="group relative rounded-2xl border border-slate-800 bg-slate-900/50 p-8 hover:bg-slate-900 transition-all hover:border-indigo-500/50 hover:shadow-[0_0_30px_rgba(99,102,241,0.1)]"
+          [class.cursor-pointer]="fanPortalEnabled()"
+          [class.pointer-events-none]="!fanPortalEnabled()"
+          [class.opacity-60]="!fanPortalEnabled()">
           <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
           <div class="h-12 w-12 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
@@ -55,25 +77,49 @@ import { Router } from '@angular/router';
           <p class="text-sm text-slate-400 leading-relaxed">
             Connect your DPA™ device, verify ownership via NFC, and access your high-fidelity library. Streaming experience, locally sourced.
           </p>
-          <div class="mt-6 flex items-center text-xs font-semibold text-indigo-400 group-hover:translate-x-1 transition-transform">
-            LAUNCH PLAYER <span class="ml-1">→</span>
-          </div>
+          @if (fanPortalEnabled()) {
+            <div class="mt-6 flex items-center text-xs font-semibold text-indigo-400 group-hover:translate-x-1 transition-transform">
+              LAUNCH PLAYER <span class="ml-1">→</span>
+            </div>
+          } @else {
+            <div class="mt-6 text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">
+              License Required
+            </div>
+            <p class="mt-2 text-xs leading-5 text-slate-500">
+              Fan access is blocked until this account is licensed for fan or dual-role access.
+            </p>
+          }
         </div>
       </div>
       
-      <div class="mt-12 text-[10px] text-slate-600 font-mono">
-        DPA™ SYSTEM v2.4.1 • SECURE CONNECTION
+      <div class="mt-12 flex items-center gap-3 text-[10px] text-slate-600 font-mono">
+        <app-brand-mark tone="slate" size="micro" descriptor="SYSTEM" [framed]="false"></app-brand-mark>
+        <span>v2.4.1 • SECURE CONNECTION</span>
       </div>
     </div>
   `
 })
 export class LoginComponent {
+  private userService = inject(UserService);
+
+  creatorPortalEnabled = computed(() => this.userService.canAccessPortal('creator'));
+  fanPortalEnabled = computed(() => this.userService.canAccessPortal('fan'));
+  licenseTier = this.userService.licenseTier;
+
   constructor(private router: Router) {}
 
   login(role: 'artist' | 'fan') {
     if (role === 'artist') {
+      if (!this.creatorPortalEnabled()) {
+        this.router.navigateByUrl(this.userService.deniedPortalRedirect('creator'));
+        return;
+      }
       this.router.navigate(['/artist/dashboard']);
     } else {
+      if (!this.fanPortalEnabled()) {
+        this.router.navigateByUrl(this.userService.deniedPortalRedirect('fan'));
+        return;
+      }
       this.router.navigate(['/fan']);
     }
   }

@@ -2,7 +2,7 @@
 
 **DPA** (Digital Playback Asset) — brought to you by **The DPAC** (Digital Playback Asset Consortium)
 
-**Firmware:** v2.4.1 (Phase-4) | **Platform:** Waveshare ESP32-S3 Zero + Angular 21 Creator/Fan Portal
+**Firmware:** v2.4.1+ (Phase-4) | **Platform:** Waveshare ESP32-S3 Zero + Angular 21 Creator/Fan Portal
 
 > **Hardware note:** Any mention of ESP32-WROVER-32 / WROOM-32 below is legacy from earlier prototyping. The current MCU is the **Waveshare ESP32-S3 Zero** (8MB flash, no PSRAM, USB-C CDC). API endpoints, protocols, and portal architecture are unchanged — only the pin mapping and flash layout differ. See [`HARDWARE-WIRING.md`](HARDWARE-WIRING.md) for the authoritative pinout.
 
@@ -109,61 +109,108 @@ DPA (Digital Playback Asset) is a physical music player brought to you by **The 
 
 ## Firmware REST API
 
-All endpoints served on `http://192.168.4.1` when WiFi portal is active.
+Port 80 (async ESPAsyncWebServer) serves the dashboard + all API endpoints. Port 81 (sync WebServer) handles large file uploads reliably.
 
-### Status & Catalog
+All endpoints at `http://192.168.4.1` when WiFi AP is active.
 
-| Method | Route | Response | Description |
-|--------|-------|----------|-------------|
-| GET | `/api/status` | Status JSON | Device state, audio, battery, storage, mesh |
-| GET | `/api/fan.json` | Catalog JSON | Song list, playlist, credits, videos |
-| GET | `/api/creator.json` | Creator JSON | Features list + embedded status |
+### Status & Discovery
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/status` | — | Full device state JSON (player, storage, WiFi, battery, LEDs, favorites, capsules, analytics, runtime) |
+| GET | `/api/admin/unlock?key=<DUID>` | — | Unlock admin mode |
+| GET | `/api/admin/lock` | — | Lock admin mode |
 
 ### Playback Control
 
-| Method | Route | Params | Description |
-|--------|-------|--------|-------------|
-| GET | `/api/cmd` | `op=N` | Execute command by hex code (see Command Table) |
-| GET | `/api/track` | `i=N` | Select track by index |
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/cmd?op=XX` | — | Command opcode (0x01=play/pause, 0x02=pause, 0x03=next, 0x04=prev, 0x60=vol+, 0x61=vol-) |
+| GET | `/api/track?i=N` | — | Play track by index |
+| GET | `/api/audio/play?file=/path` | — | Play file by path |
+| GET | `/api/audio/stop` | — | Stop playback |
+| GET | `/api/audio/seek?ms=N` | — | Seek to milliseconds |
+| GET | `/api/audio/test` | — | Play test tone |
+| GET | `/api/audio/tracks` | — | List all playable tracks (.dpa primary, .wav fallback) |
 
 ### Audio Settings
 
-| Method | Route | Params | Description |
-|--------|-------|--------|-------------|
-| GET | `/api/volume` | `level=0-100` | Set volume (persisted to NVS) |
-| GET | `/api/eq` | `preset=flat\|bass\|vocal\|warm` | Set EQ preset |
-| GET | `/api/mode` | `mode=normal\|repeat_all\|repeat_one\|shuffle` | Set playback mode |
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/volume?level=0-100` | — | Set volume (persisted to NVS) |
+| GET | `/api/eq?preset=X` | — | Set EQ preset (flat, bass_boost, vocal, warm, bright, loudness, r_and_b, electronic, late_night) |
+| GET | `/api/eq/custom?bass=X&mid=X&treble=X` | — | Custom 3-band EQ |
+| GET | `/api/mode?mode=X` | — | Set playback mode (normal, repeat_one) |
 
-### Bluetooth A2DP
+### Audio Features & Analytics
 
-| Method | Route | Params | Description |
-|--------|-------|--------|-------------|
-| GET | `/api/a2dp/scan` | — | Start discovery, return found devices |
-| GET | `/api/a2dp/devices` | — | List discovered devices |
-| GET | `/api/a2dp/connect` | `addr=XX:XX:XX:XX:XX:XX` | Connect to A2DP sink |
-| GET | `/api/a2dp/disconnect` | — | Disconnect current A2DP device |
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/audio/features` | — | Real-time audio features (peakL, peakR, rms, envelope, bassEnergy, beat) |
+| GET | `/api/analytics` | — | Per-track play/skip counts and ratings |
 
-### Storage
+### Favorites
 
-| Method | Route | Params | Description |
-|--------|-------|--------|-------------|
-| GET | `/api/storage` | — | XTSD flash usage (total, used, free, counts) |
-| GET | `/api/tracks` | — | List files in /tracks/ directory |
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/favorites/set?file=X&state=true\|false` | — | Idempotent favorite set |
+| GET | `/api/favorites/toggle?file=X` | — | Toggle favorite (legacy) |
+| GET | `/api/favorites` | — | List all favorites |
+
+### Content Metadata
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/booklet` | — | Album liner notes from /data/booklet.json |
+| GET | `/api/album/meta` | — | Album metadata from /data/album_meta.json |
+| GET | `/api/art?path=/art/cover.jpg` | — | Serves artwork (jpg/png/webp) |
+| GET | `/api/capsules` | — | All runtime capsules (real pushed only) |
+
+### Storage & Files
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/storage` | — | SD card stats (totalMB, usedMB, freeMB, trackCount, capsuleCount) |
+| GET | `/api/sd/files?dir=/` | ADMIN | List files in directory |
+| POST | `/api/sd/upload?path=/tracks/X` | ADMIN | Multipart upload (8KB buffered, .part temp files) |
+| POST | `/api/sd/upload-raw?path=/X` | ADMIN | Streaming chunked upload |
+| DELETE | `/api/sd/delete?path=/X` | ADMIN | Delete file from SD |
 
 ### Content Push (Creator)
 
-| Method | Route | Body | Description |
+| Method | Route | Auth | Description |
 |--------|-------|------|-------------|
-| POST | `/api/theme` | Theme JSON | Push LED theme, stored in NVS |
-| POST | `/api/capsule` | Capsule JSON | Trigger notification, broadcast to mesh |
-| POST | `/api/manifest` | Manifest JSON | Update album metadata |
-| POST | `/api/upload` | Multipart file | Upload .dpa encrypted file to XTSD flash |
+| POST | `/api/theme` | — | Full LED theme JSON (colors, patterns, brightness, gradEnd, DCNP colors, artist/album meta) |
+| POST | `/api/capsule` | — | Ingest/upsert capsule (id, type, title, desc, date, delivered, price, ctaLabel, ctaUrl) |
 
-### Mesh
+### LED
 
-| Method | Route | Response | Description |
-|--------|-------|----------|-------------|
-| GET | `/api/mesh` | Peer list JSON | ESP-NOW peer info (DUID, MAC, age) |
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/led/preview?mode=M&color=C&pattern=P&brightness=N&gradEnd=C` | — | Preview + save LED config (supports genre hue ranges) |
+
+### WiFi Management
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/wifi/status` | — | AP + STA connection status |
+| GET | `/api/wifi/scan` | ADMIN | Scan available networks |
+| GET | `/api/wifi/connect?ssid=X&pass=Y` | ADMIN | Connect to STA network |
+| GET | `/api/wifi/disconnect` | ADMIN | Disconnect STA + clear NVS |
+
+### Sync Upload Server (Port 81)
+
+Separate synchronous WebServer for reliable large file uploads. Avoids contention with async port 80.
+
+**Upload State Machine:** `idle` -> `preparing` -> `receiving` -> `verifying` -> `finalizing` -> `complete` | `error`
+
+Portal monitors via `runtime.uploadState` in `/api/status`.
+
+### Mesh (ESP-NOW, currently disabled)
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/mesh` | — | ESP-NOW peer info (DUID, MAC, age) |
 
 ---
 
@@ -339,13 +386,13 @@ Returned by `GET /api/status` and BLE characteristic D1A2:
 ```json
 {
   "name": "dpa-device",
-  "ver": "1.0.0",
-  "env": "dev",
+  "ver": "2.4.1",
   "duid": "DPA-AB12",
   "ble": true,
   "wifi": true,
   "ip": "192.168.4.1",
   "uptime_s": 3600,
+  "adminMode": false,
 
   "audio": {
     "volume": 75,
@@ -362,21 +409,11 @@ Returned by `GET /api/status` and BLE characteristic D1A2:
   },
 
   "storage": {
-    "totalMB": 29000,
-    "usedMB": 4200,
-    "freeMB": 24800,
+    "totalMB": 1800,
+    "usedMB": 200,
+    "freeMB": 1600,
     "trackCount": 12,
-    "capsuleCount": 3,
-    "videoCount": 2
-  },
-
-  "espnow": {
-    "active": true,
-    "peers": 2,
-    "peerList": [
-      { "duid": "DPA-CD34", "age": 3 },
-      { "duid": "DPA-EF56", "age": 8 }
-    ]
+    "capsuleCount": 3
   },
 
   "player": {
@@ -386,14 +423,61 @@ Returned by `GET /api/status` and BLE characteristic D1A2:
     "posMs": 45000
   },
 
+  "led": {
+    "brightness": 80,
+    "idleColor": "#00ff88",
+    "idlePat": "rainbow",
+    "playColor": "#00aaff",
+    "playPat": "vu_classic",
+    "gradEnd": "#ff6600"
+  },
+
+  "favorites": ["/tracks/song1.dpa"],
+  "capsules": [],
+
   "counts": {
     "play": 15,
     "pause": 8,
     "next": 12,
     "prev": 3
-  }
+  },
+
+  "runtime": {
+    "bootState": "ready",
+    "sdState": "mounted",
+    "uploadState": "idle",
+    "degradedReason": "",
+    "httpReady": true,
+    "httpMode": "ap",
+    "audioVerified": true,
+    "wifiMaintenance": false,
+    "lastUploadPath": "",
+    "lastUploadBytes": 0
+  },
+
+  "coverBytes": 45231,
+  "artistName": "808 Dreams",
+  "albumTitle": "Midnight Horizons"
 }
 ```
+
+### Runtime Status Fields (new in v2.4.1)
+
+| Field | Values | Purpose |
+|-------|--------|---------|
+| `runtime.bootState` | `booting`, `ready`, `degraded` | Device boot lifecycle phase |
+| `runtime.sdState` | `mounted`, `unmounted`, `error` | SD card health |
+| `runtime.uploadState` | `idle`, `preparing`, `receiving`, `verifying`, `finalizing`, `complete`, `error` | Upload state machine — portal monitors this for progress |
+| `runtime.degradedReason` | `""`, `sd_fail`, `audio_fail` | Why device entered degraded mode |
+| `runtime.httpReady` | bool | Web server fully initialized |
+| `runtime.httpMode` | `ap`, `sta`, `ap+sta` | Current WiFi operating mode |
+| `runtime.audioVerified` | bool | I2S + DAC init confirmed |
+| `runtime.wifiMaintenance` | bool | WiFi sleep disabled for upload reliability |
+| `runtime.lastUploadPath` | string | Path of last successful upload |
+| `runtime.lastUploadBytes` | number | Size of last successful upload |
+| `coverBytes` | number | Size of cover art file on SD (0 if none) |
+| `artistName` | string | Artist name from theme push |
+| `albumTitle` | string | Album title from theme push |
 
 ---
 
@@ -455,13 +539,47 @@ LED theme settings persist across reboots:
 
 | Service | File | Responsibility |
 |---------|------|---------------|
-| DeviceConnectionService | `device-connection.service.ts` | Connection state machine (BLE/WiFi/NFC) |
+| DeviceConnectionService | `device-connection.service.ts` | Transport orchestrator (WiFi/BLE/NFC/USB Bridge), auto-detect, polling, sync |
 | DeviceBleService | `device-ble.service.ts` | Web Bluetooth GATT operations |
-| DeviceWifiService | `device-wifi.service.ts` | HTTP client for device REST API |
+| DeviceWifiService | `device-wifi.service.ts` | HTTP client for device REST API, upload queue, booklet/albumMeta push |
 | CryptoService | `crypto.service.ts` | .dpa encryption/decryption (WebCrypto) |
 | PlayerService | `player.service.ts` | Playback with device command routing |
-| DataService | `data.service.ts` | Album/track data management |
+| DataService | `data.service.ts` | Album/track data, mock data detection, device sync, capsule feeds |
 | CartService | `cart.service.ts` | Shopping cart for capsule marketplace |
+
+### Key Utilities & Guards
+
+| File | Purpose |
+|------|---------|
+| `device-content.utils.ts` | Normalizers: `normalizeDeviceCapsuleRecord()`, `normalizeDeviceBookletPayload()`, `normalizeDeviceAlbumMetaPayload()`, `mergeCapsuleFeeds()` |
+| `default-cover.ts` | Default cover art SVG generation |
+| `portal-access.guard.ts` | Route guard for fan portal access |
+
+### Key Signals (DeviceConnectionService)
+
+| Signal | Type | Purpose |
+|--------|------|---------|
+| `connectionStatus` | `ConnectionStatus` | Current transport state (disconnected/connecting/connected/error) |
+| `connectionBusy` | `ConnectionAction \| null` | UI loading indicator for active connection attempt |
+| `deviceInfo` | `DeviceInfo \| null` | Device identity (DUID, firmware version) |
+| `deviceLibrary` | `DeviceTrack[]` | Track list synced from device |
+| `deviceCapsules` | `DeviceCapsuleRecord[]` | Capsules synced from device |
+| `deviceRuntime` | computed `DeviceRuntimeStatus \| null` | Boot/upload/SD state from status polling |
+| `deviceRuntimeMessage` | computed `string` | Human-readable runtime status summary |
+| `deviceReadyForWrites` | computed `boolean` | True when device is idle and not uploading |
+| `connectionTransportLabel` | computed `string` | "WiFi", "USB", "BLE", etc. |
+| `connectionSummary` | computed `string` | "Connected via WiFi to DPA-AB12" |
+
+### Key Types (types.ts)
+
+| Type | Purpose |
+|------|---------|
+| `FanCapsule` | DcnpEvent extended with albumTitle, artistName, source ('portal'\|'device'\|'merged') |
+| `DeviceCapsuleRecord` | Flat capsule record from device (id, type, title, desc, date, delivered, price, cta) |
+| `DeviceBookletPayload` | Booklet data: description, lyrics, booklet (credits, gallery, videos) |
+| `DeviceAlbumMetaPayload` | Album metadata: genre, recordLabel, copyright, releaseDate, upcCode, parentalAdvisory |
+| `DeviceRuntimeStatus` | Runtime observability: bootState, sdState, uploadState, degradedReason, etc. |
+| `FirmwareStatus` | Full /api/status response shape including runtime fields |
 
 ### Route Structure
 

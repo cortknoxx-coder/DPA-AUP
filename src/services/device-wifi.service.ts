@@ -1,6 +1,23 @@
 
 import { Injectable, signal } from '@angular/core';
-import { FirmwareStatus, Theme, DcnpEventType, DeviceTrack, StorageStatus, A2dpDevice, PlaybackMode, EqPreset } from '../types';
+import {
+  FirmwareStatus,
+  Theme,
+  DcnpEventType,
+  DeviceTrack,
+  StorageStatus,
+  A2dpDevice,
+  PlaybackMode,
+  EqPreset,
+  DeviceCapsuleRecord,
+  DeviceBookletPayload,
+  DeviceAlbumMetaPayload,
+} from '../types';
+import {
+  normalizeDeviceAlbumMetaPayload,
+  normalizeDeviceBookletPayload,
+  normalizeDeviceCapsuleRecord,
+} from './device-content.utils';
 
 const DEFAULT_DEVICE_IP = '192.168.4.1';
 const DEVICE_IP_KEY = 'dpa_device_ip';
@@ -11,6 +28,8 @@ const IS_DEV_PROXY = typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const DEV_API_BASE = '/dpa-api';       // proxied → http://192.168.4.1/api
 const DEV_UPLOAD_BASE = '/dpa-upload'; // proxied → http://192.168.4.1:81
+const STATUS_CACHE_WINDOW_MS = 1000;
+const STATUS_UPLOAD_FALLBACK_MS = 15000;
 
 export interface WifiNetwork {
   ssid: string;
@@ -36,6 +55,11 @@ export interface LedPreviewParams {
 export class DeviceWifiService {
   private baseUrl = IS_DEV_PROXY ? DEV_API_BASE : `http://${DEFAULT_DEVICE_IP}`;
   private isAdminUnlocked = false;
+  private uploadQueue: Promise<unknown> = Promise.resolve();
+  private statusRequest: Promise<FirmwareStatus | null> | null = null;
+  private lastStatusAt = 0;
+  private preferredStatusPlane: 'main' | 'upload' = 'main';
+  private uploadStatusFallbackUntil = 0;
 
   isConnected = signal(false);
   lastStatus = signal<FirmwareStatus | null>(null);
@@ -59,28 +83,23 @@ export class DeviceWifiService {
       localStorage.setItem(DEVICE_IP_KEY, ip);
     }
 
-    try {
-      const response = await fetch(`${this.baseUrl}/api/status`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!response.ok) return false;
-
-      const status = (await response.json()) as FirmwareStatus;
-      this.lastStatus.set(status);
-      this.isConnected.set(true);
-
-      // If device reports a STA IP, save it for future connections
-      if (status.sta?.connected && status.sta.ip) {
-        this.staConnected.set(true);
-        this.staIp.set(status.sta.ip);
-        localStorage.setItem(DEVICE_IP_KEY, status.sta.ip);
-      }
-
+    const status = await this.fetchStatusJson(3500, { forceRefresh: true, maxAgeMs: 0 });
+    if (status) {
+      this.syncStatusSignals(status);
       return true;
-    } catch {
-      this.isConnected.set(false);
-      return false;
     }
+
+    this.isConnected.set(false);
+    if (!ip) {
+      const recovered = await this.reprobeAfterTransientFailure();
+      if (recovered) {
+        this.isConnected.set(true);
+        return true;
+      }
+    }
+
+    this.isConnected.set(false);
+    return false;
   }
 
   /** Try to find the device: saved IP first, then AP fallback */
@@ -97,10 +116,15 @@ export class DeviceWifiService {
     return this.probe(DEFAULT_DEVICE_IP);
   }
 
-  async getStatus(): Promise<FirmwareStatus> {
-    const response = await fetch(`${this.baseUrl}/api/status`);
-    const status = (await response.json()) as FirmwareStatus;
-    this.lastStatus.set(status);
+  async getStatus(options?: { timeoutMs?: number; maxAgeMs?: number; forceRefresh?: boolean }): Promise<FirmwareStatus> {
+    const status = await this.fetchStatusJson(options?.timeoutMs ?? 5000, {
+      maxAgeMs: options?.maxAgeMs ?? STATUS_CACHE_WINDOW_MS,
+      forceRefresh: options?.forceRefresh,
+    });
+    if (!status) {
+      this.isConnected.set(false);
+      throw new Error('Device status unavailable');
+    }
     return status;
   }
 
@@ -109,20 +133,15 @@ export class DeviceWifiService {
    * Returns empty strings (not null) if the device hasn't been configured yet.
    */
   async pullMetadata(): Promise<{ ok: boolean; artist: string; album: string }> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/status`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!response.ok) return { ok: false, artist: '', album: '' };
-      const status: any = await response.json();
-      return {
-        ok: true,
-        artist: typeof status.artist === 'string' ? status.artist : '',
-        album: typeof status.album === 'string' ? status.album : '',
-      };
-    } catch {
+    const status = await this.fetchStatusJson(4000, { maxAgeMs: 2000 });
+    if (!status) {
       return { ok: false, artist: '', album: '' };
     }
+    return {
+      ok: true,
+      artist: typeof status.artist === 'string' ? status.artist : '',
+      album: typeof status.album === 'string' ? status.album : '',
+    };
   }
 
   /**
@@ -165,6 +184,22 @@ export class DeviceWifiService {
   async getCreatorData(): Promise<any> {
     const response = await fetch(`${this.baseUrl}/api/creator.json`);
     return response.json();
+  }
+
+  async getBookletData(): Promise<DeviceBookletPayload | null> {
+    return this.fetchJsonFile('/api/booklet', normalizeDeviceBookletPayload);
+  }
+
+  async pushBookletData(payload: DeviceBookletPayload): Promise<boolean> {
+    return this.persistJsonFile('/data/booklet.json', 'booklet.json', payload);
+  }
+
+  async getAlbumMeta(): Promise<DeviceAlbumMetaPayload | null> {
+    return this.fetchJsonFile('/api/album/meta', normalizeDeviceAlbumMetaPayload);
+  }
+
+  async pushAlbumMeta(payload: DeviceAlbumMetaPayload): Promise<boolean> {
+    return this.persistJsonFile('/data/album_meta.json', 'album-meta.json', payload);
   }
 
   async sendCommand(opCode: number): Promise<boolean> {
@@ -313,7 +348,7 @@ export class DeviceWifiService {
         title: payload?.title || 'Capsule',
         description: payload?.description || '',
         date: payload?.metadata?.date || new Date().toISOString(),
-        delivered: false,
+        delivered: true,
       };
       if (typeof payload?.price === 'number') flat.price = payload.price;
       if (payload?.cta?.label) flat.ctaLabel = payload.cta.label;
@@ -322,7 +357,7 @@ export class DeviceWifiService {
 
       const response = await fetch(`${this.baseUrl}/api/capsule`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(flat),
       });
       const result = await response.json();
@@ -392,11 +427,11 @@ export class DeviceWifiService {
     } as DeviceTrack;
   }
 
-  async getCapsules(): Promise<any[]> {
+  async getCapsules(): Promise<DeviceCapsuleRecord[]> {
     try {
       const response = await fetch(`${this.baseUrl}/api/capsules`);
       const data = await response.json();
-      return data.capsules ?? [];
+      return (data.capsules ?? []).map((capsule: any) => normalizeDeviceCapsuleRecord(capsule));
     } catch {
       return [];
     }
@@ -464,45 +499,39 @@ export class DeviceWifiService {
   }
 
   async uploadFileToPath(file: File, path: string, onProgress?: (percent: number) => void): Promise<boolean> {
-    try {
+    return this.enqueueUpload(async () => {
       await this.ensureAdminUnlocked();
+      const writable = await this.waitForWritableWindow();
+      if (!writable) {
+        return false;
+      }
+      const maxAttempts = file.size > 8 * 1024 * 1024 ? 3 : 2;
 
-      const formData = new FormData();
-      formData.append('file', file, file.name);
-
-      const xhr = new XMLHttpRequest();
-      return new Promise((resolve) => {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable && onProgress) {
-            onProgress(Math.round((e.loaded / e.total) * 100));
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const transferred = await this.runUploadAttempt(file, path, onProgress);
+        if (transferred) {
+          await this.waitForUploadStateToSettle();
+          const verified = await this.verifyUploadPath(path, file.name);
+          if (verified) {
+            onProgress?.(100);
+            return true;
           }
-        });
-        xhr.addEventListener('load', () => resolve(xhr.status === 200));
-        xhr.addEventListener('error', () => {
-          console.error('[Upload] XHR error event');
-          resolve(false);
-        });
-        xhr.addEventListener('timeout', () => {
-          console.error('[Upload] XHR timeout');
-          resolve(false);
-        });
-        xhr.timeout = 0;  // No timeout — large files over ESP32 AP WiFi can take 30+ minutes
-        const formData = new FormData();
-        formData.append('file', file, file.name);
-        // Real Phase-4 firmware runs a synchronous WebServer on port 81
-        // specifically for reliable large-file uploads (matches the DPAC
-        // uploader pattern). Port 80 AsyncWebServer can stall on big files.
-        // In dev mode we route via the Angular proxy (/dpa-upload → :81).
-        const uploadUrl = IS_DEV_PROXY
-          ? DEV_UPLOAD_BASE
-          : `http://${this.baseUrl.replace(/^https?:\/\//, '').replace(/[:/].*$/, '')}:81`;
-        xhr.open('POST', `${uploadUrl}/api/sd/upload?path=${encodeURIComponent(path)}`);
-        xhr.send(formData);
-      });
-    } catch (err) {
+          console.warn(`[Upload] Verification failed for ${path} on attempt ${attempt}`);
+        } else {
+          console.warn(`[Upload] Transfer failed for ${path} on attempt ${attempt}`);
+        }
+
+        if (attempt < maxAttempts) {
+          await this.reprobeAfterTransientFailure();
+          await this.sleep(350 * attempt);
+        }
+      }
+
+      return false;
+    }).catch((err) => {
       console.error('[Upload] Transfer error:', err);
       return false;
-    }
+    });
   }
 
   // --- Volume & EQ ---
@@ -616,6 +645,238 @@ export class DeviceWifiService {
     this.staConnected.set(false);
     this.staIp.set('');
     this.isAdminUnlocked = false;
+    this.lastStatusAt = 0;
+    this.statusRequest = null;
+    this.preferredStatusPlane = 'main';
+    this.uploadStatusFallbackUntil = 0;
+  }
+
+  private syncStatusSignals(status: FirmwareStatus) {
+    this.lastStatus.set(status);
+    this.isConnected.set(true);
+    this.lastStatusAt = Date.now();
+
+    if (status.sta?.connected && status.sta.ip) {
+      this.staConnected.set(true);
+      this.staIp.set(status.sta.ip);
+      localStorage.setItem(DEVICE_IP_KEY, status.sta.ip);
+    } else {
+      this.staConnected.set(false);
+      this.staIp.set('');
+    }
+  }
+
+  private uploadBaseUrl(): string {
+    if (IS_DEV_PROXY) return DEV_UPLOAD_BASE;
+    const host = this.baseUrl.replace(/^https?:\/\//, '').replace(/[:/].*$/, '');
+    return `http://${host}:81`;
+  }
+
+  private async fetchStatusJson(
+    timeoutMs: number,
+    options?: { forceRefresh?: boolean; maxAgeMs?: number }
+  ): Promise<FirmwareStatus | null> {
+    const maxAgeMs = options?.maxAgeMs ?? 0;
+    const cached = this.lastStatus();
+    if (!options?.forceRefresh && cached && (Date.now() - this.lastStatusAt) <= maxAgeMs) {
+      return cached;
+    }
+    if (!options?.forceRefresh && this.statusRequest) {
+      return this.statusRequest;
+    }
+
+    const request = this.fetchStatusJsonUncached(timeoutMs).finally(() => {
+      if (this.statusRequest === request) {
+        this.statusRequest = null;
+      }
+    });
+    this.statusRequest = request;
+    return request;
+  }
+
+  private async fetchStatusJsonUncached(timeoutMs: number): Promise<FirmwareStatus | null> {
+    for (const { plane, url } of this.statusUrlsInPriorityOrder()) {
+      try {
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(timeoutMs),
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            Pragma: 'no-cache',
+          },
+        });
+        if (!response.ok) continue;
+        const status = (await response.json()) as FirmwareStatus;
+        this.preferredStatusPlane = plane;
+        if (plane === 'upload' || this.shouldPreferUploadStatus(status)) {
+          this.uploadStatusFallbackUntil = Date.now() + STATUS_UPLOAD_FALLBACK_MS;
+        } else {
+          this.uploadStatusFallbackUntil = 0;
+        }
+        this.syncStatusSignals(status);
+        return status;
+      } catch {
+        // Try the next status plane.
+      }
+    }
+    return null;
+  }
+
+  private statusUrlsInPriorityOrder(): Array<{ plane: 'main' | 'upload'; url: string }> {
+    const uploadPreferred =
+      this.preferredStatusPlane === 'upload' ||
+      Date.now() < this.uploadStatusFallbackUntil ||
+      this.shouldPreferUploadStatus(this.lastStatus());
+
+    const main = { plane: 'main' as const, url: `${this.baseUrl}/api/status` };
+    const upload = { plane: 'upload' as const, url: `${this.uploadBaseUrl()}/api/status` };
+    return uploadPreferred ? [upload, main] : [main, upload];
+  }
+
+  private shouldPreferUploadStatus(status: FirmwareStatus | null): boolean {
+    const uploadState = status?.uploadState ?? 'idle';
+    return ['preparing', 'receiving', 'verifying', 'finalizing'].includes(uploadState)
+      || status?.httpMode === 'minimal';
+  }
+
+  private async reprobeAfterTransientFailure(): Promise<boolean> {
+    const candidates = [
+      this.deviceIp(),
+      localStorage.getItem(DEVICE_IP_KEY) || '',
+      DEFAULT_DEVICE_IP,
+    ].filter((value, index, arr) => !!value && arr.indexOf(value) === index);
+
+    for (const candidate of candidates) {
+      if (await this.probe(candidate)) {
+        return true;
+      }
+      await this.sleep(200);
+    }
+    return false;
+  }
+
+  private async runUploadAttempt(file: File, path: string, onProgress?: (percent: number) => void): Promise<boolean> {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      });
+      xhr.addEventListener('load', () => resolve(xhr.status === 200));
+      xhr.addEventListener('error', () => {
+        console.error('[Upload] XHR error event');
+        resolve(false);
+      });
+      xhr.addEventListener('timeout', () => {
+        console.error('[Upload] XHR timeout');
+        resolve(false);
+      });
+      xhr.timeout = 0;  // No timeout — large files over ESP32 AP WiFi can take 30+ minutes
+
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+      xhr.open('POST', `${this.uploadBaseUrl()}/api/sd/upload?path=${encodeURIComponent(path)}`);
+      xhr.send(formData);
+    });
+  }
+
+  private async waitForUploadStateToSettle(maxWaitMs = 12000): Promise<void> {
+    const deadline = Date.now() + maxWaitMs;
+    while (Date.now() < deadline) {
+      const status = await this.fetchStatusJson(3000);
+      if (!status) {
+        await this.sleep(300);
+        continue;
+      }
+
+      const uploadState = status.uploadState ?? 'idle';
+      if (!['preparing', 'receiving', 'verifying', 'finalizing'].includes(uploadState)) {
+        return;
+      }
+      await this.sleep(400);
+    }
+  }
+
+  private async waitForWritableWindow(maxWaitMs = 10000): Promise<boolean> {
+    const deadline = Date.now() + maxWaitMs;
+    while (Date.now() < deadline) {
+      const status = await this.fetchStatusJson(3000);
+      if (!status) {
+        await this.sleep(300);
+        continue;
+      }
+
+      const uploadState = status.uploadState ?? 'idle';
+      const bootState = status.bootState ?? 'ready';
+      const sdState = status.sdState ?? 'unknown';
+      const writable = bootState !== 'booting'
+        && sdState !== 'error'
+        && !['preparing', 'receiving', 'verifying', 'finalizing'].includes(uploadState);
+      if (writable) return true;
+
+      await this.sleep(400);
+    }
+    return false;
+  }
+
+  private async verifyUploadPath(path: string, filename: string): Promise<boolean> {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const lower = normalizedPath.toLowerCase();
+
+    if (lower === '/art/cover.jpg' || lower === '/art/cover.png' || lower.startsWith('/art/')) {
+      return this.verifyCoverArt(normalizedPath);
+    }
+
+    if (lower === '/data/booklet.json') {
+      return (await this.getBookletData()) !== null;
+    }
+
+    if (lower === '/data/album_meta.json') {
+      return (await this.getAlbumMeta()) !== null;
+    }
+
+    if (lower.startsWith('/tracks/')) {
+      const tracks = await this.getDeviceTracks();
+      return tracks.some((track) => {
+        const trackName = track.filename.split('/').pop() || track.filename;
+        return track.filename === normalizedPath || trackName === filename;
+      });
+    }
+
+    return this.fileExistsOnDevice(normalizedPath);
+  }
+
+  private async fileExistsOnDevice(path: string): Promise<boolean> {
+    try {
+      await this.ensureAdminUnlocked();
+      const slash = path.lastIndexOf('/');
+      const dir = slash > 0 ? path.slice(0, slash) : '/';
+      const name = slash >= 0 ? path.slice(slash + 1) : path;
+      const response = await fetch(`${this.baseUrl}/api/sd/files?dir=${encodeURIComponent(dir)}`, {
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!response.ok) return false;
+      const payload = await response.json();
+      const files = Array.isArray(payload?.files) ? payload.files : [];
+      return files.some((entry: any) => {
+        const entryPath = String(entry?.path || entry?.name || '');
+        const entryName = entryPath.split('/').pop() || entryPath;
+        return entryPath === path || entryName === name;
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  private enqueueUpload<T>(task: () => Promise<T>): Promise<T> {
+    const next = this.uploadQueue.then(task, task);
+    this.uploadQueue = next.then(() => undefined, () => undefined);
+    return next;
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private async ensureAdminUnlocked(): Promise<void> {
@@ -628,6 +889,31 @@ export class DeviceWifiService {
       if (res.ok) this.isAdminUnlocked = true;
     } catch {
       // best effort; endpoint callers will fail naturally if still locked
+    }
+  }
+
+  private async fetchJsonFile<T>(path: string, normalize: (raw: any) => T | null): Promise<T | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!response.ok) return null;
+      return normalize(await response.json());
+    } catch {
+      return null;
+    }
+  }
+
+  private async persistJsonFile(path: string, filename: string, payload: unknown): Promise<boolean> {
+    try {
+      const file = new File(
+        [new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })],
+        filename,
+        { type: 'application/json' }
+      );
+      return this.uploadFileToPath(file, path);
+    } catch {
+      return false;
     }
   }
 }

@@ -85,8 +85,12 @@ export class PerksConsoleComponent {
 
   private async reconcileWithDevice(albumId: string) {
     try {
-      const deviceCaps = await this.connectionService.wifi.getCapsules();
-      const deliveredIds = new Set(deviceCaps.filter((c: any) => c.id).map((c: any) => c.id as string));
+      await this.connectionService.refreshDeviceCapsules();
+      const deliveredIds = new Set(
+        this.connectionService.deviceCapsules()
+          .filter((capsule) => capsule.id)
+          .map((capsule) => capsule.id)
+      );
       const album = this.album();
       if (!album) return;
       for (const ev of album.dcnpEvents) {
@@ -279,6 +283,7 @@ export class PerksConsoleComponent {
     const ok = await this.connectionService.wifi.pushCapsule(req.eventType, req.capsuleId, req.payload);
     if (ok) {
       this.dataService.markDcnpEventDelivered(req.albumId, req.capsuleId);
+      await this.connectionService.refreshDeviceCapsules();
       this.pushState.set('ok');
       this.pushMessage.set('Capsule delivered to connected device.');
     } else {

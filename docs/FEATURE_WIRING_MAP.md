@@ -26,19 +26,21 @@ real data (device firmware, creator input, or backend API), update the status.
 |---------|----------------------|--------|-------|
 | Album list | `DataService.albums` | **WIRED** | Shows creator's albums from localStorage; tracks come from device when WiFi connected |
 | Create new album | `DataService.createAlbum()` | **WIRED** | Creates empty album shell |
+| Release compile preview | Creator-side preflight panel | **NOT STARTED** | Requested next: show the full album package before rebuild |
+| Push verification / read-back | Device verification after save/push | **NOT STARTED** | Requested next: confirm what actually landed on the DPA |
 
 ### 2. Metadata Tab (`/artist/albums/:id/metadata`)
 | Feature | Data Source (was mock) | Status | Notes |
 |---------|----------------------|--------|-------|
 | Album title | `Album.title` | **WIRED** | Persists to localStorage + pushes to device SSID |
 | Artist name | `Album.artistName` | **WIRED** | Pushes to device NVS for dynamic SSID |
-| Genre | `Album.genre` | **EMPTY** | Field exists, user fills in |
-| Record label | `Album.recordLabel` | **EMPTY** | Field exists, user fills in |
-| Copyright | `Album.copyright` | **EMPTY** | Field exists, user fills in |
-| Release date | `Album.releaseDate` | **EMPTY** | Field exists, user fills in |
-| UPC/EAN code | `Album.upcCode` | **EMPTY** | Field exists, user fills in |
-| Parental advisory | `Album.parentalAdvisory` | **EMPTY** | Checkbox exists |
-| Description | `Album.description` | **EMPTY** | Textarea exists |
+| Genre | `Album.genre` | **WIRED** | Persists locally and pushes in album-meta payload when device sync is available |
+| Record label | `Album.recordLabel` | **WIRED** | Persists locally and pushes in album-meta payload when device sync is available |
+| Copyright | `Album.copyright` | **WIRED** | Persists locally and pushes in album-meta payload when device sync is available |
+| Release date | `Album.releaseDate` | **WIRED** | Persists locally and pushes in album-meta payload when device sync is available |
+| UPC/EAN code | `Album.upcCode` | **WIRED** | Persists locally and pushes in album-meta payload when device sync is available |
+| Parental advisory | `Album.parentalAdvisory` | **WIRED** | Persists locally and pushes in album-meta payload when device sync is available |
+| Description | `Album.description` | **WIRED** | Saved through booklet payload and read back from device booklet JSON |
 | Release type | `Album.skuType` | **EMPTY** | Dropdown exists |
 
 ### 3. Tracks Tab (`/artist/albums/:id/tracks`)
@@ -55,10 +57,10 @@ real data (device firmware, creator input, or backend API), update the status.
 ### 4. Booklet Tab (`/artist/albums/:id/booklet`)
 | Feature | Data Source (was mock) | Status | Notes |
 |---------|----------------------|--------|-------|
-| Credits text | `Album.booklet.credits` | **EMPTY** | Was mock "PRODUCED BY 808 DREAMS..." — textarea exists |
-| Gallery images | `Album.booklet.gallery[]` | **EMPTY** | Was 4 picsum URLs — upload UI exists |
-| Booklet videos | `Album.booklet.videos[]` | **EMPTY** | Was 2 sample videos — upload UI exists |
-| Lyrics / liner notes | `Album.lyrics` | **EMPTY** | Was mock lyrics for "Neon Rain" + "Cyber Heart" — textarea exists |
+| Credits text | `Album.booklet.credits` | **WIRED** | Persists locally and pushes to `/data/booklet.json` on device |
+| Gallery images | `Album.booklet.gallery[]` | **WIRED** | Persists locally and pushes as booklet payload; current data can still be placeholder if creator has not replaced it |
+| Booklet videos | `Album.booklet.videos[]` | **WIRED** | Persists locally and pushes as booklet payload; current data can still be placeholder if creator has not replaced it |
+| Lyrics / liner notes | `Album.lyrics` | **WIRED** | Persists locally and pushes to device booklet JSON |
 
 ### 5. Theme & LED Tab (`/artist/albums/:id/theme`)
 | Feature | Data Source (was mock) | Status | Notes |
@@ -135,7 +137,7 @@ real data (device firmware, creator input, or backend API), update the status.
 | Track playback | `DeviceWifiService.playFile()` | **WIRED** | Plays on device, polls status |
 | Play counts / popularity | `DeviceWifiService.getAnalytics()` | **WIRED** | Path-based matching |
 | Favorites / hearts | `DeviceWifiService.setFavorite()` | **WIRED** | Syncs with firmware favorites |
-| Album artwork | `Album.artworkUrl` or default | **WIRED** | Falls back to default cover |
+| Album artwork | `Album.artworkUrl` or default | **WIRED** | Uses synced/cached cover art first, then device/live fallback, then inline default cover |
 
 ### 14. Fan Capsules (`/fan/app/capsules`)
 | Feature | Data Source | Status | Notes |
@@ -187,9 +189,12 @@ real data (device firmware, creator input, or backend API), update the status.
 | Capsule push | `/api/capsule` | **WIRED** | Saves to `/data/capsules.json` |
 | File upload | Port 81 sync server | **WIRED** | Buffered write with isolation |
 | Album + track art | `GET /api/art?path=/art/...` | **WIRED** | Serves JPG/PNG/WEBP under `/art/` only; portal pushes `cover.jpg`, `TrackStem.jpg` |
+| Booklet payload | `/api/booklet` | **WIRED** | Reads device booklet JSON from SD for dashboard + portal sync |
+| Album metadata payload | `/api/album/meta` | **WIRED** | Route is wired; validated device stop-point was missing the SD-backed JSON file |
 | File delete | `/api/sd/delete` | **WIRED** | DELETE by path |
 | Storage info | `/api/storage` | **WIRED** | Total/used/free MB |
 | Status | `/api/status` | **WIRED** | Full device state JSON |
+| Runtime HUD / notifications | Dashboard runtime chips + toast stack | **WIRED** | Productized bottom-dock status UX with detailed runtime card kept in Device tab |
 | Volume | `/api/volume` | **WIRED** | 0-100 |
 | EQ preset | `/api/eq` | **WIRED** | flat/bass/vocal/warm |
 | Admin unlock | `/api/admin/unlock` | **WIRED** | DUID-based |

@@ -1,7 +1,16 @@
 
 
 import { Injectable, signal, computed, effect } from '@angular/core';
-import { Album, Track, DcnpEvent, Theme, ResaleTransaction, UnitEconomics, MarketplaceListing } from '../types';
+import {
+  Album,
+  Track,
+  DcnpEvent,
+  Theme,
+  ResaleTransaction,
+  UnitEconomics,
+  MarketplaceListing,
+  FanCapsule,
+} from '../types';
 
 @Injectable({
   providedIn: 'root'
@@ -9,6 +18,13 @@ import { Album, Track, DcnpEvent, Theme, ResaleTransaction, UnitEconomics, Marke
 export class DataService {
   private readonly STORAGE_KEY = 'dpa_mock_data';
   private readonly STORAGE_VERSION = 1;
+  private readonly MOCK_CAPSULE_TITLES = new Set([
+    'Surprise Show in Tokyo!',
+    'Neon Rain (Starlight Remix Pack)',
+    "Limited 'Horizons' Tour Tee",
+    "'Cyber Heart' Official Music Video (4K)",
+    'Behind the Scenes: Making Midnight Horizons',
+  ]);
 
   // Default theme factory
   private getDefaultTheme(): Theme {
@@ -331,17 +347,22 @@ export class DataService {
   }
   
   getAllCapsules() {
-    return computed(() => {
+    return computed<FanCapsule[]>(() => {
       return this.albumsSignal()
         .flatMap(album =>
           album.dcnpEvents.map(event => ({
             ...event,
             albumTitle: album.title,
-            artistName: album.artistName
+            artistName: album.artistName,
+            source: 'portal' as const,
           }))
         )
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     });
+  }
+
+  private isMockDcnpEvent(event: DcnpEvent): boolean {
+    return this.MOCK_CAPSULE_TITLES.has(event.payload?.title || '');
   }
 
   createAlbum(title: string) {
@@ -387,13 +408,57 @@ export class DataService {
     title?: string;
     tracks?: { title: string; durationSec: number; filename: string }[];
     artworkUrl?: string;
+    description?: string;
+    lyrics?: string;
+    booklet?: Album['booklet'];
+    genre?: string;
+    recordLabel?: string;
+    copyright?: string;
+    releaseDate?: string;
+    upcCode?: string;
+    parentalAdvisory?: boolean;
   }) {
     this.albumsSignal.update(list => list.map(a => {
       if (a.albumId === albumId || a.id === albumId) {
         const updated: any = { ...a };
+
+        // Clear stale mock data when device identity differs OR when fields
+        // still contain known mock content from initialAlbums (handles the case
+        // where a previous partial sync updated artist but left booklet intact).
+        const identityChanged =
+          (data.artistName && data.artistName !== a.artistName) ||
+          (data.title && data.title !== a.title);
+        const hasMockContent =
+          (a.description || '').includes('sonic journey') ||
+          (a.booklet?.credits || '').includes('808 DREAMS') ||
+          (a.lyrics || '').includes('Neon Rain') ||
+          a.artistName === '808 Dreams' ||
+          a.title === 'Midnight Horizons';
+
+        if (identityChanged || hasMockContent) {
+          updated.description = '';
+          updated.lyrics = '';
+          updated.booklet = { credits: '', gallery: [], videos: [] };
+          updated.dcnpEvents = (a.dcnpEvents || []).filter(ev => !this.isMockDcnpEvent(ev));
+          updated.genre = '';
+          updated.recordLabel = '';
+          updated.copyright = '';
+          updated.releaseDate = '';
+          updated.upcCode = '';
+          updated.parentalAdvisory = false;
+        }
         if (data.artistName) updated.artistName = data.artistName;
         if (data.title) updated.title = data.title;
         if (data.artworkUrl) updated.artworkUrl = data.artworkUrl;
+        if (data.description !== undefined) updated.description = data.description;
+        if (data.lyrics !== undefined) updated.lyrics = data.lyrics;
+        if (data.booklet !== undefined) updated.booklet = data.booklet;
+        if (data.genre !== undefined) updated.genre = data.genre;
+        if (data.recordLabel !== undefined) updated.recordLabel = data.recordLabel;
+        if (data.copyright !== undefined) updated.copyright = data.copyright;
+        if (data.releaseDate !== undefined) updated.releaseDate = data.releaseDate;
+        if (data.upcCode !== undefined) updated.upcCode = data.upcCode;
+        if (data.parentalAdvisory !== undefined) updated.parentalAdvisory = data.parentalAdvisory;
         if (data.tracks) {
           updated.tracks = data.tracks.map((t, i) => ({
             id: `dev-${i}`,

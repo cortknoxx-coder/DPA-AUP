@@ -7,11 +7,12 @@ import { DataService } from '../../services/data.service';
 import { Theme, DcnpEventType, FirmwareStatus } from '../../types';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { LedNotificationService } from '../../services/led-notification.service';
+import { BrandMarkComponent } from '../../components/brand-mark/brand-mark.component';
 
 @Component({
   selector: 'app-theme-editor',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, BrandMarkComponent],
   templateUrl: './theme-editor.component.html'
 })
 export class ThemeEditorComponent implements OnDestroy {

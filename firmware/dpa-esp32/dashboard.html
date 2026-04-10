@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0a">
-<title>DPA&trade; Device</title>
+<title>DPA Device Dashboard</title>
 <style>
 /* ── Reset & Root ─────────────────────────────────────────── */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -23,6 +23,7 @@
   --radius:16px;
   --tab-height:72px;
   --status-height:48px;
+  --hud-height:50px;
 }
 html,body{height:100%;overflow:hidden}
 body{
@@ -89,6 +90,180 @@ body.is-playing .bg-glow::after{animation-duration:10s}
 .sb-right{display:flex;align-items:center;gap:10px}
 .sb-battery{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--dim);font-weight:600}
 .sb-battery svg{width:20px;height:12px}
+.sb-brand{display:flex;flex-direction:column;gap:2px}
+.sb-device-meta{
+  font-size:9px;font-weight:700;color:#94a3b8;
+  letter-spacing:1.8px;text-transform:uppercase;
+}
+
+/* ── DPA Brand System ─────────────────────────────────────── */
+.brand-mark{
+  display:inline-flex;align-items:center;gap:10px;line-height:1;
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:999px;padding:9px 12px;
+  background:rgba(255,255,255,0.04);
+  box-shadow:0 0 20px rgba(255,255,255,0.04);
+}
+.brand-mark--plain{
+  padding:0;border:none;background:none;box-shadow:none;border-radius:0;
+}
+.brand-mark-main{display:flex;flex-direction:column}
+.brand-mark-top{display:flex;align-items:flex-start;gap:3px}
+.brand-mark-word{
+  font-weight:900;text-transform:uppercase;color:var(--bright);
+  letter-spacing:0.3em;
+}
+.brand-mark-tm{
+  padding-top:1px;font-weight:700;text-transform:uppercase;
+  color:#94a3b8;letter-spacing:0.22em;
+}
+.brand-mark-bottom{
+  margin-top:3px;display:flex;align-items:center;gap:6px;
+}
+.brand-mark-rule{
+  display:block;height:1px;border-radius:999px;width:14px;
+  background:linear-gradient(90deg,rgba(226,232,240,0.9),transparent);
+}
+.brand-mark-desc{
+  font-weight:700;text-transform:uppercase;
+  color:#94a3b8;letter-spacing:0.28em;
+}
+.brand-mark-suffix{
+  border-radius:999px;border:1px solid rgba(255,255,255,0.1);
+  padding:5px 8px;font-weight:700;text-transform:uppercase;
+  color:#cbd5e1;letter-spacing:0.24em;
+  background:rgba(255,255,255,0.04);
+}
+.brand-mark--compact .brand-mark-word{font-size:15px}
+.brand-mark--compact .brand-mark-tm{font-size:7px}
+.brand-mark--compact .brand-mark-desc{font-size:7px}
+.brand-mark--compact .brand-mark-rule{width:18px}
+.brand-mark--compact .brand-mark-suffix{font-size:8px}
+.brand-mark--micro .brand-mark-word{font-size:11px;letter-spacing:0.26em}
+.brand-mark--micro .brand-mark-tm{font-size:6px}
+.brand-mark--micro .brand-mark-desc{font-size:5px;letter-spacing:0.24em}
+.brand-mark--micro .brand-mark-rule{width:10px}
+.brand-mark--micro .brand-mark-suffix{font-size:6px;padding:4px 6px}
+.brand-mark--teal{
+  border-color:rgba(45,212,191,0.22);
+  background:rgba(15,23,42,0.74);
+  box-shadow:0 0 28px rgba(45,212,191,0.12);
+}
+.brand-mark--teal .brand-mark-tm{color:#99f6e4}
+.brand-mark--teal .brand-mark-desc{color:#99f6e4}
+.brand-mark--teal .brand-mark-rule{background:linear-gradient(90deg,rgba(45,212,191,0.95),transparent)}
+.brand-mark--teal .brand-mark-suffix{
+  border-color:rgba(45,212,191,0.22);background:rgba(45,212,191,0.08);color:#ccfbf1;
+}
+.brand-mark--indigo{
+  border-color:rgba(96,165,250,0.2);
+  background:rgba(15,23,42,0.72);
+  box-shadow:0 0 28px rgba(96,165,250,0.12);
+}
+.brand-mark--indigo .brand-mark-tm{color:#bfdbfe}
+.brand-mark--indigo .brand-mark-desc{color:#bfdbfe}
+.brand-mark--indigo .brand-mark-rule{background:linear-gradient(90deg,rgba(96,165,250,0.95),transparent)}
+.brand-mark--indigo .brand-mark-suffix{
+  border-color:rgba(96,165,250,0.2);background:rgba(96,165,250,0.08);color:#dbeafe;
+}
+
+/* ── Runtime HUD + Notifications ──────────────────────────── */
+.runtime-hud{
+  position:fixed;
+  left:12px;right:12px;
+  bottom:calc(var(--tab-height) + var(--np-bar-height, 0px) + 10px);
+  z-index:99;
+  min-height:var(--hud-height);
+  display:flex;justify-content:center;
+  pointer-events:none;
+}
+.runtime-hud-inner{
+  max-width:min(760px,100%);
+  margin:0 auto;
+  padding:10px 12px;
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(15,23,42,0.78), rgba(7,10,18,0.82));
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  box-shadow:0 16px 40px rgba(0,0,0,0.24);
+}
+.runtime-hud-main{
+  display:flex;align-items:center;gap:12px;justify-content:space-between;
+}
+.runtime-hud-copy{min-width:0;flex:1}
+.runtime-hud-kicker{
+  font-size:9px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;
+  color:#94a3b8;
+}
+.runtime-hud-title{
+  margin-top:3px;
+  font-size:14px;font-weight:700;letter-spacing:0.01em;color:#f8fafc;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.runtime-hud-meta{
+  font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:44%;
+}
+.runtime-dot{
+  width:10px;height:10px;border-radius:999px;flex-shrink:0;
+  background:#38bdf8;box-shadow:0 0 0 4px rgba(56,189,248,0.12);
+}
+.runtime-dot.success{background:#34d399;box-shadow:0 0 0 4px rgba(52,211,153,0.12)}
+.runtime-dot.warn{background:#f59e0b;box-shadow:0 0 0 4px rgba(245,158,11,0.12)}
+.runtime-dot.error{background:#f43f5e;box-shadow:0 0 0 4px rgba(244,63,94,0.14)}
+.runtime-chip-row{
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-start;
+  margin-top:10px;
+}
+.runtime-chip{
+  padding:6px 10px;border-radius:999px;
+  border:1px solid rgba(255,255,255,0.08);
+  background:rgba(255,255,255,0.04);
+  font-size:10px;font-weight:700;letter-spacing:0.9px;text-transform:uppercase;color:#cbd5e1;
+}
+.runtime-chip-label{opacity:0.72;margin-right:6px}
+.runtime-chip{
+  display:inline-flex;align-items:center;
+}
+.runtime-chip span{color:#fff}
+.runtime-chip.info{border-color:rgba(56,189,248,0.3);color:#bae6fd}
+.runtime-chip.warn{border-color:rgba(245,158,11,0.35);color:#fcd34d}
+.runtime-chip.error{border-color:rgba(244,63,94,0.35);color:#fda4af}
+.runtime-chip.success{border-color:rgba(52,211,153,0.35);color:#86efac}
+.toast-stack{
+  position:fixed;right:14px;bottom:calc(var(--tab-height) + var(--np-bar-height, 0px) + var(--hud-height) + 28px);z-index:220;
+  display:flex;flex-direction:column;gap:10px;width:min(340px,calc(100vw - 28px));
+  pointer-events:none;
+}
+.runtime-toast{
+  border-radius:16px;padding:12px 14px;border:1px solid rgba(255,255,255,0.08);
+  background:rgba(15,23,42,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  box-shadow:0 12px 32px rgba(0,0,0,0.35);
+  opacity:0;transform:translateY(8px);transition:opacity 0.22s ease,transform 0.22s ease;
+}
+.runtime-toast.show{opacity:1;transform:translateY(0)}
+.runtime-toast.info{border-color:rgba(56,189,248,0.35);color:#e0f2fe}
+.runtime-toast.success{border-color:rgba(52,211,153,0.35);color:#dcfce7}
+.runtime-toast.warn{border-color:rgba(245,158,11,0.35);color:#fef3c7}
+.runtime-toast.error{border-color:rgba(244,63,94,0.35);color:#ffe4e6}
+.runtime-toast-title{font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase}
+.runtime-toast-body{margin-top:5px;font-size:13px;line-height:1.45}
+.runtime-detail{
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,0.08);
+  background:rgba(255,255,255,0.04);
+  padding:14px 16px;
+  margin-bottom:16px;
+}
+.runtime-detail-title{
+  font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#94a3b8;
+}
+.runtime-detail-body{
+  margin-top:6px;font-size:13px;line-height:1.55;color:#e2e8f0;
+}
+.runtime-detail-subline{
+  margin-top:8px;font-size:11px;color:#94a3b8;font-variant-numeric:tabular-nums;
+}
 
 /* ── Tab Content Area ─────────────────────────────────────── */
 .app-content{
@@ -103,7 +278,7 @@ body.is-playing .bg-glow::after{animation-duration:10s}
   position:absolute;top:0;left:0;right:0;bottom:0;
   overflow-y:auto;overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
-  padding:20px 16px calc(24px + var(--np-bar-height, 0px));
+  padding:20px 16px calc(32px + var(--np-bar-height, 0px) + var(--hud-height));
   opacity:0;
   transform:translateY(12px);
   transition:opacity 0.35s ease, transform 0.35s ease;
@@ -207,6 +382,10 @@ body.is-playing .hero-art-wrap{box-shadow:0 16px 64px rgba(0,136,255,0.15), 0 0 
   background:linear-gradient(135deg,rgba(0,136,255,0.08),rgba(232,101,26,0.08));
   border:1px solid rgba(0,136,255,0.15);
   font-size:10px;font-weight:700;color:var(--pink);letter-spacing:1.5px;text-transform:uppercase;
+}
+.album-dpa-sep{
+  width:4px;height:4px;border-radius:50%;
+  background:rgba(255,255,255,0.26);flex-shrink:0;
 }
 
 /* Quick Track List on Home */
@@ -407,11 +586,13 @@ body.is-playing .np-play{animation:playPulse 2s ease-in-out infinite}
 /* Waveform Visualizer */
 .viz-section{margin-top:24px}
 .viz-hero-label{
+  display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;
   font-size:10px;font-weight:700;color:var(--cyan);
   text-transform:uppercase;letter-spacing:2px;text-align:center;
   margin-bottom:10px;
   text-shadow:0 0 20px rgba(232,101,26,0.4);
 }
+.viz-hero-copy{color:var(--cyan);letter-spacing:2px}
 .viz-wrap{
   display:flex;flex-direction:column;align-items:center;gap:12px;
   padding:16px;border-radius:20px;
@@ -516,82 +697,257 @@ body:not(.is-playing) .eq-bars span{animation-play-state:paused}
 .track-info-btn svg{width:16px;height:16px}
 
 /* ══════════════════════════════════════════════════════════════
-   BOOKLET TAB — Swipeable Pages
+   BOOKLET TAB — Large Retina Swiper
    ══════════════════════════════════════════════════════════════ */
+#panelBooklet .tab-inner{max-width:min(100%,1180px)}
 .booklet-swiper{
-  position:relative;overflow:hidden;width:100%;
+  position:relative;overflow:hidden;width:100%;padding:6px 0 8px;
+  perspective:1800px;
   touch-action:pan-y;
 }
 .booklet-track{
-  display:flex;transition:transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94);
+  display:flex;align-items:stretch;
+  transition:transform 0.55s cubic-bezier(0.22,1,0.36,1);
   will-change:transform;
 }
 .booklet-page{
   min-width:100%;box-sizing:border-box;
-  padding:0 4px;
-  display:flex;flex-direction:column;align-items:center;
+  padding:0 4px 20px;
+  display:flex;flex-direction:column;
 }
-.booklet-page-inner{
-  width:100%;max-width:500px;
+.booklet-page-inner{width:100%}
+.booklet-sheet{
+  position:relative;overflow:hidden;
+  min-height:min(72vh,920px);
+  padding:clamp(20px,3vw,40px);
+  border-radius:28px;
+  background:
+    linear-gradient(180deg, rgba(15,18,32,0.95), rgba(8,10,18,0.98)),
+    radial-gradient(circle at top right, rgba(99,102,241,0.12), transparent 42%);
+  border:1px solid rgba(255,255,255,0.08);
+  box-shadow:0 30px 90px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+  transform-origin:center center;
+  transition:transform 0.55s cubic-bezier(0.22,1,0.36,1), opacity 0.35s ease, filter 0.35s ease;
 }
+.booklet-page.is-before .booklet-sheet{
+  transform:perspective(1800px) rotateY(14deg) scale(0.97);
+  opacity:0.72;filter:saturate(0.9);
+}
+.booklet-page.is-after .booklet-sheet{
+  transform:perspective(1800px) rotateY(-14deg) scale(0.97);
+  opacity:0.72;filter:saturate(0.9);
+}
+.booklet-page.is-active .booklet-sheet{
+  transform:perspective(1800px) rotateY(0deg) scale(1);
+  opacity:1;filter:none;
+}
+.booklet-sheet::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg, rgba(255,255,255,0.05), transparent 32%, transparent 68%, rgba(255,255,255,0.02));
+  pointer-events:none;
+}
+.booklet-spread{
+  position:relative;z-index:1;
+  display:grid;gap:24px;align-items:start;
+}
+.booklet-spread--cover{grid-template-columns:minmax(0,1fr)}
+.booklet-spread--two{grid-template-columns:minmax(0,1fr)}
 .booklet-dots{
-  display:flex;justify-content:center;gap:8px;padding:16px 0 8px;
+  display:flex;justify-content:center;gap:10px;padding:8px 0 8px;
 }
+.booklet-nav{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-top:12px;
+}
+.booklet-nav-btn{
+  min-width:112px;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:10px 14px;border-radius:999px;
+  border:1px solid rgba(255,255,255,0.08);
+  background:rgba(255,255,255,0.04);
+  color:#e2e8f0;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
+  cursor:pointer;transition:all 0.2s;
+}
+.booklet-nav-btn:active{transform:scale(0.97)}
+.booklet-nav-btn[disabled]{
+  opacity:0.38;cursor:not-allowed;
+}
+.booklet-nav-btn svg{width:14px;height:14px}
+.booklet-nav-center{flex:1;min-width:0}
 .booklet-dot{
-  width:8px;height:8px;border-radius:50%;
-  background:rgba(255,255,255,0.15);transition:all 0.3s;
+  width:10px;height:10px;border-radius:999px;
+  background:rgba(255,255,255,0.12);transition:all 0.3s;
   cursor:pointer;
 }
-.booklet-dot.active{background:var(--pink);transform:scale(1.3)}
+.booklet-dot.active{background:var(--pink);transform:scale(1.2)}
+.booklet-pager-meta{
+  text-align:center;
+  font-size:10px;font-weight:700;color:var(--dim);
+  text-transform:uppercase;letter-spacing:1.5px;
+  margin-top:6px;opacity:0.75;
+}
 .booklet-page-label{
-  font-size:9px;font-weight:700;color:var(--dim);text-transform:uppercase;
-  letter-spacing:1.5px;text-align:center;margin-bottom:12px;opacity:0.5;
+  font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;
+  letter-spacing:2px;text-align:left;margin-bottom:16px;opacity:0.72;
 }
 
 .booklet-cover{
-  width:260px;height:260px;border-radius:20px;margin:0 auto 20px;
+  width:min(78vw,520px);height:min(78vw,520px);max-width:100%;max-height:520px;
+  border-radius:26px;margin:0 auto;
   position:relative;overflow:hidden;
-  box-shadow:0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06);
+  background:rgba(255,255,255,0.03);
+  box-shadow:0 18px 60px rgba(0,0,0,0.42), 0 0 0 1px rgba(255,255,255,0.06);
 }
 .booklet-cover svg{width:100%;height:100%;display:block}
 .booklet-cover-text{display:none}
 
-.booklet-title-section{text-align:center;margin-bottom:20px}
-.booklet-album-title{font-size:22px;font-weight:800;color:var(--bright);letter-spacing:-0.5px}
-.booklet-album-artist{font-size:13px;color:var(--dim);font-weight:500;letter-spacing:1px;text-transform:uppercase;margin-top:4px}
+.booklet-title-section{text-align:left}
+.booklet-kicker{
+  font-size:9px;font-weight:800;color:#818cf8;
+  letter-spacing:2px;text-transform:uppercase;
+  margin-bottom:12px;
+}
+.booklet-album-title{
+  font-size:clamp(24px,4.2vw,50px);line-height:0.98;
+  font-weight:800;color:var(--bright);letter-spacing:-0.9px;
+}
+.booklet-album-artist{
+  font-size:clamp(13px,1.35vw,17px);
+  color:var(--dim);font-weight:600;letter-spacing:0.9px;
+  text-transform:uppercase;margin-top:10px;
+}
+.booklet-body{
+  white-space:pre-wrap;
+  font-size:clamp(14px,1.2vw,16px);
+  line-height:1.72;color:var(--text);
+}
+.booklet-body.booklet-lyrics{font-family:Georgia,"Times New Roman",serif}
+.booklet-body.booklet-credit-prose{font-size:14px;line-height:1.72}
+.booklet-meta-pills{
+  display:flex;flex-wrap:wrap;gap:10px;
+  margin-top:18px;
+}
+.booklet-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:8px 11px;border-radius:999px;
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.08);
+  color:#d5dbf5;font-size:11px;font-weight:600;
+}
+.booklet-info-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;
+  margin-top:20px;
+}
+.booklet-info-card{
+  border-radius:18px;padding:14px 16px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.06);
+}
+.booklet-info-card-label{
+  font-size:10px;text-transform:uppercase;letter-spacing:1.6px;
+  color:var(--dim);font-weight:700;
+}
+.booklet-info-card-value{
+  margin-top:8px;font-size:14px;color:var(--bright);
+  font-weight:600;line-height:1.45;word-break:break-word;
+}
 
 .booklet-section{margin-bottom:16px;width:100%}
 .booklet-section-title{
-  font-size:10px;font-weight:700;color:var(--dim);
-  text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;
+  font-size:9px;font-weight:700;color:var(--dim);
+  text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;
 }
 .booklet-liner{
-  padding:20px;font-size:14px;line-height:1.7;color:var(--text);
-  font-style:italic;
+  padding:22px 24px;font-style:normal;
+  border-radius:20px;
 }
 
-.booklet-credits{padding:16px}
+.booklet-credits{
+  padding:18px 20px;
+  border-radius:20px;
+}
 .credit-row{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);
+  display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+  padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.05);
 }
 .credit-row:last-child{border-bottom:none}
-.credit-role{font-size:12px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
-.credit-name{font-size:14px;color:var(--bright);font-weight:600}
+.credit-role{font-size:11px;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:1.3px}
+.credit-name{font-size:15px;color:var(--bright);font-weight:700;text-align:right}
 
-.booklet-track-note{padding:16px;margin-bottom:10px}
-.booklet-track-note-title{font-size:15px;font-weight:700;color:var(--bright);margin-bottom:6px}
-.booklet-track-note-num{font-size:11px;color:var(--pink);font-weight:700;margin-bottom:4px}
-.booklet-track-note-text{font-size:13px;color:var(--text);line-height:1.6;opacity:0.8}
+.booklet-track-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;
+}
+.booklet-track-note{
+  padding:18px;margin-bottom:0;border-radius:18px;
+}
+.booklet-track-note-title{font-size:17px;font-weight:800;color:var(--bright);margin-bottom:8px}
+.booklet-track-note-num{font-size:11px;color:var(--pink);font-weight:800;margin-bottom:6px;letter-spacing:1.3px;text-transform:uppercase}
+.booklet-track-note-text{font-size:14px;color:var(--text);line-height:1.7;opacity:0.88}
+.booklet-track-note-meta{
+  display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;
+}
+.booklet-track-chip{
+  padding:7px 10px;border-radius:999px;
+  background:rgba(79,70,229,0.12);
+  border:1px solid rgba(99,102,241,0.16);
+  color:#c7d2fe;font-size:11px;font-weight:700;letter-spacing:0.4px;
+}
 
 .booklet-gallery{
-  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;
 }
 .booklet-thumb{
-  border-radius:12px;overflow:hidden;aspect-ratio:1;
+  border-radius:18px;overflow:hidden;aspect-ratio:1;
   background:var(--card);border:1px solid var(--card-border);
+  box-shadow:0 10px 28px rgba(0,0,0,0.2);
 }
 .booklet-thumb svg{width:100%;height:100%;display:block}
+.booklet-thumb img{width:100%;height:100%;display:block;object-fit:cover}
+.booklet-video-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px;
+}
+.booklet-video-card{
+  overflow:hidden;border-radius:22px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+}
+.booklet-video-thumb{
+  aspect-ratio:16/9;background:#080a10;overflow:hidden;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.booklet-video-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.booklet-video-body{padding:16px 18px}
+.booklet-video-title{font-size:15px;font-weight:800;color:var(--bright)}
+.booklet-video-url{
+  margin-top:8px;font-size:12px;color:var(--dim);
+  line-height:1.6;word-break:break-word;
+}
+.booklet-empty{
+  padding:26px;border-radius:20px;
+  border:1px dashed rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.02);
+  color:var(--dim);font-size:14px;line-height:1.7;
+}
+@media (min-width:900px) {
+  .booklet-spread--cover{
+    grid-template-columns:minmax(380px,520px) minmax(0,1fr);
+    align-items:center;
+  }
+  .booklet-spread--two{
+    grid-template-columns:minmax(0,1.02fr) minmax(0,0.98fr);
+  }
+}
+@media (max-width:640px) {
+  .booklet-sheet{min-height:auto;padding:18px}
+  .booklet-album-title{font-size:30px}
+  .booklet-track-grid,.booklet-video-grid{grid-template-columns:1fr}
+  .booklet-nav-btn{min-width:96px;padding:10px 12px;font-size:11px}
+  .runtime-hud{left:10px;right:10px;bottom:calc(var(--tab-height) + var(--np-bar-height, 0px) + 8px)}
+  .runtime-hud-inner{padding:8px 10px;border-radius:16px}
+  .runtime-hud-main{align-items:flex-start;flex-direction:column;gap:6px}
+  .runtime-hud-meta{max-width:100%}
+  .toast-stack{right:10px;left:10px;width:auto}
+}
 
 /* ── Track Detail Sheet ───────────────────────────────────── */
 .track-detail-overlay{
@@ -898,6 +1254,15 @@ body:not(.is-playing) .eq-bars span{animation-play-state:paused}
 .portal-card-desc{font-size:12px;color:var(--dim);margin-top:2px}
 .portal-card-arrow{color:var(--dim);flex-shrink:0}
 .portal-card-arrow svg{width:18px;height:18px}
+.portal-standard{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 14px;margin-bottom:10px;border-radius:16px;
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
+}
+.portal-standard-copy{
+  font-size:10px;font-weight:700;color:#94a3b8;
+  letter-spacing:1.5px;text-transform:uppercase;text-align:right;
+}
 .portal-status{
   display:flex;align-items:center;gap:8px;padding:12px 16px;
   font-size:12px;color:var(--dim);
@@ -909,10 +1274,14 @@ body:not(.is-playing) .eq-bars span{animation-play-state:paused}
 .portal-status-dot.unregistered{background:var(--dim)}
 
 /* Admin Mode */
+.admin-unlock{display:block;margin-top:16px}
+body.admin-mode .admin-unlock{display:none}
 .admin-section{display:none;margin-top:16px}
 body.admin-mode .admin-section{display:block}
 .admin-section .glass{border:1px solid rgba(255,215,0,0.15);box-shadow:0 0 20px rgba(255,215,0,0.03)}
 .admin-label{color:#ffd700;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.admin-lock-copy{font-size:13px;line-height:1.6;color:var(--text);opacity:0.88;margin-bottom:10px}
+.admin-lock-duid{font-size:12px;color:var(--dim);margin-bottom:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .admin-btn{
   width:100%;padding:12px;border-radius:12px;
   font-size:14px;font-weight:600;
@@ -1145,7 +1514,14 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
 <!-- Connecting Overlay -->
 <div class="connecting" id="connectOverlay">
   <div class="connecting-spinner"></div>
-  <div class="connecting-text">Connecting to DPA&trade; device...</div>
+  <div class="brand-mark brand-mark--compact brand-mark--teal">
+    <div class="brand-mark-main">
+      <div class="brand-mark-top"><span class="brand-mark-word">DPA</span><span class="brand-mark-tm">TM</span></div>
+      <div class="brand-mark-bottom"><span class="brand-mark-rule"></span><span class="brand-mark-desc">DIGITAL PLAYBACK ASSET</span></div>
+    </div>
+    <span class="brand-mark-suffix">DEVICE</span>
+  </div>
+  <div class="connecting-text">Connecting to the device dashboard...</div>
 </div>
 
 <!-- Confirm Dialog -->
@@ -1198,7 +1574,15 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
 <div class="status-bar">
   <div class="sb-left">
     <div class="sb-dot" id="connDot"></div>
-    <div class="sb-device" id="deviceName">DPA&trade; Device</div>
+    <div class="sb-brand">
+      <div class="brand-mark brand-mark--micro brand-mark--plain">
+        <div class="brand-mark-main">
+          <div class="brand-mark-top"><span class="brand-mark-word">DPA</span><span class="brand-mark-tm">TM</span></div>
+          <div class="brand-mark-bottom"><span class="brand-mark-rule"></span><span class="brand-mark-desc">DEVICE DASHBOARD</span></div>
+        </div>
+      </div>
+      <div class="sb-device-meta" id="deviceNameMeta">Portal Console</div>
+    </div>
   </div>
   <div class="sb-right">
     <div class="sb-battery" id="batteryInfo">
@@ -1207,6 +1591,27 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
     </div>
   </div>
 </div>
+
+<div class="runtime-hud">
+  <div class="runtime-hud-inner">
+    <div class="runtime-hud-main">
+      <div class="runtime-dot info" id="runtimeHudDot"></div>
+      <div class="runtime-hud-copy">
+        <div class="runtime-hud-kicker">DPA Runtime</div>
+        <div class="runtime-hud-title" id="runtimeHudTitle">Preparing device</div>
+      </div>
+      <div class="runtime-hud-meta" id="runtimeHudMeta">Live device health and sync state.</div>
+    </div>
+    <div class="runtime-chip-row">
+      <div class="runtime-chip info" id="chipBoot"><span class="runtime-chip-label">State</span><span id="hudBootState">booting</span></div>
+      <div class="runtime-chip" id="chipUpload"><span class="runtime-chip-label">Sync</span><span id="hudUploadState">idle</span></div>
+      <div class="runtime-chip" id="chipSd"><span class="runtime-chip-label">Storage</span><span id="hudSdState">unknown</span></div>
+      <div class="runtime-chip" id="chipHttp"><span class="runtime-chip-label">Link</span><span id="hudHttpMode">starting</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
 
 <!-- App Content -->
 <div class="app-content">
@@ -1226,7 +1631,18 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
           <div class="album-meta-chip"><span class="amc-val" id="homeTotalDur">--</span></div>
           <div class="album-meta-chip"><span class="amc-val" id="homeFormat">24-bit Lossless</span></div>
         </div>
-        <div class="album-dpa-badge">DPA&trade; Exclusive &bull; PCM5122 DAC &bull; Analog Out</div>
+        <div class="album-dpa-badge">
+          <div class="brand-mark brand-mark--micro brand-mark--plain">
+            <div class="brand-mark-main">
+              <div class="brand-mark-top"><span class="brand-mark-word">DPA</span><span class="brand-mark-tm">TM</span></div>
+              <div class="brand-mark-bottom"><span class="brand-mark-rule"></span><span class="brand-mark-desc">STANDARD</span></div>
+            </div>
+          </div>
+          <span class="album-dpa-sep"></span>
+          <span>PCM5122 DAC</span>
+          <span class="album-dpa-sep"></span>
+          <span>Analog Out</span>
+        </div>
       </div>
 
       <!-- Quick Track List -->
@@ -1326,7 +1742,15 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
       </div>
       <!-- Waveform Visualizer -->
       <div class="viz-section">
-        <div class="viz-hero-label">★ DPA™ Audio Visualizer ★</div>
+        <div class="viz-hero-label">
+          <div class="brand-mark brand-mark--micro brand-mark--indigo brand-mark--plain">
+            <div class="brand-mark-main">
+              <div class="brand-mark-top"><span class="brand-mark-word">DPA</span><span class="brand-mark-tm">TM</span></div>
+              <div class="brand-mark-bottom"><span class="brand-mark-rule"></span><span class="brand-mark-desc">AUDIO</span></div>
+            </div>
+          </div>
+          <span class="viz-hero-copy">Visualizer</span>
+        </div>
         <div class="viz-wrap">
           <canvas class="viz-canvas" id="vizCanvas" width="320" height="120"></canvas>
           <div class="viz-mode-row">
@@ -1367,87 +1791,23 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
 
       <!-- Swipeable Booklet -->
       <div class="booklet-swiper" id="bookletSwiper">
-        <div class="booklet-track" id="bookletTrack">
-
-          <!-- Page 1: Cover -->
-          <div class="booklet-page">
-            <div class="booklet-page-inner">
-              <div class="booklet-page-label">Cover</div>
-              <div class="booklet-cover">
-                <div id="bookletArt"></div>
-              </div>
-              <div class="booklet-title-section">
-                <div class="booklet-album-title" id="bookletAlbumTitle">DPA&trade; Album</div>
-                <div class="booklet-album-artist" id="bookletAlbumArtist">Artist</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Page 2: Liner Notes -->
-          <div class="booklet-page">
-            <div class="booklet-page-inner">
-              <div class="booklet-page-label">Liner Notes</div>
-              <div class="booklet-section">
-                <div class="booklet-liner glass">
-                  This album was born from late nights, neon-lit streets, and the hum of machines that never sleep. Every track is a postcard from a city that exists somewhere between memory and imagination. The sounds you hear were captured on analog synths, processed through custom circuits, and mixed with the kind of obsessive detail that only comes from caring too much. Thank you for holding this in your hands. It means everything.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Page 3: Credits -->
-          <div class="booklet-page">
-            <div class="booklet-page-inner">
-              <div class="booklet-page-label">Credits</div>
-              <div class="booklet-section">
-                <div class="booklet-credits glass" id="bookletCredits">
-                  <div class="credit-row">
-                    <span class="credit-role">Artist</span>
-                    <span class="credit-name" id="creditArtist">--</span>
-                  </div>
-                  <div class="credit-row">
-                    <span class="credit-role">Album</span>
-                    <span class="credit-name" id="creditAlbum">--</span>
-                  </div>
-                  <div class="credit-row">
-                    <span class="credit-role">Label</span>
-                    <span class="credit-name">DPA Records</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Page 4: Track Notes -->
-          <div class="booklet-page">
-            <div class="booklet-page-inner">
-              <div class="booklet-page-label">Track Notes</div>
-              <div class="booklet-section">
-                <div id="bookletTrackNotes"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Page 5: Gallery -->
-          <div class="booklet-page">
-            <div class="booklet-page-inner">
-              <div class="booklet-page-label">Gallery</div>
-              <div class="booklet-section">
-                <div class="booklet-gallery">
-                  <div class="booklet-thumb"><svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect width="120" height="120" fill="#0d0d15"/><circle cx="60" cy="50" r="25" fill="none" stroke="#0088ff" stroke-width="0.8" opacity="0.4"/><rect x="20" y="80" width="80" height="1" fill="#0088ff" opacity="0.2"/><text x="60" y="110" text-anchor="middle" font-size="7" fill="#666" font-weight="600" letter-spacing="1">STUDIO SESSION</text></svg></div>
-                  <div class="booklet-thumb"><svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect width="120" height="120" fill="#0a1520"/><path d="M20 90 L60 30 L100 90" fill="none" stroke="#e8651a" stroke-width="0.8" opacity="0.4"/><circle cx="60" cy="60" r="4" fill="#e8651a" opacity="0.3"/><text x="60" y="110" text-anchor="middle" font-size="7" fill="#666" font-weight="600" letter-spacing="1">LIVE PERFORMANCE</text></svg></div>
-                  <div class="booklet-thumb"><svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect width="120" height="120" fill="#15100a"/><rect x="30" y="30" width="60" height="60" rx="4" fill="none" stroke="#ffaa44" stroke-width="0.8" opacity="0.3"/><rect x="40" y="40" width="40" height="40" rx="2" fill="none" stroke="#ffaa44" stroke-width="0.5" opacity="0.2"/><text x="60" y="110" text-anchor="middle" font-size="7" fill="#666" font-weight="600" letter-spacing="1">DPA™ DEVICE</text></svg></div>
-                  <div class="booklet-thumb"><svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect width="120" height="120" fill="#0d0015"/><path d="M10 60 Q35 20 60 60 Q85 100 110 60" fill="none" stroke="#a78bfa" stroke-width="0.8" opacity="0.4"/><path d="M10 60 Q35 100 60 60 Q85 20 110 60" fill="none" stroke="#a78bfa" stroke-width="0.5" opacity="0.2"/><text x="60" y="110" text-anchor="middle" font-size="7" fill="#666" font-weight="600" letter-spacing="1">BEHIND THE SCENES</text></svg></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
+        <div class="booklet-track" id="bookletTrack"></div>
       </div>
 
-      <!-- Page Dots -->
-      <div class="booklet-dots" id="bookletDots"></div>
+      <div class="booklet-nav">
+        <button class="booklet-nav-btn" id="bookletPrevBtn" onclick="bookletStep(-1)" aria-label="Previous booklet page">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Prev
+        </button>
+        <div class="booklet-nav-center">
+          <div class="booklet-pager-meta" id="bookletPagerMeta">Page 1 of 1</div>
+          <div class="booklet-dots" id="bookletDots"></div>
+        </div>
+        <button class="booklet-nav-btn" id="bookletNextBtn" onclick="bookletStep(1)" aria-label="Next booklet page">
+          Next
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
 
     </div>
   </div>
@@ -1545,6 +1905,11 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
 
       <!-- Device Info -->
       <div class="card-label">Device Info</div>
+      <div class="runtime-detail" id="runtimeDetailCard">
+        <div class="runtime-detail-title" id="runtimeDetailTitle">Device Status</div>
+        <div class="runtime-detail-body" id="runtimeDetailBody">Waiting for live device runtime state...</div>
+        <div class="runtime-detail-subline" id="runtimeDetailSubline">Detailed readiness and transfer notes appear here.</div>
+      </div>
       <div class="info-grid">
         <div class="info-item"><div class="info-label">Firmware</div><div class="info-val small" id="fwVersion">--</div></div>
         <div class="info-item"><div class="info-label">Battery</div><div class="info-val small" id="devBattery">--</div></div>
@@ -1565,6 +1930,15 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
       <!-- Portal Section -->
       <div class="card-label" style="margin-top:16px">Portal</div>
       <div class="portal-section">
+        <div class="portal-standard">
+          <div class="brand-mark brand-mark--compact brand-mark--plain">
+            <div class="brand-mark-main">
+              <div class="brand-mark-top"><span class="brand-mark-word">DPA</span><span class="brand-mark-tm">TM</span></div>
+              <div class="brand-mark-bottom"><span class="brand-mark-rule"></span><span class="brand-mark-desc">PORTAL STANDARD</span></div>
+            </div>
+          </div>
+          <div class="portal-standard-copy">Aligned fan and creator surfaces</div>
+        </div>
         <div class="portal-card glass" onclick="window.open(S.portalUrl || 'https://dpaconsortium.org/fan','_blank')">
           <div class="portal-icon fan">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -1596,6 +1970,21 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
         </div>
       </div>
 
+      <div class="admin-unlock">
+        <div class="admin-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#ffd700" stroke-width="2" stroke-linecap="round" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Admin Locked
+        </div>
+        <div class="glass" style="padding:16px">
+          <div class="admin-lock-copy">Admin controls lock again after reboot or flash. Use the device DUID to unlock them from here.</div>
+          <div class="admin-lock-duid">DUID: <span id="adminUnlockDuid">--</span></div>
+          <button class="admin-btn" onclick="promptAdminUnlock()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Unlock Admin Controls
+          </button>
+        </div>
+      </div>
+
       <!-- Admin Section (hidden by default) -->
       <div class="admin-section">
         <div class="admin-label">
@@ -1603,7 +1992,7 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
           Admin Controls
         </div>
         <div class="glass" style="padding:16px">
-          <button class="admin-btn" onclick="apiGet('/api/admin/lock')">
+          <button class="admin-btn" onclick="adminLock()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             Lock Admin Mode
           </button>
@@ -1689,7 +2078,7 @@ const S = {
   battPercent: -1,
   battCharging: false,
   battVoltage: 0,
-  deviceName: 'DPA\u2122',
+  deviceName: 'Portal Console',
   fwVersion: '--',
   admin: false,
   led: { color: '#0088ff', pattern: 'vu_classic', idlePattern: 'breathing', playPattern: 'vu_classic', brightness: 200, gradEnd: '#ff6600' },
@@ -1698,11 +2087,35 @@ const S = {
   capsules: [],
   storage: { totalMB: 0, usedMB: 0, freeMB: 0, trackCount: 0 },
   uptime: 0,
+  bootState: 'booting',
+  sdState: 'unknown',
+  uploadState: 'idle',
+  degradedReason: '',
+  httpMode: 'starting',
+  wifiMaintenance: 'normal',
+  audioVerified: false,
+  lastUploadPath: '',
+  lastUploadBytes: 0,
   mesh: { enabled: false, role: '', peers: [] },
   audioFeatures: { peakL: 0, peakR: 0, rms: 0, envelope: 0, bassEnergy: 0, beatFlag: false },
   vizMode: 'bars',
   beatSensitivity: 1.0,
   beatLockout: 200,
+  _statusInitialized: false,
+  _toastCache: {},
+  bookletData: {
+    description: '',
+    lyrics: '',
+    booklet: { credits: '', gallery: [], videos: [] }
+  },
+  albumMeta: {
+    genre: '',
+    recordLabel: '',
+    copyright: '',
+    releaseDate: '',
+    upcCode: '',
+    parentalAdvisory: false
+  },
 };
 
 // ── Mock Data ────────────────────────────────────────────────
@@ -1769,6 +2182,8 @@ S.favorites = [];
 // Fetch real tracks from device SD card — DPA first, WAV legacy fallback
 let realTracksLoaded = false;
 let realTrackRetries = 0;
+let bookletDataLoaded = false;
+let bookletDataRetries = 0;
 
 function loadRealTracks() {
   if (realTracksLoaded) return;
@@ -1822,14 +2237,10 @@ function loadRealTracks() {
           buildTrackList();
           buildHomeTrackList();
         });
-        // Also rebuild non-favorite UI
-        buildBookletTrackNotes();
+        // Also rebuild booklet pages with live track metadata
+        renderBookletPages();
         updateAlbumSummary();
         updateTrackInfo();
-        // Update booklet album title to first track
-        if (S.tracks.length > 0) {
-          document.getElementById('bookletAlbumTitle').textContent = S.tracks[0].title;
-        }
       }
     })
     .catch(() => {
@@ -1854,6 +2265,88 @@ function loadRealCapsules() {
     .catch(() => {});  // keep MOCK_CAPSULES as fallback
 }
 
+function fetchJsonMaybe(path) {
+  return fetch(API_BASE + path, { signal: fetchTimeout(3000) })
+    .then(r => r.ok ? r.json() : null)
+    .catch(() => null);
+}
+
+function normalizeBookletPayload(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      description: '',
+      lyrics: '',
+      booklet: { credits: '', gallery: [], videos: [] }
+    };
+  }
+  const booklet = raw.booklet && typeof raw.booklet === 'object' ? raw.booklet : {};
+  const gallery = Array.isArray(booklet.gallery) ? booklet.gallery.filter(Boolean) : [];
+  const videos = Array.isArray(booklet.videos)
+    ? booklet.videos.map((video, index) => ({
+        id: video && video.id ? String(video.id) : 'video-' + index,
+        title: video && video.title ? String(video.title) : 'Video ' + (index + 1),
+        url: video && video.url ? String(video.url) : '',
+        poster: video && video.poster ? String(video.poster) : ''
+      }))
+    : [];
+  return {
+    description: raw.description ? String(raw.description) : '',
+    lyrics: raw.lyrics ? String(raw.lyrics) : '',
+    booklet: {
+      credits: booklet.credits ? String(booklet.credits) : '',
+      gallery,
+      videos
+    }
+  };
+}
+
+function normalizeAlbumMeta(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      genre: '',
+      recordLabel: '',
+      copyright: '',
+      releaseDate: '',
+      upcCode: '',
+      parentalAdvisory: false
+    };
+  }
+  return {
+    genre: raw.genre ? String(raw.genre) : '',
+    recordLabel: raw.recordLabel ? String(raw.recordLabel) : '',
+    copyright: raw.copyright ? String(raw.copyright) : '',
+    releaseDate: raw.releaseDate ? String(raw.releaseDate) : '',
+    upcCode: raw.upcCode ? String(raw.upcCode) : '',
+    parentalAdvisory: raw.parentalAdvisory === true || raw.parentalAdvisory === 'true'
+  };
+}
+
+function loadRealBookletData(force) {
+  if (bookletDataLoaded && !force) return;
+  Promise.all([
+    fetchJsonMaybe('/api/booklet'),
+    fetchJsonMaybe('/api/album/meta')
+  ]).then(([bookletRaw, metaRaw]) => {
+    const bookletOk = !!(bookletRaw && typeof bookletRaw === 'object');
+    const metaOk = !!(metaRaw && typeof metaRaw === 'object');
+    if (bookletOk || metaOk) {
+      bookletDataLoaded = true;
+      bookletDataRetries = 0;
+    } else if (bookletDataRetries < 6) {
+      bookletDataRetries++;
+      setTimeout(() => loadRealBookletData(force), 2200);
+    }
+    S.bookletData = bookletOk ? normalizeBookletPayload(bookletRaw) : S.bookletData;
+    S.albumMeta = metaOk ? normalizeAlbumMeta(metaRaw) : S.albumMeta;
+    renderBookletPages();
+  }).catch(() => {
+    if (bookletDataRetries < 6) {
+      bookletDataRetries++;
+      setTimeout(() => loadRealBookletData(force), 2200);
+    }
+  });
+}
+
 let statusTimer = null;
 let featuresTimer = null;
 let lastDebounce = {};
@@ -1865,7 +2358,7 @@ function init() {
   buildTrackList();
   buildHomeTrackList();
   buildCapsuleList();
-  buildBookletTrackNotes();
+  renderBookletPages();
   mountBookletCoverFromSd();
   initBookletSwiper();
   initVolumeSlider();
@@ -1881,6 +2374,7 @@ function init() {
   startPolling();  // delayed 500ms internally to let page assets load
   // Stagger data loads so they don't overlap with status polling.
   setTimeout(loadRealTracks, 1500);
+  setTimeout(() => loadRealBookletData(false), 1800);
   setTimeout(loadRealCapsules, 2500);
   // Overlay stays visible until first successful status poll (see pollStatus).
 }
@@ -2031,6 +2525,41 @@ function apiGet(path) {
   fetch(API_BASE + path).catch(() => {});
 }
 
+function adminLock() {
+  fetch(API_BASE + '/api/admin/lock')
+    .then(() => {
+      S.admin = false;
+      document.body.classList.remove('admin-mode');
+      pushToast('Admin Locked', 'Administrative controls are now hidden until you unlock again.', 'info');
+      updateUI();
+    })
+    .catch(() => {
+      pushToast('Lock Failed', 'The dashboard could not lock admin mode right now.', 'warn');
+    });
+}
+
+function promptAdminUnlock() {
+  const defaultKey = S.duid || '';
+  const key = prompt('Enter device DUID to unlock admin mode:', defaultKey);
+  if (!key) return;
+  fetch(API_BASE + '/api/admin/unlock?key=' + encodeURIComponent(key))
+    .then(r => r.json())
+    .then(d => {
+      if (d && d.ok) {
+        S.admin = true;
+        document.body.classList.add('admin-mode');
+        pushToast('Admin Unlocked', 'Administrative controls are available again.', 'success');
+        updateUI();
+        pollStatus();
+      } else {
+        pushToast('Unlock Failed', 'The DUID key did not match this device.', 'error');
+      }
+    })
+    .catch(() => {
+      pushToast('Unlock Failed', 'The dashboard could not reach the admin unlock endpoint.', 'error');
+    });
+}
+
 function apiCmd(cmd) {
   const opMap = { toggle: '01', pause: '02', next: '03', prev: '04' };
   if (cmd === 'stop') {
@@ -2072,14 +2601,19 @@ function fetchTimeout(ms) {
 let statusBusy = false;
 let featuresBusy = false;
 let statusFailCount = 0;      // consecutive failures before going mock
+let statusSuccessStreak = 0;  // consecutive healthy polls before clearing offline warning state
+let offlineSinceMs = 0;
+let offlineToastCooldownUntil = 0;
 const MOCK_THRESHOLD = 3;     // 3 consecutive fails → mock mode
+const STATUS_RECOVERY_POLLS = 3;
+const OFFLINE_TOAST_COOLDOWN_MS = 30000;
 
 function startPolling() {
   // Short delay lets page assets (HTML/CSS/JS) finish loading before API calls.
   // ESP32 has ~5 AsyncTCP sockets — avoids flooding during page load.
   setTimeout(function() {
     pollStatus();
-    statusTimer = setInterval(pollStatus, 2000);  // 2s status poll
+    statusTimer = setInterval(pollStatus, 2500);  // softer cadence reduces ESP32 poll flapping
   }, 500);
 }
 
@@ -2089,10 +2623,22 @@ function pollStatus() {
   fetch(API_BASE + '/api/status', { signal: fetchTimeout(3000) })
     .then(r => r.json())
     .then(d => {
+      const prevRuntime = {
+        bootState: S.bootState,
+        sdState: S.sdState,
+        uploadState: S.uploadState,
+        degradedReason: S.degradedReason,
+        httpMode: S.httpMode
+      };
       statusBusy = false;
       statusFailCount = 0;     // reset on success
+      statusSuccessStreak++;
       S.mock = false;
       S.connected = true;
+      if (statusSuccessStreak >= STATUS_RECOVERY_POLLS) {
+        offlineSinceMs = 0;
+        delete S._toastCache.offline;
+      }
       // Hide connecting overlay on first successful poll
       var _ov = document.getElementById('connectOverlay');
       if (_ov && !_ov.classList.contains('hidden')) {
@@ -2115,7 +2661,7 @@ function pollStatus() {
       S.eq = d.audio?.eq ?? 'flat';
       S.battPercent = d.battery?.percent ?? 0;
       S.battCharging = d.battery?.charging ?? false;
-      S.deviceName = 'DPA-Portal';
+      S.deviceName = d.duid || d.name || 'Portal Console';
       S.duid = d.duid ?? '';
       S.battVoltage = d.battery?.voltage ?? 0;
       S.fwVersion = d.ver ?? '--';
@@ -2123,6 +2669,15 @@ function pollStatus() {
       S.portalUrl = d.portalUrl ?? 'http://192.168.4.1';
       S.creatorUrl = d.creatorUrl ?? 'http://192.168.4.1';
       S.uptime = d.uptime_s ?? 0;
+      S.bootState = d.bootState || 'ready';
+      S.sdState = d.sdState || (d.storage?.sdMounted ? 'mounted' : 'unknown');
+      S.uploadState = d.uploadState || 'idle';
+      S.degradedReason = d.degradedReason || '';
+      S.httpMode = d.httpMode || 'full';
+      S.wifiMaintenance = d.wifiMaintenance || 'normal';
+      S.audioVerified = d.audioVerified === true;
+      S.lastUploadPath = d.lastUploadPath || '';
+      S.lastUploadBytes = d.lastUploadBytes || 0;
       if (d.led) {
         const idleState = d.led.idle || {};
         const playState = d.led.playback || {};
@@ -2140,6 +2695,11 @@ function pollStatus() {
       }
       updateUI();
       updateConnectionDot();
+      emitRuntimeNotifications(prevRuntime);
+      const uploadWasBusy = ['preparing', 'receiving', 'verifying', 'finalizing'].includes(prevRuntime.uploadState);
+      if ((uploadWasBusy || prevRuntime.uploadState === 'error') && ['idle', 'complete'].includes(S.uploadState)) {
+        loadRealBookletData(true);
+      }
       // Start/stop features polling — 250ms (was 100ms, 4x less load)
       if (S.playing && !featuresTimer) {
         featuresTimer = setInterval(pollFeatures, 1000);  // 1s — prevents socket exhaustion on ESP32
@@ -2153,8 +2713,19 @@ function pollStatus() {
     .catch(() => {
       statusBusy = false;
       statusFailCount++;
+      statusSuccessStreak = 0;
+      if (!offlineSinceMs) offlineSinceMs = Date.now();
+      if (featuresTimer) {
+        clearInterval(featuresTimer);
+        featuresTimer = null;
+      }
       if (statusFailCount >= MOCK_THRESHOLD) {
         S.mock = true;               // only go mock after 3 consecutive failures
+        S.connected = false;
+        if (!S._toastCache.offline && Date.now() >= offlineToastCooldownUntil) {
+          offlineToastCooldownUntil = Date.now() + OFFLINE_TOAST_COOLDOWN_MS;
+          pushToast('Connection Lost', 'The live device stopped answering. The dashboard is holding the last known state.', 'warn', 'offline');
+        }
       }
       if (S.playing) mockAdvancePosition();
       updateUI();
@@ -2207,10 +2778,12 @@ function updateUI() {
   updateVolume();
   updateBattery();
   updateDeviceInfo();
+  updateRuntimeHud();
+  updateRuntimeDetail();
   updateLedMirror();
   updateEqPills();
   syncHeartStates();
-  document.getElementById('deviceName').textContent = S.deviceName;
+  document.getElementById('deviceNameMeta').textContent = S.deviceName;
   // Always refresh album info — device metadata can render without tracks
   updateAlbumSummary();
   if (S._metaDirty) {
@@ -2219,6 +2792,7 @@ function updateUI() {
     window.__heroKey = null; // invalidate idempotency cache
     updateHeroCover(true);
     if (typeof mountBookletCoverFromSd === 'function') mountBookletCoverFromSd();
+    loadRealBookletData(true);
   }
 }
 
@@ -2498,6 +3072,8 @@ function updateDeviceInfo() {
   document.getElementById('fwVersion').textContent = 'v' + S.fwVersion;
   document.getElementById('devStorage').textContent = S.storage.usedMB + ' / ' + S.storage.totalMB + ' MB';
   document.getElementById('devUptime').textContent = fmtUptime(S.uptime);
+  const unlockDuid = document.getElementById('adminUnlockDuid');
+  if (unlockDuid) unlockDuid.textContent = S.duid || '--';
   // Mesh
   document.getElementById('meshStatus').textContent = S.mesh.enabled ? 'Connected' : 'Disabled';
   document.getElementById('meshRole').textContent = S.mesh.role ? ('Role: ' + S.mesh.role) : '';
@@ -2514,6 +3090,235 @@ function updateDeviceInfo() {
 function updateConnectionDot() {
   const dot = document.getElementById('connDot');
   dot.classList.toggle('offline', !S.connected);
+}
+
+function labelizeRuntime(value) {
+  if (!value) return '--';
+  return String(value).replace(/_/g, ' ');
+}
+
+function runtimeMessageSummary() {
+  if (!S.connected) {
+    return {
+      title: 'Connection',
+      body: 'Live status is unavailable right now. The dashboard is holding the latest known device state.',
+      subline: 'Reconnect to the DPA AP or wait for the device to finish rebooting.',
+      tone: 'warn'
+    };
+  }
+
+  if (['preparing', 'receiving', 'verifying', 'finalizing'].includes(S.uploadState)) {
+    return {
+      title: 'Upload Mode',
+      body: S.httpMode === 'minimal'
+        ? 'Large transfer in progress. Minimal status stays online while heavy playback controls stay paused.'
+        : 'Large transfer in progress. Full control will resume once the device finalizes the write.',
+      subline: S.lastUploadPath
+        ? `${S.lastUploadPath} • ${Math.round((S.lastUploadBytes || 0) / 1024)} KB committed`
+        : 'Waiting for finalization.',
+      tone: 'info'
+    };
+  }
+
+  if (S.uploadState === 'error') {
+    return {
+      title: 'Upload Alert',
+      body: 'The last transfer did not finalize cleanly on-device. Recheck storage state before retrying.',
+      subline: S.lastUploadPath || 'No finalized path reported.',
+      tone: 'error'
+    };
+  }
+
+  if (S.bootState === 'booting') {
+    return {
+      title: 'Booting',
+      body: 'The DPA is validating SD, audio, WiFi, and HTTP readiness before it declares itself ready.',
+      subline: 'Playback and ingest may stay limited until boot completes.',
+      tone: 'info'
+    };
+  }
+
+  if (S.bootState === 'degraded') {
+    let body = 'The device is online in a degraded state.';
+    if (S.degradedReason === 'sd_unavailable') body = 'SD storage is unavailable. Tracks, cover art, and booklet data may be missing until storage recovers.';
+    if (S.degradedReason === 'audio_unverified') body = 'Audio hardware did not verify cleanly at boot. Treat playback as unavailable until the path recovers.';
+    if (S.degradedReason === 'upload_failed') body = 'The last upload failed final verification. Wait for idle, then retry the transfer.';
+    return {
+      title: 'Degraded Mode',
+      body,
+      subline: S.degradedReason ? `Reason: ${labelizeRuntime(S.degradedReason)}` : 'No explicit degraded reason was reported.',
+      tone: 'warn'
+    };
+  }
+
+  return {
+    title: 'Ready',
+    body: S.audioVerified
+      ? 'Device is ready. Runtime health, transfers, and storage status will update here live.'
+      : 'Device is ready, but audio hardware has not been verified yet.',
+    subline: `WiFi maintenance: ${labelizeRuntime(S.wifiMaintenance)} • HTTP mode: ${labelizeRuntime(S.httpMode)}`,
+    tone: S.audioVerified ? 'success' : 'warn'
+  };
+}
+
+function setHudChip(id, text, tone) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'runtime-chip ' + (tone || '');
+  const span = el.querySelector('span:last-child');
+  if (span) span.textContent = text;
+}
+
+function runtimeHudSummary() {
+  if (!S.connected) {
+    return {
+      title: 'Connection paused',
+      meta: 'Reconnect to the DPA network to restore live device updates.',
+      tone: 'warn'
+    };
+  }
+
+  if (['preparing', 'receiving', 'verifying', 'finalizing'].includes(S.uploadState)) {
+    return {
+      title: 'Sync in progress',
+      meta: 'Keep this page open while the release is being written to the device.',
+      tone: 'info'
+    };
+  }
+
+  if (S.uploadState === 'error') {
+    return {
+      title: 'Sync needs attention',
+      meta: 'The last transfer did not verify cleanly. Retry from the creator portal.',
+      tone: 'error'
+    };
+  }
+
+  if (S.bootState === 'degraded') {
+    return {
+      title: 'Device needs attention',
+      meta: S.degradedReason ? `Reason: ${labelizeRuntime(S.degradedReason)}` : 'Some device services are limited right now.',
+      tone: 'warn'
+    };
+  }
+
+  if (S.bootState !== 'ready') {
+    return {
+      title: 'Preparing device',
+      meta: 'Runtime services are still coming online.',
+      tone: 'info'
+    };
+  }
+
+  return {
+    title: 'Ready to play',
+    meta: `Storage ${labelizeRuntime(S.sdState)} • Link ${S.httpMode === 'full' ? 'live' : labelizeRuntime(S.httpMode)}`,
+    tone: S.audioVerified ? 'success' : 'warn'
+  };
+}
+
+function hudValue(kind, value) {
+  if (kind === 'boot') {
+    if (value === 'ready') return 'ready';
+    if (value === 'degraded') return 'attention';
+    if (value === 'booting') return 'starting';
+  }
+  if (kind === 'upload') {
+    if (value === 'idle') return 'standing by';
+    if (value === 'complete') return 'done';
+    if (value === 'error') return 'retry';
+  }
+  if (kind === 'sd') {
+    if (value === 'mounted') return 'ready';
+    if (value === 'error') return 'missing';
+  }
+  if (kind === 'http') {
+    if (value === 'full') return 'live';
+    if (value === 'minimal') return 'sync mode';
+  }
+  return labelizeRuntime(value);
+}
+
+function updateRuntimeHud() {
+  const summary = runtimeHudSummary();
+  const dot = document.getElementById('runtimeHudDot');
+  if (dot) dot.className = 'runtime-dot ' + (summary.tone || 'info');
+  const title = document.getElementById('runtimeHudTitle');
+  if (title) title.textContent = summary.title;
+  const meta = document.getElementById('runtimeHudMeta');
+  if (meta) meta.textContent = summary.meta;
+  setHudChip('chipBoot', hudValue('boot', S.bootState), S.bootState === 'ready' ? 'success' : (S.bootState === 'degraded' ? 'warn' : 'info'));
+  setHudChip('chipUpload', hudValue('upload', S.uploadState), ['preparing','receiving','verifying','finalizing'].includes(S.uploadState) ? 'info' : (S.uploadState === 'error' ? 'error' : 'success'));
+  setHudChip('chipSd', hudValue('sd', S.sdState), S.sdState === 'mounted' ? 'success' : (S.sdState === 'error' ? 'error' : 'warn'));
+  setHudChip('chipHttp', hudValue('http', S.httpMode), S.httpMode === 'full' ? 'success' : 'info');
+  document.getElementById('hudBootState').textContent = hudValue('boot', S.bootState);
+  document.getElementById('hudUploadState').textContent = hudValue('upload', S.uploadState);
+  document.getElementById('hudSdState').textContent = hudValue('sd', S.sdState);
+  document.getElementById('hudHttpMode').textContent = hudValue('http', S.httpMode);
+}
+
+function updateRuntimeDetail() {
+  const summary = runtimeMessageSummary();
+  document.getElementById('runtimeDetailTitle').textContent = summary.title;
+  document.getElementById('runtimeDetailBody').textContent = summary.body;
+  document.getElementById('runtimeDetailSubline').textContent = summary.subline;
+  document.getElementById('runtimeDetailCard').style.borderColor =
+    summary.tone === 'error' ? 'rgba(244,63,94,0.25)' :
+    summary.tone === 'warn' ? 'rgba(245,158,11,0.25)' :
+    summary.tone === 'success' ? 'rgba(52,211,153,0.25)' :
+    'rgba(56,189,248,0.25)';
+}
+
+function pushToast(title, body, tone, cacheKey) {
+  if (!body) return;
+  if (cacheKey && S._toastCache[cacheKey]) return;
+  if (cacheKey) S._toastCache[cacheKey] = true;
+
+  const stack = document.getElementById('toastStack');
+  if (!stack) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'runtime-toast ' + (tone || 'info');
+  toast.innerHTML = `<div class="runtime-toast-title">${esc(title)}</div><div class="runtime-toast-body">${esc(body)}</div>`;
+  stack.prepend(toast);
+  while (stack.children.length > 3) {
+    stack.removeChild(stack.lastElementChild);
+  }
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+      if (cacheKey) delete S._toastCache[cacheKey];
+    }, 220);
+  }, 4200);
+}
+
+function emitRuntimeNotifications(prev) {
+  if (!S._statusInitialized) {
+    S._statusInitialized = true;
+    return;
+  }
+
+  if (prev.bootState !== S.bootState) {
+    if (S.bootState === 'booting') pushToast('Booting', 'The DPA is validating storage, audio, WiFi, and HTTP readiness.', 'info', 'booting');
+    if (S.bootState === 'degraded') pushToast('Degraded Mode', runtimeMessageSummary().body, 'warn', 'degraded');
+    if (S.bootState === 'ready') pushToast('Ready', 'Device runtime is back in a ready state.', 'success', 'ready');
+  }
+
+  if (prev.uploadState !== S.uploadState) {
+    if (['preparing','receiving','verifying','finalizing'].includes(S.uploadState)) {
+      pushToast('Upload Mode', runtimeMessageSummary().body, 'info', 'upload-busy');
+    } else if (S.uploadState === 'complete') {
+      pushToast('Upload Complete', 'The latest transfer finalized on-device.', 'success', 'upload-complete');
+    } else if (S.uploadState === 'error') {
+      pushToast('Upload Failed', runtimeMessageSummary().body, 'error', 'upload-error');
+    }
+  }
+
+  if (prev.degradedReason !== S.degradedReason && S.degradedReason) {
+    pushToast('Runtime Alert', runtimeMessageSummary().body, 'warn', 'degraded-' + S.degradedReason);
+  }
 }
 
 function updateEqPills() {
@@ -2772,42 +3577,298 @@ function animateCapsules() {
   });
 }
 
+function resolveBookletAssetUrl(url) {
+  if (!url) return '';
+  const value = String(url).trim();
+  if (!value) return '';
+  if (/^(data:|blob:|https?:\/\/)/i.test(value)) return value;
+  if (value.startsWith('//')) return window.location.protocol + value;
+  return value;
+}
+
+function fmtSampleRate(sampleRate) {
+  if (!sampleRate) return '';
+  const khz = sampleRate / 1000;
+  return (Math.round(khz * 10) / 10).toString().replace(/\.0$/, '') + 'kHz';
+}
+
+function fmtBookletDate(value) {
+  if (!value) return '';
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return value;
+  return new Date(parsed).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function buildBookletPills() {
+  const meta = S.albumMeta || {};
+  const pills = [];
+  if (meta.genre) pills.push(`<span class="booklet-pill">${esc(meta.genre)}</span>`);
+  if (meta.recordLabel) pills.push(`<span class="booklet-pill">${esc(meta.recordLabel)}</span>`);
+  if (meta.releaseDate) pills.push(`<span class="booklet-pill">${esc(fmtBookletDate(meta.releaseDate))}</span>`);
+  if (meta.parentalAdvisory) pills.push('<span class="booklet-pill">Parental Advisory</span>');
+  return pills.join('');
+}
+
+function buildBookletInfoCards() {
+  const meta = S.albumMeta || {};
+  const cards = [];
+  const totalMs = S.tracks.reduce((sum, track) => sum + (track.durationMs || 0), 0);
+  if (meta.recordLabel) cards.push({ label: 'Label', value: meta.recordLabel });
+  if (meta.releaseDate) cards.push({ label: 'Release', value: fmtBookletDate(meta.releaseDate) });
+  if (meta.copyright) cards.push({ label: 'Copyright', value: meta.copyright });
+  if (meta.upcCode) cards.push({ label: 'UPC', value: meta.upcCode });
+  if (S.tracks.length) cards.push({ label: 'Tracks', value: String(S.tracks.length) });
+  if (totalMs > 0) cards.push({ label: 'Runtime', value: fmtTime(totalMs) });
+  if (!cards.length) return '';
+  return `<div class="booklet-info-grid">${cards.map((item) => `
+    <div class="booklet-info-card">
+      <div class="booklet-info-card-label">${esc(item.label)}</div>
+      <div class="booklet-info-card-value">${esc(item.value)}</div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function buildBookletGalleryMarkup() {
+  const gallery = (S.bookletData && S.bookletData.booklet && S.bookletData.booklet.gallery) || [];
+  if (!gallery.length) {
+    return '<div class="booklet-empty">No gallery images have been uploaded for this release yet.</div>';
+  }
+  return `<div class="booklet-gallery">${gallery.map((image, index) => {
+    const src = resolveBookletAssetUrl(image);
+    if (!src) return '';
+    return `<div class="booklet-thumb"><img src="${esc(src)}" alt="Gallery image ${index + 1}" loading="lazy"></div>`;
+  }).join('')}</div>`;
+}
+
+function buildBookletVideosMarkup() {
+  const videos = (S.bookletData && S.bookletData.booklet && S.bookletData.booklet.videos) || [];
+  if (!videos.length) {
+    return '<div class="booklet-empty">No booklet videos have been uploaded yet.</div>';
+  }
+  return `<div class="booklet-video-grid">${videos.map((video, index) => {
+    const poster = resolveBookletAssetUrl(video.poster);
+    return `<div class="booklet-video-card">
+      <div class="booklet-video-thumb">${poster ? `<img src="${esc(poster)}" alt="${esc(video.title || ('Video ' + (index + 1)))}" loading="lazy">` : ''}</div>
+      <div class="booklet-video-body">
+        <div class="booklet-video-title">${esc(video.title || ('Video ' + (index + 1)))}</div>
+        <div class="booklet-video-url">${esc(video.url || 'No video URL uploaded yet.')}</div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
 // ── Booklet Track Notes ──────────────────────────────────────
 function buildBookletTrackNotes() {
-  const container = document.getElementById('bookletTrackNotes');
-  if (!container) return;
-  container.innerHTML = S.tracks.map((t, i) => {
-    const note = MOCK_TRACK_NOTES[i] || 'No notes available for this track.';
+  if (!S.tracks.length) {
+    return '<div class="booklet-empty">No track listing is available until the album files finish loading from the device.</div>';
+  }
+  return `<div class="booklet-track-grid">${S.tracks.map((t, i) => {
+    const chips = [];
+    if (t.bitsPerSample || t.sampleRate) {
+      chips.push(`${t.bitsPerSample || 24}-bit${t.sampleRate ? ' / ' + fmtSampleRate(t.sampleRate) : ''}`);
+    }
+    if (t.durationMs) chips.push(fmtTime(t.durationMs));
+    if (t.file) chips.push(t.file.split('/').pop() || t.file);
     return `<div class="booklet-track-note glass">
       <div class="booklet-track-note-num">Track ${i + 1}</div>
       <div class="booklet-track-note-title">${esc(t.title)}</div>
-      <div class="booklet-track-note-text">${esc(note)}</div>
+      <div class="booklet-track-note-text">${esc(t.artist || S.deviceArtist || 'Artist')}</div>
+      <div class="booklet-track-note-meta">${chips.map((chip) => `<span class="booklet-track-chip">${esc(chip)}</span>`).join('')}</div>
     </div>`;
-  }).join('');
+  }).join('')}</div>`;
+}
+
+function renderBookletPages() {
+  const track = document.getElementById('bookletTrack');
+  if (!track) return;
+  const booklet = S.bookletData || { description: '', lyrics: '', booklet: { credits: '', gallery: [], videos: [] } };
+  const meta = S.albumMeta || {};
+  const firstTrack = S.tracks[0] || {};
+  const albumTitle = S.deviceAlbum || firstTrack.title || 'DPA™ Album';
+  const albumArtist = S.deviceArtist || firstTrack.artist || 'Artist';
+  const pills = buildBookletPills();
+  const infoCards = buildBookletInfoCards();
+  const description = booklet.description || '';
+  const credits = booklet.booklet && booklet.booklet.credits ? booklet.booklet.credits : '';
+  const lyrics = booklet.lyrics || '';
+  const gallery = booklet.booklet && Array.isArray(booklet.booklet.gallery) ? booklet.booklet.gallery : [];
+  const videos = booklet.booklet && Array.isArray(booklet.booklet.videos) ? booklet.booklet.videos : [];
+  const pages = [];
+
+  pages.push(`
+    <div class="booklet-page">
+      <div class="booklet-page-inner">
+        <div class="booklet-page-label">Cover</div>
+        <div class="booklet-sheet">
+          <div class="booklet-spread booklet-spread--cover">
+            <div class="booklet-cover">
+              <div id="bookletArt"></div>
+            </div>
+            <div class="booklet-title-section">
+              <div class="booklet-kicker">Digital Playback Asset</div>
+              <div class="booklet-album-title" id="bookletAlbumTitle">${esc(albumTitle)}</div>
+              <div class="booklet-album-artist" id="bookletAlbumArtist">${esc(albumArtist)}</div>
+              ${pills ? `<div class="booklet-meta-pills">${pills}</div>` : ''}
+              ${infoCards}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+
+  pages.push(`
+    <div class="booklet-page">
+      <div class="booklet-page-inner">
+        <div class="booklet-page-label">Liner Notes</div>
+        <div class="booklet-sheet">
+          <div class="booklet-spread booklet-spread--two">
+            <div>
+              <div class="booklet-section-title">Album Notes</div>
+              <div class="booklet-liner glass">
+                <div class="booklet-body">${description ? esc(description) : 'No liner notes uploaded yet. Add album notes from the creator portal to fill this page.'}</div>
+              </div>
+            </div>
+            <div>
+              <div class="booklet-section-title">Release Metadata</div>
+              ${infoCards || '<div class="booklet-empty">No extended album metadata uploaded yet.</div>'}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+
+  pages.push(`
+    <div class="booklet-page">
+      <div class="booklet-page-inner">
+        <div class="booklet-page-label">Credits & Details</div>
+        <div class="booklet-sheet">
+          <div class="booklet-spread booklet-spread--two">
+            <div>
+              <div class="booklet-section-title">Release Credits</div>
+              <div class="booklet-credits glass" id="bookletCredits">
+                <div class="credit-row">
+                  <span class="credit-role">Artist</span>
+                  <span class="credit-name" id="creditArtist">${esc(albumArtist)}</span>
+                </div>
+                <div class="credit-row">
+                  <span class="credit-role">Album</span>
+                  <span class="credit-name" id="creditAlbum">${esc(albumTitle)}</span>
+                </div>
+                ${meta.recordLabel ? `<div class="credit-row"><span class="credit-role">Label</span><span class="credit-name">${esc(meta.recordLabel)}</span></div>` : ''}
+                ${meta.releaseDate ? `<div class="credit-row"><span class="credit-role">Release Date</span><span class="credit-name">${esc(fmtBookletDate(meta.releaseDate))}</span></div>` : ''}
+                ${meta.upcCode ? `<div class="credit-row"><span class="credit-role">UPC</span><span class="credit-name">${esc(meta.upcCode)}</span></div>` : ''}
+                ${!meta.recordLabel && !meta.releaseDate && !meta.upcCode ? '<div class="booklet-body booklet-credit-prose" style="margin-top:14px">Label, release, and production metadata will appear here after sync.</div>' : ''}
+              </div>
+            </div>
+            <div>
+              <div class="booklet-section-title">Production Notes</div>
+              ${credits ? `<div class="booklet-credits glass"><div class="booklet-body booklet-credit-prose">${esc(credits)}</div></div>` : '<div class="booklet-empty">No written credits uploaded yet.</div>'}
+              ${meta.copyright ? `<div class="booklet-credits glass" style="margin-top:14px"><div class="booklet-section-title">Copyright</div><div class="booklet-body booklet-credit-prose">${esc(meta.copyright)}</div></div>` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+
+  pages.push(`
+    <div class="booklet-page">
+      <div class="booklet-page-inner">
+        <div class="booklet-page-label">Lyrics</div>
+        <div class="booklet-sheet">
+          <div class="booklet-section-title">Lyrics & Notes</div>
+          <div class="booklet-liner glass">
+            <div class="booklet-body booklet-lyrics">${lyrics ? esc(lyrics) : 'No lyrics uploaded yet. Sync lyrics from the creator portal to populate this section.'}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+
+  pages.push(`
+    <div class="booklet-page">
+      <div class="booklet-page-inner">
+        <div class="booklet-page-label">Track Listing</div>
+        <div class="booklet-sheet">
+          <div class="booklet-section-title">Tracks</div>
+          <div id="bookletTrackNotes">${buildBookletTrackNotes()}</div>
+        </div>
+      </div>
+    </div>
+  `);
+
+  if (gallery.length) {
+    pages.push(`
+      <div class="booklet-page">
+        <div class="booklet-page-inner">
+          <div class="booklet-page-label">Gallery</div>
+          <div class="booklet-sheet">
+            <div class="booklet-section-title">Gallery</div>
+            ${buildBookletGalleryMarkup()}
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
+  if (videos.length) {
+    pages.push(`
+      <div class="booklet-page">
+        <div class="booklet-page-inner">
+          <div class="booklet-page-label">Videos</div>
+          <div class="booklet-sheet">
+            <div class="booklet-section-title">Video Links</div>
+            ${buildBookletVideosMarkup()}
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
+  track.innerHTML = pages.join('');
+  updateAlbumSummary();
+  mountBookletCoverFromSd();
+  initBookletSwiper();
 }
 
 // ── Booklet Swiper (touch swipe pages) ──────────────────────
 let bookletPage = 0;
 let bookletPageCount = 0;
+let bookletSwiperReady = false;
+
+function rebuildBookletPager() {
+  const track = document.getElementById('bookletTrack');
+  const dots = document.getElementById('bookletDots');
+  if (!track || !dots) return;
+  const pages = track.querySelectorAll('.booklet-page');
+  bookletPageCount = pages.length;
+  bookletPage = Math.min(bookletPage, Math.max(bookletPageCount - 1, 0));
+  dots.innerHTML = '';
+  for (let i = 0; i < bookletPageCount; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'booklet-dot' + (i === bookletPage ? ' active' : '');
+    dot.addEventListener('click', () => bookletGoTo(i));
+    dots.appendChild(dot);
+  }
+  bookletGoTo(bookletPage, false);
+}
+
+function bookletStep(delta) {
+  bookletGoTo(bookletPage + delta);
+}
 
 function initBookletSwiper() {
   const swiper = document.getElementById('bookletSwiper');
   const track = document.getElementById('bookletTrack');
-  const dots = document.getElementById('bookletDots');
   if (!swiper || !track) return;
-
-  const pages = track.querySelectorAll('.booklet-page');
-  bookletPageCount = pages.length;
-  bookletPage = 0;
-
-  // Build dots
-  dots.innerHTML = '';
-  for (let i = 0; i < bookletPageCount; i++) {
-    const dot = document.createElement('div');
-    dot.className = 'booklet-dot' + (i === 0 ? ' active' : '');
-    dot.addEventListener('click', () => bookletGoTo(i));
-    dots.appendChild(dot);
+  if (bookletSwiperReady) {
+    rebuildBookletPager();
+    return;
   }
+  bookletSwiperReady = true;
+  rebuildBookletPager();
 
   // Touch swipe
   let startX = 0, startY = 0, dx = 0, swiping = false, isHorizontal = null;
@@ -2826,7 +3887,6 @@ function initBookletSwiper() {
     dx = e.touches[0].clientX - startX;
     const dy = e.touches[0].clientY - startY;
 
-    // Determine scroll direction on first meaningful move
     if (isHorizontal === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
       isHorizontal = Math.abs(dx) > Math.abs(dy);
     }
@@ -2840,7 +3900,7 @@ function initBookletSwiper() {
   swiper.addEventListener('touchend', () => {
     if (!swiping || !isHorizontal) { swiping = false; return; }
     swiping = false;
-    track.style.transition = 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)';
+    track.style.transition = 'transform 0.55s cubic-bezier(0.22,1,0.36,1)';
     const threshold = swiper.offsetWidth * 0.2;
     if (dx < -threshold && bookletPage < bookletPageCount - 1) {
       bookletPage++;
@@ -2850,7 +3910,6 @@ function initBookletSwiper() {
     bookletGoTo(bookletPage);
   });
 
-  // Mouse drag for desktop
   let mouseDown = false, mStartX = 0, mDx = 0;
   swiper.addEventListener('mousedown', (e) => {
     mouseDown = true; mStartX = e.clientX; mDx = 0;
@@ -2866,7 +3925,7 @@ function initBookletSwiper() {
   swiper.addEventListener('mouseup', () => {
     if (!mouseDown) return;
     mouseDown = false;
-    track.style.transition = 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)';
+    track.style.transition = 'transform 0.55s cubic-bezier(0.22,1,0.36,1)';
     const threshold = swiper.offsetWidth * 0.2;
     if (mDx < -threshold && bookletPage < bookletPageCount - 1) bookletPage++;
     else if (mDx > threshold && bookletPage > 0) bookletPage--;
@@ -2875,26 +3934,49 @@ function initBookletSwiper() {
   swiper.addEventListener('mouseleave', () => {
     if (mouseDown) {
       mouseDown = false;
-      track.style.transition = 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)';
+      track.style.transition = 'transform 0.55s cubic-bezier(0.22,1,0.36,1)';
       bookletGoTo(bookletPage);
     }
   });
 
-  // Keyboard arrows when booklet tab is active
   document.addEventListener('keydown', (e) => {
-    if (document.getElementById('panelBooklet').style.display === 'none') return;
+    const panel = document.getElementById('panelBooklet');
+    if (!panel || !panel.classList.contains('active')) return;
     if (e.key === 'ArrowRight' && bookletPage < bookletPageCount - 1) bookletGoTo(++bookletPage);
     else if (e.key === 'ArrowLeft' && bookletPage > 0) bookletGoTo(--bookletPage);
   });
 }
 
-function bookletGoTo(idx) {
-  bookletPage = idx;
+function bookletGoTo(idx, animate) {
+  bookletPage = Math.max(0, Math.min(idx, Math.max(bookletPageCount - 1, 0)));
   const track = document.getElementById('bookletTrack');
-  track.style.transform = `translateX(-${idx * 100}%)`;
-  document.querySelectorAll('.booklet-dot').forEach((d, i) => {
-    d.classList.toggle('active', i === idx);
+  if (!track) return;
+  if (animate === false) {
+    track.style.transition = 'none';
+  } else {
+    track.style.transition = 'transform 0.55s cubic-bezier(0.22,1,0.36,1)';
+  }
+  track.style.transform = `translateX(-${bookletPage * 100}%)`;
+  const pages = track.querySelectorAll('.booklet-page');
+  pages.forEach((page, i) => {
+    page.classList.toggle('is-active', i === bookletPage);
+    page.classList.toggle('is-before', i < bookletPage);
+    page.classList.toggle('is-after', i > bookletPage);
   });
+  document.querySelectorAll('.booklet-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === bookletPage);
+  });
+  const pagerMeta = document.getElementById('bookletPagerMeta');
+  if (pagerMeta) pagerMeta.textContent = 'Page ' + (bookletPage + 1) + ' of ' + Math.max(bookletPageCount, 1);
+  const prevBtn = document.getElementById('bookletPrevBtn');
+  const nextBtn = document.getElementById('bookletNextBtn');
+  if (prevBtn) prevBtn.disabled = bookletPage <= 0;
+  if (nextBtn) nextBtn.disabled = bookletPage >= bookletPageCount - 1;
+  if (animate === false) {
+    requestAnimationFrame(() => {
+      track.style.transition = 'transform 0.55s cubic-bezier(0.22,1,0.36,1)';
+    });
+  }
 }
 
 // ── LED Strip ────────────────────────────────────────────────

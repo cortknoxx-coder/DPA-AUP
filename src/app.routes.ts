@@ -22,6 +22,7 @@ import { FanSettingsComponent } from './pages/fan-portal/fan-settings.component'
 import { FanAudioComponent } from './pages/fan-portal/fan-audio.component';
 import { FleetTrackerComponent } from './pages/fleet-tracker/fleet-tracker.component';
 import { FanAuthComponent } from './pages/fan-portal/fan-auth.component';
+import { requireCreatorPortalGuard, requireFanPortalGuard } from './guards/portal-access.guard';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -30,6 +31,7 @@ export const routes: Routes = [
   // Artist Portal
   { 
     path: 'artist',
+    canActivate: [requireCreatorPortalGuard],
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'dashboard', component: DashboardComponent },
@@ -57,6 +59,7 @@ export const routes: Routes = [
   // Fan Portal
   {
     path: 'fan',
+    canActivate: [requireFanPortalGuard],
     children: [
       { path: '', redirectTo: 'auth', pathMatch: 'full' },
       { path: 'auth', component: FanAuthComponent },

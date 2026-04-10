@@ -1,7 +1,7 @@
 
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 // FIX: Import UserProfile from the shared types file.
-import { PaymentMethod, RegionStat, TopAsset, UserProfile } from '../types';
+import { PaymentMethod, RegionStat, TopAsset, UserProfile, UserRole } from '../types';
 
 export interface Financials {
   totalEarnings: number;
@@ -16,10 +16,22 @@ export interface EarningPoint {
   amount: number;
 }
 
+export interface PortalEntitlements {
+  roles: UserRole[];
+  licenseTier: 'none' | 'fan' | 'creator' | 'dual' | 'operator';
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class UserService {
+  // Temporary scaffold until the real license/entitlement backend exists.
+  // Default to dual-role so current internal testing can still use both portals.
+  entitlements = signal<PortalEntitlements>({
+    roles: ['fan', 'creator'],
+    licenseTier: 'dual'
+  });
+
   userProfile = signal<UserProfile>({
     name: 'Jane Doe',
     artistName: '808 Dreams',
@@ -71,6 +83,42 @@ export class UserService {
   ]);
 
   constructor() {}
+
+  licensedRoles = computed(() => this.entitlements().roles);
+  licenseTier = computed(() => this.entitlements().licenseTier);
+  isDualPortalLicensed = computed(() => this.hasRole('fan') && this.hasRole('creator'));
+
+  hasRole(role: UserRole): boolean {
+    return this.licensedRoles().includes(role);
+  }
+
+  canAccessPortal(portal: 'fan' | 'creator'): boolean {
+    return this.hasRole(portal);
+  }
+
+  bestAvailableRoute(): string {
+    if (this.canAccessPortal('creator')) return '/artist/dashboard';
+    if (this.canAccessPortal('fan')) return '/fan';
+    return '/login';
+  }
+
+  deniedPortalRedirect(portal: 'fan' | 'creator'): string {
+    const fallback = this.bestAvailableRoute();
+    if (portal === 'creator' && this.canAccessPortal('fan')) return '/fan';
+    if (portal === 'fan' && this.canAccessPortal('creator')) return '/artist/dashboard';
+    return fallback;
+  }
+
+  portalAccessMessage(portal: 'fan' | 'creator'): string {
+    return portal === 'creator'
+      ? 'Creator access requires a creator or dual-role license.'
+      : 'Fan access requires a fan or dual-role license.';
+  }
+
+  setEntitlements(entitlements: PortalEntitlements) {
+    const roles = Array.from(new Set(entitlements.roles));
+    this.entitlements.set({ ...entitlements, roles });
+  }
 
   updateProfile(profile: UserProfile) {
     this.userProfile.set(profile);

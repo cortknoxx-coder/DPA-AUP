@@ -268,3 +268,105 @@ c2774e9 Fix player bar overlapping content
 5. **FAT32 filenames can't have spaces** reliably on the ESP32 SD library — sanitize everything
 6. **32-bit float WAV is common in production audio** — don't assume all WAVs are PCM integer
 7. **The DPAC uploader pattern works** — synchronous server, persistent file handle, 8KB staging buffer, 4-retry writes, no background tasks
+
+---
+
+## Update: April 10, 2026 Stop Point
+
+### This pass focused on:
+- hardening and calming the on-device dashboard UX
+- completing booklet structure on `192.168.4.1`
+- fixing cover-art pathing and portal sync behavior
+- reflashing and validating the firmware on real hardware
+
+### Major additions in this pass
+- Fixed the repeating `Connection Lost` toast loop on the device dashboard by
+  adding poll stability/cooldown behavior.
+- Added explicit booklet next/previous controls for desktop and mobile.
+- Expanded booklet rendering so liner notes, credits/details, lyrics, gallery,
+  and videos can all render from live device payloads when present.
+- Refined booklet typography and general dashboard visual weight so the UI feels
+  less oversized and less debug-like.
+- Moved the on-device runtime HUD away from the top hero area and restyled it as
+  a bottom status dock with more product-style language.
+
+### Cover-art / portal sync corrections
+- Corrected `DeviceConnectionService` so synced album artwork is no longer
+  overwritten with a temporary device URL.
+- Added stable cover caching from the device back into portal album state.
+- Updated creator/fan cover fallback logic to prefer real synced artwork first.
+- Replaced broken file-based default cover fallback with an inline SVG fallback
+  that cannot 404 during local app usage.
+
+### Hardware validation from this pass
+- Firmware rebuilt successfully after the latest dashboard changes.
+- Firmware flashed successfully to `/dev/cu.usbmodem101`.
+- Post-flash direct device validation confirmed:
+  - `/api/status` reachable
+  - `bootState: ready`
+  - `sdState: mounted`
+  - `uploadState: idle`
+  - `/api/art?path=/art/cover.jpg` returns `200`
+  - cover art reports real `coverBytes`
+  - `/api/booklet` returns JSON
+
+### Known blockers at stop point
+- Local dev-server proxy requests to `192.168.4.1` are still failing from the
+  Node/Vite process even though direct host requests succeed.
+- Because of that, localhost creator/fan validation still falls back to mock or
+  default presentation rather than fully proving live device-backed sync in the
+  browser session.
+- `/api/album/meta` firmware route exists, but the current validated device did
+  not have the SD-backed metadata file present at this stop point.
+
+### Recommended next steps
+1. Add a creator-side release compile / preflight preview before rebuild.
+2. Add creator-side push verification/read-back against the DPA after save.
+3. Resolve localhost proxy reachability to `192.168.4.1`.
+4. Re-validate creator and fan portals against live device data after proxy
+   recovery.
+
+## Update: April 10, 2026 Checkpoint Refresh
+
+### This checkpoint focused on
+- hardening the AP/portal connection path so joining the DPA SSID feels immediate
+- removing redundant reconnect prompts when the device is already reachable
+- validating the fixed path on live hardware instead of only through code review
+
+### Hardening that landed
+- Added shared/throttled status reads in `DeviceWifiService` so portal features
+  stop hammering the ESP32 with duplicate `/api/status` requests.
+- Changed WiFi connect flow to establish the link first, then hydrate heavier
+  album/booklet/cover/capsule state in the background.
+- Reduced extra WiFi polling pressure from the player path by reusing fresher
+  shared status instead of acting like a second independent poll loop.
+- Added explicit `Cache-Control: no-store` and `Connection: close` handling on
+  firmware status responses to free sockets faster on the device.
+
+### Live validation from this checkpoint
+- Direct AP validation succeeded after a clean device replug:
+  - `http://192.168.4.1/api/status` -> `200`
+  - `http://192.168.4.1:81/api/status` -> `200`
+  - both returned `bootState: ready`, `httpMode: full`, `duid: DPA-EB95`
+- Local dev proxy validation succeeded:
+  - `http://127.0.0.1:4200/dpa-api/api/status` -> `200`
+  - `http://127.0.0.1:4200/dpa-upload/api/status` -> `200`
+- Proxy stress test passed `15/15` consecutive status requests with no failures.
+- Creator portal validation succeeded on live hardware:
+  - opening the creator portal with the DPA already on the SSID auto-detected the
+    device immediately
+  - the creator nav status showed `WiFi Direct` without a manual reconnect
+  - `Detect Current Connection` completed without dropping state or surfacing an error
+
+### What changed versus the earlier stop point
+- The localhost proxy/device path is now verified working live.
+- The creator portal no longer requires the user to reconnect when the DPA is
+  already reachable over the local AP.
+- The connection bottleneck shifted from "proxy is failing" to "USB-C and NFC
+  still need the same level of live validation."
+
+### Remaining follow-up
+1. Run the same live validation pass for USB-C bridge detection/reconnect.
+2. Run live NFC validation on supported Android Chrome hardware.
+3. Build the creator-side release compile preview / preflight panel.
+4. Build creator-side push verification / device read-back after save.

@@ -7,6 +7,7 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
 import { UserService } from '../../services/user.service';
 import { CartService } from '../../services/cart.service';
 import { MarketplaceListing } from '../../types';
+import { BrandMarkComponent } from '../../components/brand-mark/brand-mark.component';
 
 interface TradeOffer {
   id: string;
@@ -25,7 +26,7 @@ interface TradeOffer {
 @Component({
   selector: 'app-fan-marketplace',
   standalone: true,
-  imports: [CommonModule, CurrencyPipe, FormsModule],
+  imports: [CommonModule, CurrencyPipe, FormsModule, BrandMarkComponent],
   templateUrl: './fan-marketplace.component.html',
 })
 export class FanMarketplaceComponent {

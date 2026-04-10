@@ -5,8 +5,26 @@ import { RouterLink } from '@angular/router';
 import { DataService } from '../../services/data.service';
 import { PlayerService, PlayerTrack } from '../../services/player.service';
 import { DeviceBridgeService } from '../../services/device-bridge.service';
-import { Manifest } from '../../types';
+import { Album, Manifest, Theme } from '../../types';
 import { DeviceConnectionService } from '../../services/device-connection.service';
+import { DEFAULT_COVER_DATA_URL } from '../../default-cover';
+
+const FALLBACK_THEME: Theme = {
+  albumColor: { primary: '#4f46e5', accent: '#06b6d4', background: '#020617' },
+  led: {
+    idle: { color: '#4f46e5', pattern: 'breathing' },
+    playback: { color: '#06b6d4', pattern: 'vu_classic' },
+    charging: { color: '#ffcc33', pattern: 'breathing' },
+  },
+  dcnp: {
+    concert: '#ff4bcb',
+    video: '#00f1df',
+    merch: '#ffcc33',
+    signing: '#7d29ff',
+    remix: '#ff4500',
+    other: '#ffffff',
+  },
+};
 
 @Component({
   selector: 'app-fan-album-detail',
@@ -20,12 +38,13 @@ export class FanAlbumDetailComponent {
   private connectionService = inject(DeviceConnectionService);
   private wifi = this.connectionService.wifi;
   playerService = inject(PlayerService);
+  defaultCover = DEFAULT_COVER_DATA_URL;
 
   @Input() id!: string;
 
   // Use dataService for metadata, fall back to deviceLibrary info for firmware albums.
   // When WiFi-connected, prefer device-reported artist/album over mock DataService.
-  albumMetadata = computed(() => {
+  albumMetadata = computed<Album | null>(() => {
     const fromData = this.dataService.getAlbum(this.id)();
 
     // Pull live artist/album from device status when WiFi connected
@@ -51,14 +70,19 @@ export class FanAlbumDetailComponent {
       return {
         id: '0',
         albumId: libAlbum.id,
+        artistId: 'device',
         title: deviceAlbum || libAlbum.title,
         artistName: deviceArtist || 'Artist',
+        skuType: 'premium',
+        status: 'ready',
+        dpacVersion: 1,
+        themeJson: FALLBACK_THEME,
         genre: 'Audio',
         releaseDate: new Date().toISOString(),
         tracks: [],
+        dcnpEvents: [],
+        booklet: { credits: '', gallery: [], videos: [] },
         artworkUrl: libAlbum.artworkUrl || '',
-        status: 'published' as const,
-        version: 1,
       };
     }
     return null;
@@ -68,6 +92,18 @@ export class FanAlbumDetailComponent {
 
   activeSection = signal('tracks');
   usingLiveDeviceTracks = computed(() => this.connectionService.connectionStatus() === 'wifi');
+  galleryImages = computed(() => this.albumMetadata()?.booklet?.gallery || []);
+  bookletVideos = computed(() => this.albumMetadata()?.booklet?.videos || []);
+  hasExtendedContent = computed(() => {
+    const album = this.albumMetadata();
+    return !!(
+      album?.description ||
+      album?.lyrics ||
+      album?.booklet?.credits ||
+      album?.booklet?.gallery?.length ||
+      album?.booklet?.videos?.length
+    );
+  });
 
   trackPlayCounts = signal<Record<string, number>>({});
 
@@ -87,10 +123,12 @@ export class FanAlbumDetailComponent {
 
   /** Album cover URL from device (fallback for tracks without per-track art) */
   albumCoverUrl = computed(() => {
+    const localArtwork = this.albumMetadata()?.artworkUrl || '';
+    if (localArtwork) return localArtwork;
     if (this.connectionService.connectionStatus() === 'wifi') {
       return this.wifi.coverArtUrl('/art/cover.jpg');
     }
-    return this.albumMetadata()?.artworkUrl || '';
+    return '';
   });
 
   constructor() {
@@ -223,7 +261,7 @@ export class FanAlbumDetailComponent {
     if (!m) return;
     
     const albumMeta = this.albumMetadata();
-    const coverUrl = (albumMeta as any)?.artworkUrl || '/assets/dpa-default-cover.png';
+    const coverUrl = (albumMeta as any)?.artworkUrl || DEFAULT_COVER_DATA_URL;
     const playerTrack: PlayerTrack = {
       id: track.trackId,
       title: track.title,

@@ -339,10 +339,23 @@ export class AlbumMetadataComponent {
     if (this.connectionService.connectionStatus() === 'wifi') {
       const artist = (this.form.value.artistName || '').toString().trim();
       const title  = (this.form.value.title || '').toString().trim();
+      const albumMetaPayload = {
+        genre: (this.form.value.genre || '').toString().trim(),
+        recordLabel: (this.form.value.recordLabel || '').toString().trim(),
+        copyright: (this.form.value.copyright || '').toString().trim(),
+        releaseDate: (this.form.value.releaseDate || '').toString().trim(),
+        upcCode: (this.form.value.upcCode || '').toString().trim(),
+        parentalAdvisory: !!this.form.value.parentalAdvisory,
+      };
       const result = await this.connectionService.wifi.pushMetadata(artist, title);
       if (result.ok) {
-        this.saveStatus.set('ok');
-        this.saveMessage.set('✓ Metadata saved + pushed to device.');
+        const albumMetaOk = await this.connectionService.wifi.pushAlbumMeta(albumMetaPayload);
+        this.saveStatus.set(albumMetaOk ? 'ok' : 'error');
+        this.saveMessage.set(
+          albumMetaOk
+            ? '✓ Metadata saved + pushed to device.'
+            : 'Metadata saved locally and SSID updated, but extended album metadata did not reach the device.'
+        );
         // Read back so the "device says" state matches what we just wrote
         await this.syncFromDevice();
       } else {
@@ -779,11 +792,19 @@ export class AlbumBookletComponent {
   bookletPage = signal(0);
   readonly totalBookletPages = 4; // Cover, Tracks, Credits, Notes
 
+  private connectionService = inject(DeviceConnectionService);
+
   previewCover = computed(() => {
+    const a = this.album();
+    if (a?.artworkUrl) return a.artworkUrl;
+    if (this.connectionService.connectionStatus() === 'wifi') {
+      const deviceUrl = this.connectionService.wifi.coverArtUrl('/art/cover.jpg');
+      if (deviceUrl) return deviceUrl;
+    }
     const vals = this.formValues();
     const gallery = vals?.bookletGallery as string[] | undefined;
     if (gallery && gallery.length > 0) return gallery[0];
-    return 'https://picsum.photos/seed/placeholder/400/400';
+    return '';
   });
 
   get bookletVideos() { return this.form.get('bookletVideos') as FormArray; }
@@ -839,8 +860,23 @@ export class AlbumBookletComponent {
         booklet: { credits: val.bookletCredits, gallery: gallery, videos: videos }
       };
       this.dataService.updateAlbumMetadata(a.albumId, metadata);
-      alert('Booklet saved!');
-      this.form.markAsPristine();
+      const finish = (message: string) => {
+        alert(message);
+        this.form.markAsPristine();
+      };
+      if (this.connectionService.connectionStatus() === 'wifi') {
+        this.connectionService.wifi.pushBookletData({
+          description: val.description || '',
+          lyrics: val.lyrics || '',
+          booklet: { credits: val.bookletCredits || '', gallery, videos }
+        }).then((ok) => {
+          finish(ok ? 'Booklet saved locally and pushed to device.' : 'Booklet saved locally, but device booklet sync failed.');
+        }).catch(() => {
+          finish('Booklet saved locally, but device booklet sync failed.');
+        });
+        return;
+      }
+      finish('Booklet saved locally.');
     }
   }
 }

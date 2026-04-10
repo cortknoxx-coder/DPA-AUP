@@ -776,12 +776,40 @@ static void audioPlaybackTask(void* param) {
 
 // ── Public API ──────────────────────────────────────────────
 
-// Initialize audio subsystem (just marks ready — I2S created per-file)
+// Lightweight hardware probe so boot can distinguish "configured" from "working".
+static bool audioVerifyHardware(uint32_t sampleRate = 44100) {
+  if (!audioInitI2S(sampleRate)) {
+    Serial.println("[AUDIO] Hardware verification failed during I2S init");
+    return false;
+  }
+
+  int32_t silence[16] = {};
+  size_t bytesWritten = 0;
+  esp_err_t err = i2s_channel_write(
+    g_i2sTxHandle,
+    silence,
+    sizeof(silence),
+    &bytesWritten,
+    pdMS_TO_TICKS(50)
+  );
+  audioShutdownI2S();
+
+  bool ok = (err == ESP_OK && bytesWritten > 0);
+  Serial.printf(
+    "[AUDIO] Hardware verification %s (bytes=%u)\n",
+    ok ? "passed" : "failed",
+    (unsigned)bytesWritten
+  );
+  return ok;
+}
+
+// Initialize audio subsystem and verify the I2S path can actually come up.
 bool audioInit() {
-  g_audioReady = true;
-  Serial.printf("[AUDIO] Audio engine ready: BCK=GP%d, WSEL=GP%d, DIN=GP%d (ws_inv=true)\n",
+  g_audioReady = audioVerifyHardware(44100);
+  Serial.printf("[AUDIO] Audio engine %s: BCK=GP%d, WSEL=GP%d, DIN=GP%d (ws_inv=true)\n",
+    g_audioReady ? "ready" : "degraded",
     I2S_BCK_PIN, I2S_WS_PIN, I2S_DOUT_PIN);
-  return true;
+  return g_audioReady;
 }
 
 // Start playback of a playable track file (WAV or DPA1, launches FreeRTOS task)

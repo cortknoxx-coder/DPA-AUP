@@ -7,9 +7,8 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 justify-between items-center">
           <div class="flex items-center gap-4">
-            <a routerLink="/artist/dashboard" class="flex items-center gap-2">
-              <div class="h-6 w-6 rounded bg-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.5)]"></div>
-              <span class="font-bold text-lg tracking-tight">DPA™ <span class="text-slate-400 font-normal">Portal</span></span>
+            <a routerLink="/artist/dashboard" class="flex items-center">
+              <app-brand-mark tone="teal" size="nav" suffix="PORTAL" />
             </a>
           </div>
           <div class="flex items-center gap-4">
@@ -37,7 +36,7 @@
                 
                 @if (connectionService.connectionStatus() === 'disconnected') {
                   <span class="h-2 w-2 rounded-full bg-slate-600"></span>
-                  <span class="hidden sm:inline">Disconnected</span>
+                  <span class="hidden sm:inline">Find Device</span>
                 } @else {
                   <span class="h-2 w-2 rounded-full animate-pulse"
                         [class.bg-teal-500]="!connectionService.isSimulationMode()"
@@ -45,7 +44,7 @@
                   @if (connectionService.isSimulationMode()) {
                     <span class="hidden sm:inline">SIMULATOR</span>
                   } @else {
-                    <span class="hidden sm:inline">LIVE</span>
+                    <span class="hidden sm:inline">{{ connectionService.connectionTransportLabel() }}</span>
                   }
                 }
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
@@ -57,31 +56,52 @@
 
                 <!-- Dropdown -->
                 <div class="absolute right-0 top-full mt-2 w-64 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl z-50 animate-fade-in-up p-2" style="animation-duration: 0.15s;">
-                  @if (connectionService.connectionStatus() === 'disconnected') {
-                    <div class="p-2">
-                      <h3 class="text-sm font-semibold text-slate-200">Connect Device</h3>
-                      <p class="text-xs text-slate-500 mt-1">Select a method to test the theme editor and device interactions.</p>
+                  <div class="p-2">
+                    <h3 class="text-sm font-semibold text-slate-200">
+                      @if (connectionService.connectionStatus() === 'disconnected') {
+                        Find Connected Device
+                      } @else {
+                        {{ connectionService.connectionTransportLabel() }}
+                      }
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-1">
+                      @if (connectionService.connectionStatus() === 'disconnected') {
+                        The portal will first look for a DPA that is already reachable before asking you to reconnect.
+                      } @else {
+                        {{ connectionService.connectionSummary() }}
+                      }
+                    </p>
+                  </div>
+                  @if (connectionService.connectionError()) {
+                    <div class="mx-2 mt-1 mb-2 rounded border border-rose-500/40 px-3 py-2 text-xs text-rose-300">
+                      {{ connectionService.connectionError() }}
                     </div>
-                    @if (connectionService.connectionError()) {
-                      <div class="mx-2 mt-1 mb-2 rounded border border-rose-500/40 px-3 py-2 text-xs text-rose-300">
-                        {{ connectionService.connectionError() }}
-                      </div>
-                    }
-                    <div class="mt-2 space-y-1">
-                      <button (click)="connectionService.connectViaWifi(); showConnectionMenu.set(false)" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800 transition-colors">
+                  }
+                  <div class="mt-2 space-y-1">
+                    <button (click)="detectConnectedDevice()" [disabled]="!!connectionAction()" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800 transition-colors disabled:opacity-50">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M5 19a9 9 0 0014-7M19 5a9 9 0 00-14 7" /></svg>
+                      @if (connectionAction() === 'detect') { Refreshing detection... } @else { Detect Current Connection }
+                    </button>
+                    <button (click)="connectWifi()" [disabled]="!!connectionAction()" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800 transition-colors disabled:opacity-50">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0" /></svg>
-                        WiFi Direct
+                        @if (connectionAction() === 'wifi') { Connecting WiFi... } @else { WiFi Direct }
                       </button>
-                      <button (click)="connectionService.connectToBridge(); showConnectionMenu.set(false)" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800 transition-colors">
+                    <button (click)="connectUsb()" [disabled]="!!connectionAction()" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800 transition-colors disabled:opacity-50">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                        USB-C Bridge
-                      </button>
+                        @if (connectionAction() === 'usb') { Connecting USB-C... } @else { USB-C Bridge }
+                    </button>
+                    <button (click)="connectNfc()" [disabled]="!!connectionAction() || !connectionService.nfc.isSupported()" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800 transition-colors disabled:opacity-50">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M4 15v5h5M15 4h5v5M15 20h5v-5" /></svg>
+                      @if (connectionAction() === 'nfc') { Scanning NFC... } @else { NFC Tap }
+                    </button>
+                    @if (connectionService.connectionStatus() === 'disconnected') {
                       <button (click)="connectionService.toggleSimulator(); showConnectionMenu.set(false)" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm text-slate-300 hover:bg-slate-800 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                         Use Simulator
                       </button>
-                    </div>
-                  } @else {
+                    }
+                  </div>
+                  @if (connectionService.connectionStatus() !== 'disconnected') {
                     <div class="p-3">
                       <div class="text-xs text-slate-500 uppercase font-semibold">
                         @if (connectionService.isSimulationMode()) {
@@ -125,4 +145,14 @@
   <div [class.max-w-7xl]="!hideArtistNav()" [class.mx-auto]="!hideArtistNav()" [class.px-4]="!hideArtistNav()" [class.sm:px-6]="!hideArtistNav()" [class.lg:px-8]="!hideArtistNav()" [class.py-8]="!hideArtistNav()">
     <router-outlet></router-outlet>
   </div>
+
+  @if (showGlobalDeviceUi()) {
+    <div
+      class="pointer-events-none fixed right-4 z-[70] flex w-[min(100%-2rem,24rem)] flex-col gap-3"
+      [class.top-20]="hideArtistNav()"
+      [class.top-36]="!hideArtistNav()">
+      <app-device-hud-overlay />
+      <app-device-notification-center />
+    </div>
+  }
 </div>

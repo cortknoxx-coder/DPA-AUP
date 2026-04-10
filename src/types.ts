@@ -48,6 +48,12 @@ export interface DcnpEvent {
   deliveredAt?: string;
 }
 
+export interface FanCapsule extends DcnpEvent {
+  albumTitle?: string;
+  artistName?: string;
+  source?: 'portal' | 'device' | 'merged';
+}
+
 export interface ThemeColors {
   primary: string;
   accent: string;
@@ -154,6 +160,51 @@ export interface DeviceTrack {
   bitsPerSample?: number;
 }
 
+export interface DeviceCapsuleRecord {
+  id: string;
+  type: DcnpEventType;
+  title: string;
+  desc?: string;
+  date?: string;
+  delivered?: boolean;
+  price?: number;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  hasImage?: boolean;
+}
+
+export interface DeviceBookletPayload {
+  description?: string;
+  lyrics?: string;
+  booklet: {
+    credits: string;
+    gallery: string[];
+    videos: BookletVideo[];
+  };
+}
+
+export interface DeviceAlbumMetaPayload {
+  genre?: string;
+  recordLabel?: string;
+  copyright?: string;
+  releaseDate?: string;
+  upcCode?: string;
+  parentalAdvisory?: boolean;
+}
+
+export interface DeviceRuntimeStatus {
+  bootState: string;
+  sdState: string;
+  uploadState: string;
+  degradedReason?: string;
+  httpReady?: boolean;
+  httpMode?: string;
+  audioVerified?: boolean;
+  wifiMaintenance?: string;
+  lastUploadPath?: string;
+  lastUploadBytes?: number;
+}
+
 export interface A2dpDevice {
   name: string;
   addr: string;
@@ -167,10 +218,21 @@ export interface FirmwareStatus {
   duid: string;
   artist?: string;
   album?: string;
+  coverBytes?: number;
   admin?: boolean;
   ble: boolean;
   wifi: boolean;
   ip: string;
+  bootState?: string;
+  sdState?: string;
+  uploadState?: string;
+  degradedReason?: string;
+  httpReady?: boolean;
+  httpMode?: string;
+  audioVerified?: boolean;
+  wifiMaintenance?: string;
+  lastUploadPath?: string;
+  lastUploadBytes?: number;
   sta?: {
     connected: boolean;
     ssid: string;
@@ -270,6 +332,8 @@ export interface PaymentMethod {
 }
 
 // FIX: Moved UserProfile here from user.service.ts to make it a shared type.
+export type UserRole = 'fan' | 'creator' | 'operator';
+
 export interface UserProfile {
   name: string;
   artistName: string;
