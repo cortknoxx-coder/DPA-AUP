@@ -44,6 +44,32 @@ extern "C" {
  * thread isn't blocked by multi-MB FLAC uploads. */
 #define DPA_PLAYER_UPLOAD_HTTP_PORT 81
 
+/* ------------------------------------------------------------------
+ * SD card (SPI) — Waveshare ESP32-S3 Zero wiring
+ * ------------------------------------------------------------------
+ * Matches the DPA Album harness so the same physical adapter
+ * works on both devices. Change in one place if your board differs.
+ */
+#define DPA_PLAYER_SD_MOUNT      "/sd"
+#define DPA_PLAYER_SD_PIN_CS     10
+#define DPA_PLAYER_SD_PIN_MOSI   11
+#define DPA_PLAYER_SD_PIN_SCK    12
+#define DPA_PLAYER_SD_PIN_MISO   13
+
+/* SPI clock — 400 kHz during init, 20 MHz for audio read.
+ * The slow speed matches the SDSPI init sequence; the fast speed
+ * is the proven ceiling on the Album hardware. */
+#define DPA_PLAYER_SD_FREQ_SLOW_KHZ     400
+#define DPA_PLAYER_SD_FREQ_FAST_KHZ   20000
+
+/* Default library root under the SD mount. The scanner walks this
+ * recursively up to DPA_PLAYER_LIBRARY_MAX_DEPTH levels. Uploads
+ * land in DPA_PLAYER_UNSORTED_DIR until the user tags them. */
+#define DPA_PLAYER_LIBRARY_ROOT       "/tracks"
+#define DPA_PLAYER_UNSORTED_DIR       "/tracks/unsorted"
+#define DPA_PLAYER_LIBRARY_MAX_DEPTH  3
+#define DPA_PLAYER_LIBRARY_MAX_TRACKS 256
+
 #ifdef __cplusplus
 }
 #endif

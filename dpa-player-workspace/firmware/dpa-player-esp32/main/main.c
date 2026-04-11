@@ -20,6 +20,7 @@
 #include "wifi_ap.h"
 #include "captive_dns.h"
 #include "http_srv.h"
+#include "sd_card.h"
 
 static const char *TAG = "dpa-player";
 
@@ -58,10 +59,25 @@ void app_main(void)
     ESP_ERROR_CHECK(dpa_captive_dns_start());
     ESP_ERROR_CHECK(dpa_http_srv_start());
 
+    /* Phase 2a — SD card. NON-fatal: device can boot + run the AP
+     * even with no card wired so dev can iterate on the UI before
+     * the storage adapter is soldered in. */
+    esp_err_t sd_err = dpa_sd_init();
+    if (sd_err != ESP_OK) {
+        ESP_LOGW(TAG, "SD init failed (%s) — continuing without storage",
+                 esp_err_to_name(sd_err));
+    } else {
+        /* Make sure the library root + unsorted drop folder exist
+         * so Phase 3 uploads have a place to land. */
+        dpa_sd_mkdir_p(DPA_PLAYER_LIBRARY_ROOT);
+        dpa_sd_mkdir_p(DPA_PLAYER_UNSORTED_DIR);
+    }
+
     ESP_LOGI(TAG, "SSID:      %s",  dpa_wifi_ap_ssid());
     ESP_LOGI(TAG, "AP IP:     %s",  DPA_PLAYER_AP_IP);
     ESP_LOGI(TAG, "HTTP:      http://%s/",           DPA_PLAYER_AP_IP);
     ESP_LOGI(TAG, "Status:    http://%s/api/status", DPA_PLAYER_AP_IP);
+    ESP_LOGI(TAG, "SD:        %s", dpa_sd_is_mounted() ? "mounted" : "not present");
 
     /* Idle. Watchdog-friendly heartbeat so devs can tell the
      * board is alive over USB CDC even before Phase 2 audio. */

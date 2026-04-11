@@ -9,6 +9,7 @@
 #include "http_srv.h"
 #include "config.h"
 #include "wifi_ap.h"
+#include "sd_card.h"
 
 #include <string.h>
 
@@ -77,15 +78,27 @@ static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t err)
     return ESP_OK;
 }
 
-/* GET /api/status — tiny liveness endpoint so Phase 2 dev can
- * sanity-check the AP from a browser. */
+/* GET /api/status — liveness + storage snapshot. Everything nullable
+ * reports neutral values when absent so the Angular portal doesn't
+ * need to special-case boot state. */
 static esp_err_t status_get(httpd_req_t *req)
 {
-    char body[192];
+    dpa_sd_info_t sd = {0};
+    dpa_sd_get_info(&sd);
+
+    char body[384];
     int n = snprintf(body, sizeof(body),
-        "{\"product\":\"dpa-player\",\"phase\":1,"
-        "\"ssid\":\"%s\",\"ip\":\"%s\",\"clients\":%d}",
-        dpa_wifi_ap_ssid(), DPA_PLAYER_AP_IP, dpa_wifi_ap_station_count());
+        "{\"product\":\"dpa-player\",\"phase\":2,"
+        "\"ssid\":\"%s\",\"ip\":\"%s\",\"clients\":%d,"
+        "\"sd\":{\"mounted\":%s,\"total\":%llu,\"used\":%llu,\"free\":%llu,"
+              "\"speedKhz\":%u,\"name\":\"%s\"}}",
+        dpa_wifi_ap_ssid(), DPA_PLAYER_AP_IP, dpa_wifi_ap_station_count(),
+        sd.mounted ? "true" : "false",
+        (unsigned long long)sd.total_bytes,
+        (unsigned long long)sd.used_bytes,
+        (unsigned long long)sd.free_bytes,
+        (unsigned)sd.speed_khz,
+        sd.card_name[0] ? sd.card_name : "");
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     return httpd_resp_send(req, body, n);
