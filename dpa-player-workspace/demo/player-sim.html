@@ -1,0 +1,541 @@
+<!doctype html>
+<!--
+  DPA Player — offline simulation demo
+  -------------------------------------
+  Single-file preview of the Player portal UI. No build step, no
+  server, no network: open this file in any modern browser and you
+  get the exact same canned catalog and transport state machine as
+  the firmware running in DPA_PLAYER_SIM_MODE.
+
+  When the real ESP32 is online, point the API base at
+  http://192.168.5.1 (see `BASE` below) and the same UI wires up to
+  the firmware's /api/status, /api/library, /api/player endpoints.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DPA Player — SIM demo</title>
+  <style>
+    :root{
+      --bg:#0b0b11;
+      --panel:#15151f;
+      --panel2:#1d1d2b;
+      --line:#2a2a3c;
+      --text:#e8e8ee;
+      --dim:#8a8aa0;
+      --accent:#7b5cff;
+      --accent2:#b48dff;
+      --good:#55e38e;
+      --warn:#ffb547;
+      --err:#ff6565;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--text);
+      font-family:-apple-system,system-ui,"SF Pro Text",Segoe UI,Roboto,sans-serif;
+      -webkit-font-smoothing:antialiased}
+    a{color:var(--accent2);text-decoration:none}
+
+    header{
+      padding:20px 28px;
+      border-bottom:1px solid var(--line);
+      display:flex;align-items:center;justify-content:space-between;
+      background:linear-gradient(180deg,#12121c 0%,#0b0b11 100%);
+    }
+    header h1{
+      margin:0;font-size:18px;letter-spacing:1.5px;font-weight:600;
+      text-transform:uppercase;
+    }
+    header h1 span{color:var(--accent2)}
+    header .chips{display:flex;gap:8px}
+    .chip{
+      font-size:11px;padding:4px 10px;border-radius:999px;
+      background:#21213a;color:var(--accent2);
+      border:1px solid #35355a;letter-spacing:.8px;text-transform:uppercase;
+    }
+    .chip.sim{background:#3a2a00;color:#ffd18a;border-color:#6a4a00}
+    .chip.live{background:#0b3a1f;color:var(--good);border-color:#1a6a3a}
+
+    main{
+      max-width:1200px;margin:0 auto;
+      padding:24px;display:grid;gap:20px;
+      grid-template-columns: 340px 1fr;
+      grid-template-rows: auto auto auto;
+    }
+    @media (max-width: 900px){
+      main{grid-template-columns:1fr}
+    }
+
+    .card{
+      background:var(--panel);border:1px solid var(--line);
+      border-radius:14px;padding:20px;
+    }
+    .card h2{
+      margin:0 0 14px;font-size:11px;letter-spacing:1.4px;
+      text-transform:uppercase;color:var(--dim);font-weight:600;
+    }
+
+    /* ---------- STORAGE ---------- */
+    .sd-grid{display:grid;grid-template-columns:1fr auto;gap:8px 16px;
+      font-size:13px;color:var(--dim)}
+    .sd-grid b{color:var(--text);font-weight:500}
+    .bar{
+      height:8px;background:#23233a;border-radius:999px;overflow:hidden;
+      margin-top:14px;
+    }
+    .bar>span{
+      display:block;height:100%;
+      background:linear-gradient(90deg,var(--accent),var(--accent2));
+      transition:width .4s ease;
+    }
+
+    /* ---------- NOW PLAYING ---------- */
+    .np{grid-column:1/-1;display:grid;
+      grid-template-columns:auto 1fr;gap:24px;align-items:center}
+    .art{
+      width:140px;height:140px;border-radius:14px;
+      background:radial-gradient(circle at 30% 30%,#5a3cff 0%,#1a0a3a 70%,#0a0520 100%);
+      display:flex;align-items:center;justify-content:center;
+      font-size:42px;font-weight:700;color:#fff;
+      box-shadow:0 6px 30px rgba(123,92,255,.25);
+      letter-spacing:-2px;
+    }
+    .np-meta .title{font-size:26px;font-weight:600;margin:0 0 4px;letter-spacing:-.3px}
+    .np-meta .sub{font-size:14px;color:var(--dim);margin:0}
+    .np-meta .sub b{color:#c8c8d8;font-weight:500}
+    .np-times{display:flex;justify-content:space-between;
+      font-variant-numeric:tabular-nums;font-size:12px;color:var(--dim);
+      margin-top:14px}
+    .np-bar{margin-top:6px}
+
+    .controls{margin-top:18px;display:flex;gap:10px;align-items:center}
+    .btn{
+      background:#23233a;border:1px solid #35355a;color:var(--text);
+      width:44px;height:44px;border-radius:12px;
+      display:inline-flex;align-items:center;justify-content:center;
+      cursor:pointer;transition:all .15s ease;font-size:18px;
+    }
+    .btn:hover{background:#2e2e48;border-color:#4a4a70}
+    .btn.play{
+      width:54px;height:54px;background:var(--accent);color:#fff;
+      border-color:transparent;box-shadow:0 4px 18px rgba(123,92,255,.4);
+      font-size:22px;
+    }
+    .btn.play:hover{background:#8d72ff}
+    .toggle{font-size:12px;padding:8px 14px;width:auto;height:34px;
+      letter-spacing:.5px;text-transform:uppercase;color:var(--dim)}
+    .toggle.on{background:#2a1f55;color:var(--accent2);border-color:#4a3a85}
+    .vol{margin-left:auto;display:flex;gap:10px;align-items:center;
+      font-size:12px;color:var(--dim)}
+    .vol input{width:130px;accent-color:var(--accent)}
+
+    /* ---------- LIBRARY ---------- */
+    .lib{grid-column:1/-1}
+    .lib table{width:100%;border-collapse:collapse;font-size:13px}
+    .lib th{
+      text-align:left;color:var(--dim);font-weight:500;
+      font-size:10px;letter-spacing:1.2px;text-transform:uppercase;
+      padding:10px 12px;border-bottom:1px solid var(--line);
+    }
+    .lib td{padding:11px 12px;border-bottom:1px solid #1c1c29;
+      font-variant-numeric:tabular-nums}
+    .lib tr{cursor:pointer;transition:background .1s ease}
+    .lib tr:hover td{background:#1a1a28}
+    .lib tr.active td{background:#221a3e;color:var(--accent2)}
+    .lib tr.active td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+    .lib .rate{color:var(--dim);font-size:11px}
+    .lib .kind{
+      display:inline-block;padding:2px 8px;border-radius:4px;
+      background:#23233a;color:var(--dim);font-size:10px;
+      letter-spacing:.5px;text-transform:uppercase;
+    }
+    .lib .kind.flac{background:#1f3a1f;color:#8aff8a}
+    .lib .kind.dpa{background:#2a1f55;color:var(--accent2)}
+    .lib .kind.wav{background:#3a2a00;color:#ffd18a}
+
+    /* ---------- LED ---------- */
+    .led-row{display:flex;align-items:center;gap:14px}
+    .led-dot{
+      width:28px;height:28px;border-radius:50%;
+      background:#23233a;transition:all .3s ease;
+      box-shadow:0 0 0 3px #15151f,0 0 18px 2px currentColor;
+    }
+    .led-label{font-size:12px;color:var(--dim);
+      text-transform:uppercase;letter-spacing:1px}
+    .led-label b{color:var(--text);display:block;font-size:15px;
+      letter-spacing:0;text-transform:none;font-weight:500}
+
+    footer{
+      max-width:1200px;margin:0 auto;padding:12px 24px 32px;
+      color:var(--dim);font-size:11px;letter-spacing:.5px;
+      text-align:center;line-height:1.7;
+    }
+    footer code{
+      background:#15151f;border:1px solid var(--line);
+      padding:2px 6px;border-radius:4px;font-size:11px;
+      color:var(--accent2);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DPA <span>·</span> PLAYER</h1>
+    <div class="chips">
+      <span class="chip">phase 4a</span>
+      <span class="chip sim" id="modeChip">sim mode</span>
+      <span class="chip" id="countChip">0 tracks</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- storage card -->
+    <section class="card">
+      <h2>Storage</h2>
+      <div class="sd-grid">
+        <span>Card</span>       <b id="sdName">—</b>
+        <span>Total</span>      <b id="sdTotal">—</b>
+        <span>Used</span>       <b id="sdUsed">—</b>
+        <span>Free</span>       <b id="sdFree">—</b>
+        <span>Clock</span>      <b id="sdSpeed">—</b>
+      </div>
+      <div class="bar"><span id="sdBar" style="width:0%"></span></div>
+    </section>
+
+    <!-- now playing card -->
+    <section class="card np">
+      <div class="art" id="art">—</div>
+      <div class="np-meta">
+        <h2>Now Playing</h2>
+        <p class="title" id="title">Nothing loaded</p>
+        <p class="sub"><b id="artist">—</b> · <span id="album">—</span></p>
+        <p class="sub" id="format" style="font-size:12px">—</p>
+        <div class="np-times">
+          <span id="tNow">0:00</span>
+          <span id="tLen">0:00</span>
+        </div>
+        <div class="bar np-bar"><span id="posBar" style="width:0%"></span></div>
+        <div class="controls">
+          <button class="btn" id="bPrev" title="Previous">&#x23EE;</button>
+          <button class="btn play" id="bPlay" title="Play/Pause">&#x25B6;</button>
+          <button class="btn" id="bNext" title="Next">&#x23ED;</button>
+          <button class="btn toggle" id="bShuffle">Shuffle</button>
+          <button class="btn toggle" id="bRepeat">Repeat off</button>
+          <div class="vol">
+            <span>VOL</span>
+            <input type="range" id="vol" min="0" max="100" value="70">
+            <span id="volLabel">70</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- library table -->
+    <section class="card lib">
+      <h2>Library</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Title</th>
+            <th>Artist</th>
+            <th>Album</th>
+            <th>Kind</th>
+            <th style="text-align:right">Length</th>
+          </tr>
+        </thead>
+        <tbody id="libBody"></tbody>
+      </table>
+    </section>
+
+    <!-- LED card -->
+    <section class="card" style="grid-column:1/-1">
+      <h2>Indicator LED</h2>
+      <div class="led-row">
+        <div class="led-dot" id="ledDot" style="color:#000"></div>
+        <div class="led-label">
+          Mode
+          <b id="ledMode">off</b>
+        </div>
+        <div class="led-label">
+          RGB
+          <b id="ledRgb">0,0,0</b>
+        </div>
+        <div class="led-label">
+          Brightness
+          <b id="ledBright">160</b>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Running in <b style="color:#ffd18a">SIM MODE</b> — same canned catalog and transport state machine as
+    <code>firmware/dpa-player-esp32/main/library.c</code> + <code>audio.c</code>.<br>
+    When the real ESP32 is online, set <code>BASE = 'http://192.168.5.1'</code> in this file to point at
+    <code>/api/status</code>, <code>/api/library</code>, <code>/api/player/*</code>.
+  </footer>
+
+<script>
+/* ======================================================================
+ * SIM library  — mirror of main/library.c  SIM_SEEDS[]
+ * ====================================================================== */
+const SIM_SEEDS = [
+  { title:"Analogue Dawn",       artist:"Aureus",       album:"First Light",  durationMs:241000, sampleRate: 96000, bits:24, ch:2, kind:"flac" },
+  { title:"Night Circuit",       artist:"Loop Theory",  album:"Copper Skies", durationMs:316500, sampleRate: 96000, bits:24, ch:2, kind:"flac" },
+  { title:"Ruby Weather",        artist:"Paper Ocean",  album:"Copper Skies", durationMs:204000, sampleRate: 48000, bits:24, ch:2, kind:"flac" },
+  { title:"Slow Drift (Live)",   artist:"Paper Ocean",  album:"Open Field",   durationMs:482000, sampleRate: 96000, bits:24, ch:2, kind:"dpa"  },
+  { title:"Grains",              artist:"Wavefold",     album:"Textures",     durationMs:278000, sampleRate:192000, bits:24, ch:2, kind:"dpa"  },
+  { title:"Violet Hours",        artist:"Aureus",       album:"First Light",  durationMs:197500, sampleRate: 44100, bits:16, ch:2, kind:"wav"  },
+  { title:"Chorale for Morning", artist:"The Archives", album:"Halls",        durationMs:362000, sampleRate: 96000, bits:24, ch:2, kind:"flac" },
+  { title:"Last Platform",       artist:"Loop Theory",  album:"Copper Skies", durationMs:298000, sampleRate: 96000, bits:24, ch:2, kind:"flac" },
+].map((t, i) => ({ ...t, id: i+1 }));
+
+/* Canonical LED palette — mirrors main/led.c MODE_RGB[] */
+const LED_PALETTE = {
+  off:     [0,   0,   0  ],
+  boot:    [123, 92,  255],
+  ready:   [48,  36,  120],
+  playing: [180, 80,  255],
+  paused:  [255, 140, 40 ],
+  error:   [255, 40,  40 ],
+};
+
+/* ======================================================================
+ * State — mirrors audio.c dpa_audio_status_t + led.c dpa_led_status_t
+ * ====================================================================== */
+const state = {
+  sim: true,
+  sd: {
+    mounted: true,
+    name: "SIM-SDHC",
+    totalMb: 30000,
+    usedMb:  4200,
+    speedKhz: 20000,
+  },
+  player: {
+    state: "stopped",       // "stopped" | "playing" | "paused"
+    trackId: 0,
+    positionMs: 0,
+    durationMs: 0,
+    volume: 70,
+    shuffle: false,
+    repeat: "off",          // "off" | "one" | "all"
+  },
+  led: {
+    mode: "boot",
+    brightness: 160,
+  },
+};
+
+/* ======================================================================
+ * Transport — mirrors audio.c state machine
+ * ====================================================================== */
+function findTrack(id){ return SIM_SEEDS.find(t => t.id === id) || null; }
+
+function load(track){
+  state.player.trackId    = track ? track.id : 0;
+  state.player.durationMs = track ? track.durationMs : 0;
+  state.player.positionMs = 0;
+}
+
+function play(id){
+  if (id){
+    const t = findTrack(id);
+    if (!t) return;
+    load(t);
+  } else if (state.player.trackId === 0){
+    load(SIM_SEEDS[0]);
+  }
+  state.player.state = "playing";
+  state.led.mode = "playing";
+}
+
+function togglePause(){
+  if (state.player.state === "playing") {
+    state.player.state = "paused";
+    state.led.mode = "paused";
+  } else if (state.player.state === "paused") {
+    state.player.state = "playing";
+    state.led.mode = "playing";
+  } else {
+    play(0);
+  }
+}
+
+function stop(){
+  state.player.state = "stopped";
+  state.player.positionMs = 0;
+  state.led.mode = "ready";
+}
+
+function indexOfCurrent(){
+  return SIM_SEEDS.findIndex(t => t.id === state.player.trackId);
+}
+
+function advance(dir){
+  const n = SIM_SEEDS.length;
+  if (!n) return;
+  let i = Math.max(0, indexOfCurrent());
+  if (state.player.shuffle && n > 1){
+    let next;
+    do { next = Math.floor(Math.random() * n); } while (next === i);
+    i = next;
+  } else {
+    i = (dir >= 0) ? (i + 1) % n : (i === 0 ? n - 1 : i - 1);
+  }
+  load(SIM_SEEDS[i]);
+  state.player.state = "playing";
+  state.led.mode = "playing";
+}
+
+/* Tick — 250 ms cadence, matches audio.c sim_tick_task */
+setInterval(() => {
+  const p = state.player;
+  if (p.state === "playing" && p.durationMs > 0){
+    p.positionMs += 250;
+    if (p.positionMs >= p.durationMs){
+      if (p.repeat === "one"){
+        p.positionMs = 0;
+      } else if (p.repeat === "all"){
+        advance(+1);
+      } else {
+        const i = indexOfCurrent();
+        if (i + 1 >= SIM_SEEDS.length){
+          p.positionMs = p.durationMs;
+          p.state = "stopped";
+          state.led.mode = "ready";
+        } else {
+          advance(+1);
+        }
+      }
+    }
+  }
+  render();
+}, 250);
+
+/* ======================================================================
+ * Rendering
+ * ====================================================================== */
+function fmtMs(ms){
+  ms = Math.max(0, ms|0);
+  const s = Math.floor(ms/1000), m = Math.floor(s/60), r = s % 60;
+  return m + ":" + (r < 10 ? "0" + r : r);
+}
+function fmtBytes(mb){
+  if (mb >= 1024) return (mb/1024).toFixed(1) + " GB";
+  return mb + " MB";
+}
+function initials(s){
+  return (s||"—").split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+}
+
+const $ = id => document.getElementById(id);
+
+function renderLibrary(){
+  const body = $("libBody");
+  body.innerHTML = "";
+  SIM_SEEDS.forEach((t, i) => {
+    const tr = document.createElement("tr");
+    if (t.id === state.player.trackId) tr.classList.add("active");
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${t.title}</td>
+      <td style="color:#b4b4c0">${t.artist}</td>
+      <td style="color:#8a8aa0">${t.album}</td>
+      <td><span class="kind ${t.kind}">${t.kind}</span>
+        <span class="rate"> · ${t.sampleRate/1000}k/${t.bits}</span></td>
+      <td style="text-align:right">${fmtMs(t.durationMs)}</td>
+    `;
+    tr.addEventListener("click", () => play(t.id));
+    body.appendChild(tr);
+  });
+  $("countChip").textContent = SIM_SEEDS.length + " tracks";
+}
+
+function render(){
+  // storage
+  const sd = state.sd;
+  $("sdName").textContent  = sd.name;
+  $("sdTotal").textContent = fmtBytes(sd.totalMb);
+  $("sdUsed").textContent  = fmtBytes(sd.usedMb);
+  $("sdFree").textContent  = fmtBytes(sd.totalMb - sd.usedMb);
+  $("sdSpeed").textContent = (sd.speedKhz/1000).toFixed(0) + " MHz";
+  $("sdBar").style.width   = (100 * sd.usedMb / sd.totalMb).toFixed(1) + "%";
+
+  // now playing
+  const p = state.player;
+  const t = findTrack(p.trackId);
+  if (t){
+    $("title").textContent  = t.title;
+    $("artist").textContent = t.artist;
+    $("album").textContent  = t.album;
+    $("format").textContent = `${t.kind.toUpperCase()} · ${t.sampleRate/1000} kHz · ${t.bits}-bit · ${t.ch}ch`;
+    $("art").textContent    = initials(t.artist);
+  } else {
+    $("title").textContent  = "Nothing loaded";
+    $("artist").textContent = "—";
+    $("album").textContent  = "—";
+    $("format").textContent = "—";
+    $("art").textContent    = "—";
+  }
+  $("tNow").textContent = fmtMs(p.positionMs);
+  $("tLen").textContent = fmtMs(p.durationMs);
+  $("posBar").style.width =
+    p.durationMs > 0 ? (100 * p.positionMs / p.durationMs).toFixed(2) + "%" : "0%";
+  $("bPlay").innerHTML = (p.state === "playing") ? "&#x23F8;" : "&#x25B6;";
+  $("bShuffle").classList.toggle("on", p.shuffle);
+  $("bRepeat").classList.toggle("on", p.repeat !== "off");
+  $("bRepeat").textContent =
+    p.repeat === "one" ? "Repeat one" :
+    p.repeat === "all" ? "Repeat all" : "Repeat off";
+  $("vol").value = p.volume;
+  $("volLabel").textContent = p.volume;
+
+  // LED
+  const rgb = LED_PALETTE[state.led.mode] || [0,0,0];
+  const r = Math.round(rgb[0] * state.led.brightness / 255);
+  const g = Math.round(rgb[1] * state.led.brightness / 255);
+  const b = Math.round(rgb[2] * state.led.brightness / 255);
+  const dot = $("ledDot");
+  dot.style.background = `rgb(${r},${g},${b})`;
+  dot.style.color      = `rgb(${r},${g},${b})`;
+  $("ledMode").textContent   = state.led.mode;
+  $("ledRgb").textContent    = `${r},${g},${b}`;
+  $("ledBright").textContent = state.led.brightness;
+
+  // active row highlight
+  [...document.querySelectorAll("#libBody tr")].forEach((tr,i) => {
+    tr.classList.toggle("active", SIM_SEEDS[i].id === p.trackId);
+  });
+}
+
+/* ======================================================================
+ * Wiring
+ * ====================================================================== */
+$("bPlay").addEventListener("click", () => togglePause());
+$("bNext").addEventListener("click", () => advance(+1));
+$("bPrev").addEventListener("click", () => {
+  if (state.player.positionMs > 3000) state.player.positionMs = 0;
+  else advance(-1);
+});
+$("bShuffle").addEventListener("click", () => {
+  state.player.shuffle = !state.player.shuffle;
+});
+$("bRepeat").addEventListener("click", () => {
+  state.player.repeat =
+    state.player.repeat === "off" ? "all" :
+    state.player.repeat === "all" ? "one" : "off";
+});
+$("vol").addEventListener("input", e => {
+  state.player.volume = +e.target.value;
+});
+
+/* Boot sequence — mirrors main.c: LED boot → ready, then idle. */
+state.led.mode = "boot";
+setTimeout(() => { state.led.mode = "ready"; }, 800);
+
+renderLibrary();
+render();
+</script>
+</body>
+</html>
