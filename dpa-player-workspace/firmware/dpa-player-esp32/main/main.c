@@ -1,11 +1,10 @@
 /*
- * DPA Player — Phase 0 boot stub
- * ------------------------------------------------------------
- * Pure ESP-IDF 5.x application. Will be progressively filled in as
- * subsystems are ported from arduino-src/ (Arduino reference tree
- * cloned from DPA Album commit 2aedf75).
- *
- * Current behaviour: init NVS, print boot banner, idle forever.
+ * DPA Player — firmware entry point
+ * ---------------------------------
+ * Pure ESP-IDF 5.x. Phase 1 brings up the SoftAP on 192.168.5.1, the
+ * captive DNS hijack, and the HTTP server. Later phases will attach
+ * SD mount, audio pipeline, LED driver, and the real JSON API on
+ * top of the HTTP instance started here.
  */
 
 #include <stdio.h>
@@ -17,34 +16,59 @@
 #include "esp_chip_info.h"
 #include "nvs_flash.h"
 
+#include "config.h"
+#include "wifi_ap.h"
+#include "captive_dns.h"
+#include "http_srv.h"
+
 static const char *TAG = "dpa-player";
 
-void app_main(void)
+static void init_nvs(void)
 {
-    /* NVS — required by WiFi + Preferences later */
     esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
+        err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK(err);
+}
 
+static void log_banner(void)
+{
     esp_chip_info_t chip;
     esp_chip_info(&chip);
-
     ESP_LOGI(TAG, "================================");
-    ESP_LOGI(TAG, "  DPA Player — Phase 0 scaffold ");
+    ESP_LOGI(TAG, "  DPA Player  -  Phase 1 online ");
     ESP_LOGI(TAG, "================================");
-    ESP_LOGI(TAG, "Chip:    %s (rev %d)", CONFIG_IDF_TARGET, chip.revision);
-    ESP_LOGI(TAG, "Cores:   %d", chip.cores);
-    ESP_LOGI(TAG, "IDF ver: %s", esp_get_idf_version());
-    ESP_LOGI(TAG, "Free heap: %lu bytes", (unsigned long)esp_get_free_heap_size());
-    ESP_LOGI(TAG, "Phase 1 (wifi) not yet wired — holding boot.");
+    ESP_LOGI(TAG, "Chip:      %s (rev %d)", CONFIG_IDF_TARGET, chip.revision);
+    ESP_LOGI(TAG, "Cores:     %d", chip.cores);
+    ESP_LOGI(TAG, "IDF:       %s", esp_get_idf_version());
+    ESP_LOGI(TAG, "Free heap: %lu bytes",
+             (unsigned long)esp_get_free_heap_size());
+}
 
-    /* Idle. Subsequent phases will start WiFi AP, HTTP server,
-     * SD mount, audio pipeline, LED driver, etc. */
+void app_main(void)
+{
+    init_nvs();
+    log_banner();
+
+    /* Phase 1 subsystems -------------------------------------- */
+    ESP_ERROR_CHECK(dpa_wifi_ap_start());
+    ESP_ERROR_CHECK(dpa_captive_dns_start());
+    ESP_ERROR_CHECK(dpa_http_srv_start());
+
+    ESP_LOGI(TAG, "SSID:      %s",  dpa_wifi_ap_ssid());
+    ESP_LOGI(TAG, "AP IP:     %s",  DPA_PLAYER_AP_IP);
+    ESP_LOGI(TAG, "HTTP:      http://%s/",           DPA_PLAYER_AP_IP);
+    ESP_LOGI(TAG, "Status:    http://%s/api/status", DPA_PLAYER_AP_IP);
+
+    /* Idle. Watchdog-friendly heartbeat so devs can tell the
+     * board is alive over USB CDC even before Phase 2 audio. */
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(10000));
-        ESP_LOGI(TAG, "idle, free heap=%lu", (unsigned long)esp_get_free_heap_size());
+        vTaskDelay(pdMS_TO_TICKS(30000));
+        ESP_LOGI(TAG, "alive | heap=%lu clients=%d",
+                 (unsigned long)esp_get_free_heap_size(),
+                 dpa_wifi_ap_station_count());
     }
 }

@@ -1,7 +1,23 @@
-# DPA Custom Partition Table — 8MB Flash, No OTA, No SPIFFS
-# Maximizes app space for firmware + gzipped dashboard
-# Name,   Type, SubType, Offset,   Size,     Flags
-nvs,      data, nvs,     0x9000,   0x5000,
-otadata,  data, ota,     0xe000,   0x2000,
-app0,     app,  ota_0,   0x10000,  0x3F0000,
-nvs2,     data, nvs,     0x400000, 0x10000,
+# DPA Player — 8 MB flash partition table
+#
+# Maximises the single application slot. Phase 1 target is to fit
+# one firmware image into the largest possible region so we have
+# room for dr_flac, LED patterns, embedded dashboard HTML, and the
+# Angular portal static bundle without having to stream from SD.
+#
+# Layout (total flash = 0x800000 = 8 MB):
+#   0x000000 - 0x008fff   bootloader (36 KB) + partition table header
+#   0x009000 - 0x00dfff   nvs       (20 KB)   prefs, wifi cache, favorites
+#   0x00e000 - 0x00ffff   otadata   (8 KB)    reserved so Phase 7 OTA drops in
+#   0x010000 - 0x7fffff   app0      (~7.94 MB) firmware image
+#
+# Notes:
+#   - `factory` subtype because we have one app slot today. When OTA
+#     is added in Phase 7 we'll split into ota_0 + ota_1.
+#   - No SPIFFS or FAT data partition on internal flash — the SD
+#     card is the sole user-data store. Saves flash for code/assets.
+#
+# Name,    Type, SubType,  Offset,    Size,       Flags
+nvs,       data, nvs,      0x9000,    0x5000,
+otadata,   data, ota,      0xe000,    0x2000,
+app0,      app,  factory,  0x10000,   0x7F0000,
