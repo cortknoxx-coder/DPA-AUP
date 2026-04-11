@@ -91,13 +91,37 @@ These only live in `arduino-src/` as read-only reference.
 | Phase | Scope                                                          | Status |
 | ----- | -------------------------------------------------------------- | ------ |
 | 0     | Clone & scaffold pure ESP-IDF project                          | DONE   |
-| 1     | WiFi AP + captive DNS (192.168.5.1, SSID `DPA-Player-XXXX`)    | TODO   |
-| 2     | SD mount + multi-folder library scanner + .dpa wrap/unwrap     | TODO   |
-| 3     | HTTP API + upload server + Angular portal baseline             | TODO   |
-| 4     | FLAC + WAV playback via dr_flac + i2s_std + 10-band EQ         | TODO   |
-| 5     | LED strip (RMT) + audio-reactive + cover-art extraction        | TODO   |
-| 6     | Hearts / favorites, shuffle, ReplayGain, sleep timer           | TODO   |
+| 1     | WiFi AP + captive DNS (192.168.5.1, SSID `DPA-Player-XXXX`)    | DONE   |
+| 2a    | SD card mount (esp_vfs_fat_sdspi) with graceful failure        | DONE   |
+| 2b    | DPA1 container parser + library scanner                        | DONE   |
+| 3     | HTTP API — `/api/status` `/api/library` `/api/player/*`        | DONE   |
+| 4a    | Transport state machine (play/pause/seek/vol/shuffle/repeat)   | DONE   |
+| 4b    | Real audio — dr_flac + i2s_std decoder pipeline                | TODO   |
+| 5a    | LED mode/color/brightness state tracker                        | DONE   |
+| 5b    | Real LED — led_strip component (RMT backend)                   | TODO   |
+| 6     | Hearts / favorites, ReplayGain, sleep timer                    | TODO   |
 | 7     | Polish: OTA, crossfade, metadata UI                            | TODO   |
+
+### Simulation mode
+
+While developing before the DAC / LED strip / SD adapter are wired
+up, the firmware runs with **`DPA_PLAYER_SIM_MODE = 1`** (default in
+`main/config.h`). Every hardware-dependent subsystem has a SIM path:
+
+| Module   | `DPA_PLAYER_SIM_*` flag   | SIM behavior                                     |
+| -------- | ------------------------- | ------------------------------------------------ |
+| sd_card  | `DPA_PLAYER_SIM_SD`       | Fake 30 GB SDHC "SIM-SDHC", no SPI bus touched   |
+| library  | (follows SD)              | Seeded canned catalog of 8 tracks                |
+| audio    | `DPA_PLAYER_SIM_AUDIO`    | Transport + 250 ms tick task, no I2S             |
+| led      | `DPA_PLAYER_SIM_LED`      | RGB state + log lines, no RMT traffic            |
+
+To flip the whole firmware to real-hardware mode once everything is
+soldered, edit `main/config.h` and set `DPA_PLAYER_SIM_MODE 0` (or
+flip individual subsystems). Each submodule re-enters its real code
+path without any other source file changing.
+
+The `sim:true` flag is also reflected in `GET /api/status` so the
+Angular portal can badge "SIM" until real hardware takes over.
 
 ### Snapshot origin
 

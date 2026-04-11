@@ -70,6 +70,40 @@ extern "C" {
 #define DPA_PLAYER_LIBRARY_MAX_DEPTH  3
 #define DPA_PLAYER_LIBRARY_MAX_TRACKS 256
 
+/* ------------------------------------------------------------------
+ * Simulation mode
+ * ------------------------------------------------------------------
+ * Master switch for running the firmware without any peripheral
+ * hardware wired up. When set, sd_card, library, audio, and led all
+ * return believable fake data so the Angular portal + API can be
+ * developed against a real device that has only the ESP32 module
+ * and USB power — no SD adapter, no DAC, no LED strip.
+ *
+ * Flip this to 0 and rebuild once the hardware is soldered in.
+ *
+ * Individual modules can also be forced real (even while the master
+ * switch is on) by defining DPA_PLAYER_SIM_<MODULE> to 0 below.
+ */
+#ifndef DPA_PLAYER_SIM_MODE
+#define DPA_PLAYER_SIM_MODE 1
+#endif
+
+#ifndef DPA_PLAYER_SIM_SD
+#define DPA_PLAYER_SIM_SD    DPA_PLAYER_SIM_MODE
+#endif
+#ifndef DPA_PLAYER_SIM_AUDIO
+#define DPA_PLAYER_SIM_AUDIO DPA_PLAYER_SIM_MODE
+#endif
+#ifndef DPA_PLAYER_SIM_LED
+#define DPA_PLAYER_SIM_LED   DPA_PLAYER_SIM_MODE
+#endif
+
+/* Fake card geometry reported by sd_card in SIM mode — 32 GB SDHC
+ * with a plausible used-vs-free ratio so the UI looks alive. */
+#define DPA_PLAYER_SIM_SD_TOTAL_MB 30000
+#define DPA_PLAYER_SIM_SD_USED_MB   4200
+#define DPA_PLAYER_SIM_SD_NAME     "SIM-SDHC"
+
 #ifdef __cplusplus
 }
 #endif

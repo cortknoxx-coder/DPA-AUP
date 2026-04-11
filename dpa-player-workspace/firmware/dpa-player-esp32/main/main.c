@@ -21,6 +21,9 @@
 #include "captive_dns.h"
 #include "http_srv.h"
 #include "sd_card.h"
+#include "library.h"
+#include "audio.h"
+#include "led.h"
 
 static const char *TAG = "dpa-player";
 
@@ -54,37 +57,66 @@ void app_main(void)
     init_nvs();
     log_banner();
 
+    /* LED first so the user gets the boot color while the rest
+     * of the stack comes up. Non-fatal if no strip is wired. */
+    dpa_led_start();
+
     /* Phase 1 subsystems -------------------------------------- */
     ESP_ERROR_CHECK(dpa_wifi_ap_start());
     ESP_ERROR_CHECK(dpa_captive_dns_start());
-    ESP_ERROR_CHECK(dpa_http_srv_start());
 
     /* Phase 2a — SD card. NON-fatal: device can boot + run the AP
      * even with no card wired so dev can iterate on the UI before
-     * the storage adapter is soldered in. */
+     * the storage adapter is soldered in. In SIM mode this fakes
+     * a mounted 30 GB card. */
     esp_err_t sd_err = dpa_sd_init();
     if (sd_err != ESP_OK) {
         ESP_LOGW(TAG, "SD init failed (%s) — continuing without storage",
                  esp_err_to_name(sd_err));
     } else {
-        /* Make sure the library root + unsorted drop folder exist
-         * so Phase 3 uploads have a place to land. */
         dpa_sd_mkdir_p(DPA_PLAYER_LIBRARY_ROOT);
         dpa_sd_mkdir_p(DPA_PLAYER_UNSORTED_DIR);
     }
 
+    /* Phase 2b — library scanner. Walks /sd/tracks when a real card
+     * is present, otherwise seeds the simulated catalog so the API
+     * always has content to return. */
+    dpa_library_init();
+
+    /* Phase 4 — transport. In SIM mode a background task advances
+     * position_ms; in real mode Phase 4 plugs in dr_flac + i2s. */
+    dpa_audio_start();
+
+    /* HTTP server last so every handler it references (SD info,
+     * library, audio, led) is already alive. */
+    ESP_ERROR_CHECK(dpa_http_srv_start());
+
+    dpa_led_set_mode(DPA_LED_MODE_READY);
+
     ESP_LOGI(TAG, "SSID:      %s",  dpa_wifi_ap_ssid());
     ESP_LOGI(TAG, "AP IP:     %s",  DPA_PLAYER_AP_IP);
-    ESP_LOGI(TAG, "HTTP:      http://%s/",           DPA_PLAYER_AP_IP);
-    ESP_LOGI(TAG, "Status:    http://%s/api/status", DPA_PLAYER_AP_IP);
+    ESP_LOGI(TAG, "HTTP:      http://%s/",            DPA_PLAYER_AP_IP);
+    ESP_LOGI(TAG, "Status:    http://%s/api/status",  DPA_PLAYER_AP_IP);
+    ESP_LOGI(TAG, "Library:   http://%s/api/library", DPA_PLAYER_AP_IP);
+    ESP_LOGI(TAG, "Player:    http://%s/api/player",  DPA_PLAYER_AP_IP);
     ESP_LOGI(TAG, "SD:        %s", dpa_sd_is_mounted() ? "mounted" : "not present");
+    ESP_LOGI(TAG, "SIM mode:  %s",
+             DPA_PLAYER_SIM_MODE ? "ON (no hardware required)" : "off");
 
     /* Idle. Watchdog-friendly heartbeat so devs can tell the
-     * board is alive over USB CDC even before Phase 2 audio. */
+     * board is alive over USB CDC. Now that the SIM transport
+     * runs a tick task, also log what it thinks it's playing. */
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(30000));
-        ESP_LOGI(TAG, "alive | heap=%lu clients=%d",
+        dpa_audio_status_t a = {0};
+        dpa_audio_get_status(&a);
+        ESP_LOGI(TAG, "alive | heap=%lu clients=%d | player=%s pos=%us/%us vol=%u",
                  (unsigned long)esp_get_free_heap_size(),
-                 dpa_wifi_ap_station_count());
+                 dpa_wifi_ap_station_count(),
+                 a.state == DPA_AUDIO_PLAYING ? "play" :
+                 a.state == DPA_AUDIO_PAUSED  ? "pause" : "stop",
+                 (unsigned)(a.position_ms / 1000),
+                 (unsigned)(a.duration_ms / 1000),
+                 (unsigned)a.volume);
     }
 }

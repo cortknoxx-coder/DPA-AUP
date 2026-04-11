@@ -38,9 +38,23 @@ esp_err_t dpa_sd_init(void)
 {
     if (s_mounted) return ESP_OK;
 
+#if DPA_PLAYER_SIM_SD
+    /* ---------- SIMULATION PATH -------------------------------------
+     * No SPI bus, no SD adapter, no card. Pretend we mounted a 30 GB
+     * SDHC card with ~4 GB used so the portal shows believable numbers
+     * and all library/audio code downstream can exercise their real
+     * paths against the canned track list. POSIX I/O against /sd
+     * will still fail — library.c handles that via the SIM track list. */
+    ESP_LOGW(TAG, "SD SIM mode — no hardware expected, faking a mounted card");
+    s_mounted     = true;
+    s_current_khz = DPA_PLAYER_SD_FREQ_FAST_KHZ;
+    s_card        = NULL;
+    return ESP_OK;
+#else
     ESP_LOGI(TAG, "probing SD card on SPI (CS=%d MOSI=%d SCK=%d MISO=%d)",
              DPA_PLAYER_SD_PIN_CS, DPA_PLAYER_SD_PIN_MOSI,
              DPA_PLAYER_SD_PIN_SCK, DPA_PLAYER_SD_PIN_MISO);
+#endif
 
     s_host = (sdmmc_host_t)SDSPI_HOST_DEFAULT();
     s_host.max_freq_khz = DPA_PLAYER_SD_FREQ_SLOW_KHZ;
@@ -107,6 +121,11 @@ esp_err_t dpa_sd_init(void)
 
 void dpa_sd_deinit(void)
 {
+#if DPA_PLAYER_SIM_SD
+    s_mounted     = false;
+    s_current_khz = 0;
+    return;
+#else
     if (s_mounted) {
         esp_vfs_fat_sdcard_unmount(DPA_PLAYER_SD_MOUNT, s_card);
         s_mounted = false;
@@ -117,6 +136,7 @@ void dpa_sd_deinit(void)
         s_bus_initted = false;
     }
     s_current_khz = 0;
+#endif
 }
 
 esp_err_t dpa_sd_set_speed(uint32_t khz)
@@ -124,6 +144,11 @@ esp_err_t dpa_sd_set_speed(uint32_t khz)
     if (!s_mounted) return ESP_ERR_INVALID_STATE;
     if (khz == s_current_khz) return ESP_OK;
 
+#if DPA_PLAYER_SIM_SD
+    s_current_khz = khz;
+    ESP_LOGD(TAG, "SIM SD clock -> %u kHz", (unsigned)khz);
+    return ESP_OK;
+#else
     esp_err_t err = sdmmc_host_set_card_clk(s_host.slot, khz);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "set_card_clk(%u) failed: %s",
@@ -133,6 +158,7 @@ esp_err_t dpa_sd_set_speed(uint32_t khz)
     s_current_khz = khz;
     ESP_LOGI(TAG, "SD clock -> %u kHz", (unsigned)khz);
     return ESP_OK;
+#endif
 }
 
 void dpa_sd_get_info(dpa_sd_info_t *out)
@@ -140,10 +166,22 @@ void dpa_sd_get_info(dpa_sd_info_t *out)
     if (!out) return;
     memset(out, 0, sizeof(*out));
 
-    if (!s_mounted || !s_card) return;
+    if (!s_mounted) return;
 
-    out->mounted    = true;
-    out->speed_khz  = s_current_khz;
+    out->mounted   = true;
+    out->speed_khz = s_current_khz;
+
+#if DPA_PLAYER_SIM_SD
+    /* Canned geometry — matches config.h constants. */
+    const uint64_t mb = 1024ULL * 1024ULL;
+    out->total_bytes = (uint64_t)DPA_PLAYER_SIM_SD_TOTAL_MB * mb;
+    out->used_bytes  = (uint64_t)DPA_PLAYER_SIM_SD_USED_MB  * mb;
+    out->free_bytes  = out->total_bytes - out->used_bytes;
+    strncpy(out->card_name, DPA_PLAYER_SIM_SD_NAME,
+            sizeof(out->card_name) - 1);
+    return;
+#else
+    if (!s_card) return;
 
     if (s_card->cid.name[0]) {
         strncpy(out->card_name, s_card->cid.name,
@@ -160,6 +198,7 @@ void dpa_sd_get_info(dpa_sd_info_t *out)
         out->free_bytes  = free_b;
         out->used_bytes  = (total > free_b) ? (total - free_b) : 0;
     }
+#endif
 }
 
 char *dpa_sd_path(char *out, size_t out_len, const char *rel)
@@ -178,6 +217,12 @@ esp_err_t dpa_sd_mkdir_p(const char *rel)
 {
     if (!s_mounted) return ESP_ERR_INVALID_STATE;
     if (!rel || !rel[0]) return ESP_ERR_INVALID_ARG;
+
+#if DPA_PLAYER_SIM_SD
+    /* No real VFS mount; just pretend we made the directory. */
+    ESP_LOGD(TAG, "SIM mkdir -p %s", rel);
+    return ESP_OK;
+#endif
 
     char abs[192];
     dpa_sd_path(abs, sizeof(abs), rel);
