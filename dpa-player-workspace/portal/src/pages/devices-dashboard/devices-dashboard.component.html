@@ -1,0 +1,270 @@
+
+@if (album(); as a) {
+  <div class="space-y-6">
+    
+    <!-- Tab Navigation -->
+    <div class="border-b border-slate-800">
+      <nav class="-mb-px flex space-x-8 overflow-x-auto">
+        <button 
+          (click)="setTab('overview')"
+          [class.border-teal-500]="activeTab() === 'overview'"
+          [class.text-teal-400]="activeTab() === 'overview'"
+          [class.border-transparent]="activeTab() !== 'overview'"
+          [class.text-slate-400]="activeTab() !== 'overview'"
+          class="whitespace-nowrap border-b-2 px-1 pb-4 text-sm font-medium hover:text-slate-200 transition-colors">
+          Fleet Overview
+        </button>
+        <button 
+          (click)="setTab('resales')"
+          [class.border-rose-500]="activeTab() === 'resales'"
+          [class.text-rose-400]="activeTab() === 'resales'"
+          [class.border-transparent]="activeTab() !== 'resales'"
+          [class.text-slate-400]="activeTab() !== 'resales'"
+          class="whitespace-nowrap border-b-2 px-1 pb-4 text-sm font-medium hover:text-slate-200 transition-colors">
+          Resale Market & Royalties
+        </button>
+        <button 
+          (click)="setTab('economics')"
+          [class.border-indigo-500]="activeTab() === 'economics'"
+          [class.text-indigo-400]="activeTab() === 'economics'"
+          [class.border-transparent]="activeTab() !== 'economics'"
+          [class.text-slate-400]="activeTab() !== 'economics'"
+          class="whitespace-nowrap border-b-2 px-1 pb-4 text-sm font-medium hover:text-slate-200 transition-colors">
+          Unit Economics
+        </button>
+      </nav>
+    </div>
+
+    <!-- TAB 1: FLEET OVERVIEW -->
+    @if (activeTab() === 'overview') {
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 animate-fade-in">
+        <div class="rounded border border-slate-800 bg-slate-900/50 p-4">
+          <div class="text-xs text-slate-500 uppercase tracking-wide">Total Manufactured</div>
+          <div class="text-xl font-bold text-slate-100 mt-1">{{ a.economics?.totalManufactured | number }}</div>
+        </div>
+        <div class="rounded border border-slate-800 bg-slate-900/50 p-4">
+          <div class="text-xs text-slate-500 uppercase tracking-wide">Active / Paired</div>
+          <div class="text-xl font-bold text-teal-400 mt-1">{{ a.economics?.totalSold | number }}</div>
+          <div class="text-[10px] text-teal-500/80 mt-1">84.2% Sell-through</div>
+        </div>
+        <div class="rounded border border-slate-800 bg-slate-900/50 p-4">
+          <div class="text-xs text-slate-500 uppercase tracking-wide">Avg Session</div>
+          <div class="text-xl font-bold text-slate-100 mt-1">42m</div>
+        </div>
+        <div class="rounded border border-slate-800 bg-slate-900/50 p-4">
+          <div class="text-xs text-slate-500 uppercase tracking-wide">Active Firmware</div>
+          <div class="text-xl font-bold text-slate-100 mt-1">v2.4.1</div>
+        </div>
+      </div>
+
+      <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden animate-fade-in">
+        <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+          <h3 class="text-sm font-semibold text-slate-100">Live Activations Feed</h3>
+          <span class="inline-flex items-center rounded-md bg-green-400/10 px-2 py-1 text-xs font-medium text-green-400 ring-1 ring-inset ring-green-400/20">Live</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-900 border-b border-slate-800 text-xs text-slate-400 uppercase">
+              <tr>
+                <th class="px-4 py-3 text-left">Device ID</th>
+                <th class="px-4 py-3 text-left">Method</th>
+                <th class="px-4 py-3 text-left">Region</th>
+                <th class="px-4 py-3 text-left">Timestamp</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/50">
+              <tr class="hover:bg-slate-800/20">
+                <td class="px-4 py-3 font-mono text-xs text-slate-400">0x3F2A...9B12</td>
+                <td class="px-4 py-3 text-slate-200"><span class="text-blue-400">NFC Tap</span></td>
+                <td class="px-4 py-3 text-slate-200">US-EAST</td>
+                <td class="px-4 py-3 text-xs text-slate-500">Just now</td>
+              </tr>
+              <tr class="hover:bg-slate-800/20">
+                <td class="px-4 py-3 font-mono text-xs text-slate-400">0x1C8D...4E55</td>
+                <td class="px-4 py-3 text-slate-200">USB-C Sync</td>
+                <td class="px-4 py-3 text-slate-200">EU-WEST</td>
+                <td class="px-4 py-3 text-xs text-slate-500">15 mins ago</td>
+              </tr>
+              <tr class="hover:bg-slate-800/20">
+                <td class="px-4 py-3 font-mono text-xs text-slate-400">0xA29B...7F00</td>
+                <td class="px-4 py-3 text-slate-200">Bluetooth</td>
+                <td class="px-4 py-3 text-slate-200">JP-TOKYO</td>
+                <td class="px-4 py-3 text-xs text-slate-500">1 hour ago</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <!-- TAB 2: RESALES & ROYALTIES -->
+    @if (activeTab() === 'resales') {
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+        
+        <!-- Metrics -->
+        <div class="space-y-4 lg:col-span-1">
+          <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+             <div class="text-sm text-slate-400 mb-1">Secondary Market Volume</div>
+             <div class="text-3xl font-bold text-rose-400">{{ resaleVolume | currency }}</div>
+             <div class="text-xs text-slate-500 mt-2">Total value of peer-to-peer trades</div>
+          </div>
+
+          <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+             <div class="text-sm text-slate-400 mb-1">Total Resale Transactions</div>
+             <div class="text-3xl font-bold text-slate-100">{{ totalResaleTransactions | number }}</div>
+             <div class="text-xs text-slate-500 mt-2">Peer-to-peer ownership transfers</div>
+          </div>
+          
+          <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+             <div class="text-sm text-slate-400 mb-1">Avg Resale Price</div>
+             <div class="flex items-end gap-3">
+               <div class="text-3xl font-bold text-slate-100">{{ averageResalePrice | currency }}</div>
+               <div class="text-sm text-emerald-400 mb-1 flex items-center">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clip-rule="evenodd" /></svg>
+                 +12% vs Retail
+               </div>
+             </div>
+          </div>
+
+          <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+             <div class="text-sm text-slate-400 mb-1">Total Royalty Revenue</div>
+             <div class="text-3xl font-bold text-emerald-400">{{ a.economics?.secondaryRevenue | currency }}</div>
+             <div class="text-xs text-slate-500 mt-2">Paid automatically via Smart Contract</div>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col">
+          <h3 class="text-sm font-semibold text-slate-100 mb-6">Resale Price Tracking</h3>
+          <div #priceHistoryChart class="flex-1 w-full min-h-[200px]"></div>
+        </div>
+
+        <!-- Ledger -->
+        <div class="col-span-full rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+          <div class="p-4 border-b border-slate-800 bg-slate-900">
+             <h3 class="text-sm font-semibold text-slate-100">Ownership Transfer Ledger</h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-950/50 border-b border-slate-800 text-xs text-slate-500 uppercase">
+                 <tr>
+                   <th class="px-4 py-3 text-left">Date</th>
+                   <th class="px-4 py-3 text-left">Device ID</th>
+                   <th class="px-4 py-3 text-left">Seller</th>
+                   <th class="px-4 py-3 text-left">Buyer</th>
+                   <th class="px-4 py-3 text-right">Price</th>
+                   <th class="px-4 py-3 text-right">Royalty</th>
+                   <th class="px-4 py-3 text-right">Region</th>
+                 </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/30">
+                @for (tx of a.resales; track tx.id) {
+                  <tr class="hover:bg-slate-800/20 group">
+                    <td class="px-4 py-3 text-slate-400 text-xs font-mono whitespace-nowrap">{{ tx.date | date:'MMM d, y, HH:mm' }}</td>
+                    <td class="px-4 py-3 text-slate-400 font-mono text-xs">{{ tx.deviceId }}</td>
+                    <td class="px-4 py-3 text-slate-500 font-mono text-xs">{{ tx.sellerHash }}</td>
+                    <td class="px-4 py-3 text-slate-200 font-mono text-xs group-hover:text-teal-400 transition-colors">{{ tx.buyerHash }}</td>
+                    <td class="px-4 py-3 text-right text-slate-100 font-medium">{{ tx.priceUsd | currency }}</td>
+                    <td class="px-4 py-3 text-right text-emerald-400 font-medium whitespace-nowrap">
+                      +{{ tx.artistEarnings | currency }}
+                      <span class="text-slate-500 text-[10px] ml-1">({{ tx.royaltyPercentage }}%)</span>
+                    </td>
+                    <td class="px-4 py-3 text-right text-slate-500 text-xs">{{ tx.marketRegion }}</td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="7" class="p-8 text-center text-slate-500">No secondary market activity yet.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- TAB 3: ECONOMICS -->
+    @if (activeTab() === 'economics') {
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
+         
+         <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-6">
+            <h3 class="text-sm font-semibold text-slate-100 border-b border-slate-800 pb-2">Artist Primary Sales P&L</h3>
+            
+            <div class="space-y-3">
+              <div class="flex justify-between items-center text-sm">
+                 <span class="text-slate-400">Gross Revenue</span>
+                 <span class="text-slate-100">{{ a.economics?.grossRevenue | currency }}</span>
+              </div>
+              <div class="flex justify-between items-center text-sm">
+                 <span class="text-slate-400">Manufacturing Costs</span>
+                 <span class="text-rose-400">-{{ (a.economics?.totalManufactured || 0) * (a.economics?.manufacturingCost || 0) | currency }}</span>
+              </div>
+              <div class="flex justify-between items-center text-sm">
+                 <span class="text-slate-400">Distribution Fees</span>
+                 <span class="text-rose-400">-{{ (a.economics?.grossRevenue || 0) * 0.15 | currency }}</span>
+              </div>
+              <div class="border-t border-slate-700 pt-3 flex justify-between items-center">
+                 <span class="font-bold text-slate-100">Artist Net Profit</span>
+                 <span class="font-bold text-teal-400">{{ a.economics?.netProfit | currency }}</span>
+              </div>
+            </div>
+         </div>
+
+         <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-6">
+            <h3 class="text-sm font-semibold text-slate-100 border-b border-slate-800 pb-2">Artist Per-Unit Breakdown</h3>
+            
+            <div class="relative pt-2">
+               <!-- Bar Chart Visualization -->
+               <div class="h-8 w-full bg-slate-800 rounded-full overflow-hidden flex text-[10px] font-bold text-black/70">
+                  <div style="width: 35%" class="bg-rose-400 flex items-center justify-center" title="Cost">COST</div>
+                  <div style="width: 25%" class="bg-indigo-400 flex items-center justify-center" title="Distributor">DIST</div>
+                  <div style="width: 40%" class="bg-teal-400 flex items-center justify-center" title="Artist">ARTIST</div>
+               </div>
+               <div class="flex justify-between text-xs text-slate-500 mt-2">
+                  <span>$0.00</span>
+                  <span>{{ a.economics?.wholesalePrice | currency }} (Wholesale)</span>
+               </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+               <div class="p-3 rounded bg-slate-950 border border-slate-800">
+                  <div class="text-[10px] text-slate-500 uppercase">Margin per Unit</div>
+                  <div class="text-lg font-bold text-slate-200">{{ ((a.economics?.wholesalePrice || 0) - (a.economics?.manufacturingCost || 0)) | currency }}</div>
+               </div>
+               <div class="p-3 rounded bg-slate-950 border border-slate-800">
+                  <div class="text-[10px] text-slate-500 uppercase">Artist ROI</div>
+                  <div class="text-lg font-bold text-emerald-400">
+                    {{ (((a.economics?.wholesalePrice || 1) - (a.economics?.manufacturingCost || 0)) / (a.economics?.manufacturingCost || 1)) | percent }}
+                  </div>
+               </div>
+            </div>
+         </div>
+         
+        @if (connectionService.isSimulationMode()) {
+          <div class="md:col-span-2 rounded-xl border border-indigo-500/30 bg-indigo-900/10 p-6 space-y-6 animate-fade-in">
+            <h3 class="text-sm font-semibold text-indigo-400 border-b border-indigo-500/20 pb-2 flex justify-between items-center">
+              DPAC Operator P&L (Simulator)
+              <span class="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[8px] font-bold text-amber-500 uppercase">Simulator Only</span>
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div>
+                <div class="text-xs text-slate-400">Total DPAC Profit</div>
+                <div class="text-2xl font-bold text-indigo-400 mt-1">{{ totalDpacProfit() | currency }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-slate-400">Hardware Margin</div>
+                <div class="text-2xl font-bold text-slate-200 mt-1">{{ dpacHardwareMarginPerUnit() | currency }} <span class="text-sm text-slate-500">/ unit</span></div>
+              </div>
+              <div>
+                <div class="text-xs text-slate-400">Platform Fee</div>
+                <div class="text-2xl font-bold text-slate-200 mt-1">{{ platformFeePerUnit() | currency }} <span class="text-sm text-slate-500">/ unit</span></div>
+              </div>
+            </div>
+          </div>
+        }
+
+      </div>
+    }
+
+  </div>
+} @else {
+  <div class="text-slate-500">Loading metrics...</div>
+}

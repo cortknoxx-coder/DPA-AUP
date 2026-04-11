@@ -1,0 +1,85 @@
+
+<div class="space-y-8">
+  <header>
+    <h1 class="text-2xl font-bold text-slate-50">Global Fleet Tracker</h1>
+    <p class="text-sm text-slate-400 mt-1">Anonymized, real-time metadata from active DPA devices.</p>
+  </header>
+
+  <!-- KPI Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Active Devices</div>
+      <div class="text-2xl font-bold text-slate-100 mt-2">{{ kpis().activeDevices | number }}</div>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Plays</div>
+      <div class="text-2xl font-bold text-slate-100 mt-2">{{ kpis().totalPlays | number }}</div>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Royalties Earned</div>
+      <div class="text-2xl font-bold text-teal-400 mt-2">{{ kpis().totalRoyalties | currency }}</div>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Marketplace Volume</div>
+      <div class="text-2xl font-bold text-slate-100 mt-2">{{ kpis().marketVolume | currency }}</div>
+    </div>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Map (Main section) -->
+    <div class="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-900/50 p-2 h-[400px] md:h-[500px] lg:h-auto">
+      <div #mapContainer class="w-full h-full rounded-lg overflow-hidden"></div>
+    </div>
+
+    <!-- Right Column (Feed & Top Regions) -->
+    <div class="space-y-6">
+      <!-- Live Feed -->
+      <div class="rounded-xl border border-slate-800 bg-slate-900/50 h-[350px] flex flex-col">
+        <div class="p-4 border-b border-slate-800 flex items-center gap-2">
+          <span class="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
+          <h3 class="text-sm font-semibold text-slate-100">Live Activity Feed</h3>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+          @for(event of activityStream(); track event.id) {
+            <div class="flex items-start gap-3 animate-fade-in-up">
+              <div class="w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 mt-0.5" 
+                   [class.bg-teal-500/20]="event.type === 'PLAY'"
+                   [class.bg-indigo-500/20]="event.type === 'SALE'"
+                   [class.bg-emerald-500/20]="event.type === 'ROYALTY'"
+                   [class.bg-amber-500/20]="event.type === 'ACTIVATION'">
+                {{ getIconForEvent(event.type) }}
+              </div>
+              <div class="flex-1 text-slate-400">
+                 <span class="font-semibold text-slate-300">{{ event.message }}</span> in {{ event.location }}
+                 <span class="block text-[10px] text-slate-600 font-mono">{{ event.timestamp | date:'HH:mm:ss' }}</span>
+              </div>
+            </div>
+          } @empty {
+            <div class="text-center text-slate-600 pt-8">Awaiting events...</div>
+          }
+        </div>
+      </div>
+
+      <!-- Top Regions -->
+      <div class="rounded-xl border border-slate-800 bg-slate-900/50">
+        <div class="p-4 border-b border-slate-800">
+          <h3 class="text-sm font-semibold text-slate-100">Top Regions by Activity</h3>
+        </div>
+        <div class="p-4 space-y-3">
+          @for(region of topRegions(); track region.code) {
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="font-semibold text-slate-300">{{ region.name }}</span>
+                <span class="text-slate-500">{{ region.percentage }}%</span>
+              </div>
+              <div class="h-1.5 bg-slate-800 rounded-full">
+                <div class="h-full bg-teal-500 rounded-full" [style.width.%]="region.percentage"></div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

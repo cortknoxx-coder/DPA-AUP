@@ -1,0 +1,36 @@
+# --- Node / Angular portal ---
+portal/node_modules/
+portal/dist/
+portal/.angular/
+portal/.vite/
+portal/.cache/
+portal/npm-debug.log*
+portal/yarn-error.log*
+portal/.env.local
+portal/.env.*.local
+
+# --- PlatformIO / ESP-IDF ---
+firmware/**/.pio/
+firmware/**/.pioenvs/
+firmware/**/.piolibdeps/
+firmware/**/build/
+firmware/**/sdkconfig
+firmware/**/sdkconfig.old
+firmware/**/dependencies.lock
+firmware/**/managed_components/
+
+# --- Editors ---
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Logs / tmp ---
+*.log
+/tmp/

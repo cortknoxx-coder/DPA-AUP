@@ -1,0 +1,16 @@
+{
+  "/player-api": {
+    "target": "http://192.168.5.1",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": { "^/player-api": "" }
+  },
+  "/player-upload": {
+    "target": "http://192.168.5.1:81",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": { "^/player-upload": "" }
+  }
+}

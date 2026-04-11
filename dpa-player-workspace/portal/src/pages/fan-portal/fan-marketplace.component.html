@@ -1,0 +1,465 @@
+
+<div class="space-y-8 pb-20">
+      <header>
+        <h1 class="text-4xl font-bold text-white tracking-tight">Marketplace</h1>
+        <p class="text-slate-400 mt-2">Trade verified DPA™ devices on the official secondary market.</p>
+      </header>
+
+      <!-- Tab Navigation -->
+      <div class="border-b border-slate-800">
+        <nav class="-mb-px flex space-x-8">
+          <button 
+            (click)="activeTab.set('buy-devices')"
+            [class.border-indigo-500]="activeTab() === 'buy-devices'"
+            [class.text-indigo-400]="activeTab() === 'buy-devices'"
+            class="whitespace-nowrap border-b-2 border-transparent px-1 pb-4 text-sm font-medium text-slate-400 hover:text-slate-200">
+            Buy Devices
+          </button>
+          <button 
+            (click)="activeTab.set('my-listings')"
+            [class.border-indigo-500]="activeTab() === 'my-listings'"
+            [class.text-indigo-400]="activeTab() === 'my-listings'"
+            class="whitespace-nowrap border-b-2 border-transparent px-1 pb-4 text-sm font-medium text-slate-400 hover:text-slate-200">
+            My Listings
+          </button>
+           <button 
+            (click)="activeTab.set('trades')"
+            [class.border-indigo-500]="activeTab() === 'trades'"
+            [class.text-indigo-400]="activeTab() === 'trades'"
+            class="whitespace-nowrap border-b-2 border-transparent px-1 pb-4 text-sm font-medium text-slate-400 hover:text-slate-200">
+            Trades
+          </button>
+        </nav>
+      </div>
+
+      <!-- MY LISTINGS TAB -->
+      @if (activeTab() === 'my-listings') {
+        <div class="animate-fade-in-up">
+          @if(userDevice(); as device) {
+            <div class="rounded-xl bg-slate-900/50 border border-slate-800 p-6">
+              <div class="flex flex-col md:flex-row gap-6">
+                <div class="w-40 h-24 rounded-lg bg-gradient-to-br from-slate-200 to-slate-400 shadow-xl border border-slate-500/50 flex items-center justify-center relative shrink-0">
+                  <div class="absolute inset-y-0 left-0 w-1.5 bg-emerald-500 blur-sm"></div>
+                  <span class="text-[10px] font-bold text-slate-600">{{ device.model }}</span>
+                </div>
+                <div class="flex-1">
+                  <div class="text-xs text-slate-500 uppercase tracking-wider">Your Device</div>
+                  <div class="text-lg font-mono font-bold text-white tracking-wide mt-1">{{ device.serial }}</div>
+                  @if (userListing(); as listing) {
+                    <div class="mt-4 p-4 rounded-lg bg-slate-800/50 border border-slate-700">
+                       <div class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Listed for Sale</div>
+                       <div class="flex items-end justify-between mt-2">
+                          <span class="text-3xl font-bold text-white">{{ listing.priceUsd | currency }}</span>
+                          <button (click)="delist()" class="rounded bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-500">Delist</button>
+                       </div>
+                    </div>
+                  } @else {
+                    <p class="text-sm text-slate-400 mt-2">This device is currently in your possession. You can list it on the marketplace for other fans to purchase.</p>
+                    <button (click)="showSellModal.set(true)" class="mt-4 rounded bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-500 shadow-lg shadow-indigo-900/20">
+                      Sell Device
+                    </button>
+                  }
+                </div>
+              </div>
+            </div>
+          } @else {
+            <div class="text-center py-20 rounded-xl border border-dashed border-slate-800">
+              <h3 class="text-slate-200 font-semibold">No Device Connected</h3>
+              <p class="text-sm text-slate-500 mt-1">Please connect your DPA™ device to manage your listings.</p>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- BUY DEVICES TAB -->
+      @if (activeTab() === 'buy-devices') {
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in-up">
+          @for(listing of listings(); track listing.id) {
+            <div (click)="openDeviceDetailModal(listing)" class="group cursor-pointer space-y-3">
+              <!-- DPA Device Mockup -->
+              <div class="relative w-full aspect-[16/10] rounded-lg shadow-2xl bg-gradient-to-br from-slate-200 via-slate-50 to-slate-400 overflow-hidden border border-slate-400 group-hover:scale-105 group-hover:shadow-indigo-500/20 transition-all duration-300">
+                <!-- Skin -->
+                <div class="absolute inset-0 h-[75%] bg-slate-300 overflow-hidden border-b border-slate-400/30">
+                  <img [src]="listing.artworkUrl" class="h-full w-full object-cover">
+                </div>
+                <!-- Chin -->
+                <div class="absolute bottom-0 left-0 right-0 h-[25%] px-4 flex items-center justify-end">
+                  <div class="text-right">
+                      <div class="text-[10px] font-bold text-slate-500 tracking-tighter">DPA<span class="align-top text-[6px] font-normal">TM</span></div>
+                      <div class="text-[6px] font-semibold text-slate-400 uppercase tracking-widest -mt-1">Audio</div>
+                  </div>
+                </div>
+              </div>
+              <!-- Info -->
+              <div>
+                <h3 class="font-bold text-white truncate group-hover:text-indigo-400">{{ listing.albumTitle }}</h3>
+                <div class="flex justify-between items-center mt-1">
+                  <span class="text-xs text-slate-400">{{ listing.albumArtist }}</span>
+                  <span class="text-lg font-bold text-indigo-400">{{ listing.priceUsd | currency }}</span>
+                </div>
+              </div>
+            </div>
+          } @empty {
+            <div class="col-span-full text-center py-20 rounded-xl border border-dashed border-slate-800">
+              <h3 class="text-slate-200 font-semibold">Marketplace is Empty</h3>
+              <p class="text-sm text-slate-500 mt-1">No devices are currently listed for sale.</p>
+            </div>
+          }
+        </div>
+      }
+      
+       <!-- TRADES TAB -->
+      @if (activeTab() === 'trades') {
+        <div class="animate-fade-in-up space-y-8">
+          
+          <!-- Accepted Trades -->
+          <div class="rounded-xl bg-emerald-900/10 border border-emerald-500/30">
+            <h3 class="text-sm font-semibold text-emerald-400 p-4 border-b border-emerald-500/30">Accepted Trades (Pending Finalization)</h3>
+            <div class="divide-y divide-emerald-500/30">
+              @for (trade of acceptedTrades(); track trade.id) {
+                <div class="p-4 flex flex-col xl:flex-row items-center gap-4">
+                  <div class="flex-1 flex flex-col md:flex-row items-center gap-4 w-full">
+                    <div class="flex-1 w-full p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                      <div class="text-[10px] text-slate-500 uppercase flex justify-between items-center"><span class="font-bold">THEY OFFER</span></div>
+                      <div class="flex items-center gap-4 mt-2">
+                        <img [src]="trade.offeredDevice.artworkUrl" class="w-12 h-12 rounded object-cover shrink-0"><div class="min-w-0"><div class="text-sm font-semibold text-white truncate">{{ trade.offeredDevice.albumTitle }}</div><div class="text-xs text-slate-400 font-mono truncate">{{ trade.offeredDevice.deviceId }}</div></div>
+                      </div>
+                      @if (trade.cashAdjustment > 0) {
+                        <div class="mt-2 pt-2 border-t border-slate-700"><span class="text-xs text-slate-400">You Receive:</span><span class="ml-2 text-sm font-bold text-emerald-400">{{ trade.cashAdjustment | currency }}</span></div>
+                      } @else if (trade.cashAdjustment < 0) {
+                        <div class="mt-2 pt-2 border-t border-slate-700"><span class="text-xs text-slate-400">You Pay:</span><span class="ml-2 text-sm font-bold text-rose-400">{{ -trade.cashAdjustment | currency }}</span></div>
+                      }
+                    </div>
+                    <div class="shrink-0 text-slate-600 p-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg></div>
+                    <div class="flex-1 w-full p-3 bg-slate-800/50 rounded-lg">
+                      <div class="text-[10px] text-slate-500 uppercase text-right font-bold">FOR YOUR</div>
+                      <div class="flex items-center gap-4 mt-2"><img [src]="trade.requestedDevice.artworkUrl" class="w-12 h-12 rounded object-cover shrink-0"><div class="min-w-0"><div class="text-sm font-semibold text-white truncate">{{ trade.requestedDevice.albumTitle }}</div><div class="text-xs text-slate-400 font-mono truncate">{{ trade.requestedDevice.deviceId }}</div></div></div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 w-full xl:w-auto justify-end pt-4 xl:pt-0 mt-4 xl:mt-0 border-t border-slate-800 xl:border-0 shrink-0">
+                    <button (click)="openFinalizeModal(trade)" class="px-4 py-2.5 rounded-md bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-500 shadow-lg shadow-emerald-900/30">Finalize Transaction</button>
+                  </div>
+                </div>
+              } @empty {
+                <div class="text-center text-xs text-slate-500 p-8">You have no trades to finalize.</div>
+              }
+            </div>
+          </div>
+
+          <!-- Pending Incoming Offers -->
+          <div class="rounded-xl bg-slate-900/50 border border-slate-800">
+            <h3 class="text-sm font-semibold text-white p-4 border-b border-slate-800">Pending Incoming Trade Offers</h3>
+            <div class="divide-y divide-slate-800">
+              @for(trade of pendingIncomingTrades(); track trade.id) {
+                <div class="p-4 flex flex-col xl:flex-row items-center gap-4">
+                  <div class="flex-1 flex flex-col md:flex-row items-center gap-4 w-full">
+                    <div class="flex-1 w-full p-3 bg-slate-900 rounded-lg border border-slate-700/50">
+                      <div class="text-[10px] text-slate-500 uppercase flex justify-between items-center"><span>Offer From <span class="font-mono text-slate-400">{{ trade.fromUser }}</span></span><span class="font-bold">THEY OFFER</span></div>
+                      <div class="flex items-center gap-4 mt-2">
+                        <img [src]="trade.offeredDevice.artworkUrl" class="w-12 h-12 rounded object-cover shrink-0"><div class="min-w-0"><div class="text-sm font-semibold text-white truncate">{{ trade.offeredDevice.albumTitle }}</div><div class="text-xs text-slate-400 font-mono truncate">{{ trade.offeredDevice.deviceId }}</div></div>
+                      </div>
+                      @if (trade.cashAdjustment > 0) {
+                        <div class="mt-2 pt-2 border-t border-slate-700"><span class="text-xs text-slate-400">You Receive:</span><span class="ml-2 text-sm font-bold text-emerald-400">{{ trade.cashAdjustment | currency }}</span></div>
+                      } @else if (trade.cashAdjustment < 0) {
+                        <div class="mt-2 pt-2 border-t border-slate-700"><span class="text-xs text-slate-400">You Pay:</span><span class="ml-2 text-sm font-bold text-rose-400">{{ -trade.cashAdjustment | currency }}</span></div>
+                      }
+                    </div>
+                    <div class="shrink-0 text-slate-600 p-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg></div>
+                    <div class="flex-1 w-full p-3 bg-slate-800/50 rounded-lg">
+                      <div class="text-[10px] text-slate-500 uppercase text-right font-bold">FOR YOUR</div>
+                       <div class="flex items-center gap-4 mt-2"><img [src]="trade.requestedDevice.artworkUrl" class="w-12 h-12 rounded object-cover shrink-0"><div class="min-w-0"><div class="text-sm font-semibold text-white truncate">{{ trade.requestedDevice.albumTitle }}</div><div class="text-xs text-slate-400 font-mono truncate">{{ trade.requestedDevice.deviceId }}</div></div></div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 w-full xl:w-auto justify-end pt-4 xl:pt-0 mt-4 xl:mt-0 border-t border-slate-800 xl:border-0 shrink-0">
+                     <button (click)="acceptTrade(trade.id)" class="px-3 py-1.5 rounded-md bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500">Accept</button>
+                     <button (click)="rejectTrade(trade.id)" class="px-3 py-1.5 rounded-md bg-rose-600 text-white text-xs font-bold hover:bg-rose-500">Reject</button>
+                     <button (click)="counterOffer(trade)" class="px-3 py-1.5 rounded-md bg-slate-700 text-white text-xs font-bold hover:bg-slate-600">Counter</button>
+                  </div>
+                </div>
+              } @empty {
+                <div class="text-center text-xs text-slate-500 p-8">You have no incoming trade offers.</div>
+              }
+            </div>
+          </div>
+      
+          <!-- Outgoing Offers -->
+          <div class="rounded-xl bg-slate-900/50 border border-slate-800">
+            <h3 class="text-sm font-semibold text-white p-4 border-b border-slate-800">Pending Outgoing Trade Offers</h3>
+            <div class="divide-y divide-slate-800">
+               @for(trade of pendingOutgoingTrades(); track trade.id) {
+                  <div class="p-4 flex flex-col md:flex-row items-center gap-4 opacity-70">
+                     <div class="flex-1 flex flex-col md:flex-row items-center gap-4 w-full">
+                        <div class="flex-1 w-full p-3 bg-slate-900 rounded-lg">
+                          <div class="text-[10px] text-slate-500 uppercase flex justify-between items-center font-bold"><span>YOUR OFFER</span></div>
+                          <div class="flex items-center gap-4 mt-2"><img [src]="trade.offeredDevice.artworkUrl" class="w-12 h-12 rounded object-cover shrink-0"><div class="min-w-0"><div class="text-sm font-semibold text-white truncate">{{ trade.offeredDevice.albumTitle }}</div><div class="text-xs text-slate-400 font-mono truncate">{{ trade.offeredDevice.deviceId }}</div></div></div>
+                          @if (trade.cashAdjustment > 0) {
+                            <div class="mt-2 pt-2 border-t border-slate-700"><span class="text-xs text-slate-400">You Offer:</span><span class="ml-2 text-sm font-bold text-rose-400">{{ trade.cashAdjustment | currency }}</span></div>
+                          } @else if (trade.cashAdjustment < 0) {
+                            <div class="mt-2 pt-2 border-t border-slate-700"><span class="text-xs text-slate-400">You Request:</span><span class="ml-2 text-sm font-bold text-emerald-400">{{ -trade.cashAdjustment | currency }}</span></div>
+                          }
+                        </div>
+                        <div class="shrink-0 text-slate-600 p-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg></div>
+                        <div class="flex-1 w-full p-3 bg-slate-800/50 rounded-lg">
+                           <div class="text-[10px] text-slate-500 uppercase flex justify-between items-center"><span>To <span class="font-mono text-slate-400">{{ trade.toUser }}</span></span><span class="font-bold">FOR THEIR</span></div>
+                           <div class="flex items-center gap-4 mt-2"><img [src]="trade.requestedDevice.artworkUrl" class="w-12 h-12 rounded object-cover shrink-0"><div class="min-w-0"><div class="text-sm font-semibold text-white truncate">{{ trade.requestedDevice.albumTitle }}</div><div class="text-xs text-slate-400 font-mono truncate">{{ trade.requestedDevice.deviceId }}</div></div></div>
+                        </div>
+                      </div>
+                    <div class="shrink-0 w-full md:w-auto text-right mt-2 md:mt-0"><span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-900/30 text-amber-400">PENDING</span></div>
+                  </div>
+               } @empty {
+                  <div class="text-center text-xs text-slate-500 p-8">You have not made any trade offers.</div>
+               }
+            </div>
+          </div>
+
+          <!-- Recently Rejected Offers -->
+          <div class="rounded-xl bg-slate-900/50 border border-slate-800">
+            <h3 class="text-sm font-semibold text-slate-500 p-4 border-b border-slate-800">Recently Rejected Offers</h3>
+            <div class="divide-y divide-slate-800">
+              @for (trade of rejectedTrades(); track trade.id) {
+                <div class="p-4 flex flex-col xl:flex-row items-center gap-4 opacity-60">
+                  <div class="flex-1 flex flex-col md:flex-row items-center gap-4 w-full">
+                    <div class="flex-1 w-full p-3 bg-slate-900 rounded-lg border border-slate-700/50"><div class="text-[10px] text-slate-500 uppercase font-bold">THEY OFFER</div><div class="flex items-center gap-4 mt-2"><img [src]="trade.offeredDevice.artworkUrl" class="w-12 h-12 rounded object-cover shrink-0"><div class="min-w-0"><div class="text-sm font-semibold text-slate-300 truncate">{{ trade.offeredDevice.albumTitle }}</div><div class="text-xs text-slate-500 font-mono truncate">{{ trade.offeredDevice.deviceId }}</div></div></div></div>
+                    <div class="shrink-0 text-slate-600 p-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg></div>
+                    <div class="flex-1 w-full p-3 bg-slate-800/50 rounded-lg"><div class="text-[10px] text-slate-500 uppercase text-right font-bold">FOR YOUR</div><div class="flex items-center gap-4 mt-2"><img [src]="trade.requestedDevice.artworkUrl" class="w-12 h-12 rounded object-cover shrink-0"><div class="min-w-0"><div class="text-sm font-semibold text-slate-300 truncate">{{ trade.requestedDevice.albumTitle }}</div><div class="text-xs text-slate-500 font-mono truncate">{{ trade.requestedDevice.deviceId }}</div></div></div></div>
+                  </div>
+                  <div class="flex flex-col items-end gap-2 w-full xl:w-auto justify-end pt-4 xl:pt-0 mt-4 xl:mt-0 border-t border-slate-800 xl:border-0 shrink-0">
+                    <button (click)="restoreTrade(trade.id)" class="px-3 py-1.5 rounded-md bg-slate-700 text-white text-xs font-bold hover:bg-slate-600">Restore Offer</button>
+                    <span class="text-[10px] text-slate-500">Expires in {{ trade.timeLeft }}</span>
+                  </div>
+                </div>
+              } @empty {
+                <div class="text-center text-xs text-slate-500 p-8">No rejected offers in the last 3 days.</div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Sell Modal -->
+    @if (showSellModal()) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" (click)="showSellModal.set(false)">
+        <div class="w-full max-w-md rounded-xl border border-slate-800 bg-slate-950 shadow-2xl animate-fade-in-up p-6" (click)="$event.stopPropagation()">
+          <h3 class="text-lg font-bold text-white">List Your Device for Sale</h3>
+          <p class="text-sm text-slate-400 mt-1">Set your price and see the potential payout.</p>
+          <div class="my-6">
+            <label class="block text-xs text-slate-400 mb-1">Asking Price (USD)</label>
+            <div class="relative"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span><input type="number" [ngModel]="askingPrice()" (ngModelChange)="askingPrice.set($event)" min="1" class="w-full rounded-lg bg-slate-900 border border-slate-700 pl-8 pr-3 py-3 text-2xl text-white font-bold focus:border-indigo-500 outline-none"></div>
+          </div>
+          <div class="space-y-3 rounded-lg bg-slate-900 border border-slate-800 p-4">
+            <div class="flex justify-between text-sm"><span class="text-slate-400">Marketplace Fee (5%)</span><span>-{{ marketplaceFee() | currency }}</span></div>
+            <div class="flex justify-between text-sm"><span class="text-slate-400">Artist Royalty (10%)</span><span>-{{ artistRoyalty() | currency }}</span></div>
+            <div class="border-t border-slate-700/50 pt-3 flex justify-between"><span class="font-bold text-slate-300">Your Payout</span><span class="font-bold text-emerald-400">{{ yourPayout() | currency }}</span></div>
+          </div>
+          <div class="mt-6 flex justify-end gap-3">
+            <button (click)="showSellModal.set(false)" class="px-4 py-2 text-sm text-slate-400 hover:text-white">Cancel</button>
+            <button (click)="listDevice()" class="rounded bg-indigo-600 px-6 py-2 text-sm font-bold text-white hover:bg-indigo-500">List for Sale</button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Make Offer Modal -->
+    @if (showOfferModal(); as listing) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" (click)="showOfferModal.set(null)">
+        <div class="w-full max-w-md rounded-xl border border-slate-800 bg-slate-950 shadow-2xl animate-fade-in-up p-6" (click)="$event.stopPropagation()">
+          <h3 class="text-lg font-bold text-white">Make an Offer</h3>
+          <p class="text-sm text-slate-400 mt-1">For <span class="font-bold text-white">{{ listing.albumTitle }}</span></p>
+          <div class="my-6">
+            <label class="block text-xs text-slate-400 mb-1">Your Offer (USD)</label>
+            <div class="relative"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span><input type="number" [ngModel]="offerPrice()" (ngModelChange)="offerPrice.set($event)" min="1" class="w-full rounded-lg bg-slate-900 border border-slate-700 pl-8 pr-3 py-3 text-2xl text-white font-bold focus:border-indigo-500 outline-none"></div>
+            <div class="text-xs text-slate-500 mt-2">Listed price: {{ listing.priceUsd | currency }}</div>
+          </div>
+          <div class="mt-6 flex justify-end gap-3">
+            <button (click)="showOfferModal.set(null)" class="px-4 py-2 text-sm text-slate-400 hover:text-white">Cancel</button>
+            <button (click)="submitOffer()" class="rounded bg-indigo-600 px-6 py-2 text-sm font-bold text-white hover:bg-indigo-500">Submit Offer</button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Counter Offer Modal -->
+    @if (showCounterModal(); as trade) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" (click)="showCounterModal.set(null)">
+        <div class="w-full max-w-md rounded-xl border border-slate-800 bg-slate-950 shadow-2xl animate-fade-in-up p-6" (click)="$event.stopPropagation()">
+          <h3 class="text-lg font-bold text-white">Counter Offer</h3>
+          <p class="text-sm text-slate-400 mt-1">Adjust the cash amount for the trade.</p>
+          <div class="my-6">
+            <label class="block text-xs text-slate-400 mb-1">Cash Adjustment (USD)</label>
+            <div class="relative"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span><input type="number" [ngModel]="counterOfferAmount()" (ngModelChange)="counterOfferAmount.set($event)" class="w-full rounded-lg bg-slate-900 border border-slate-700 pl-8 pr-3 py-3 text-2xl text-white font-bold focus:border-indigo-500 outline-none"></div>
+            <div class="text-xs text-slate-500 mt-2">
+              Positive value: you add cash. Negative value: you request cash.<br>
+              Current offer: 
+              @if (trade.cashAdjustment > 0) { <span class="text-emerald-400">They add {{ trade.cashAdjustment | currency }}</span> } 
+              @else if (trade.cashAdjustment < 0) { <span class="text-rose-400">They request {{ -trade.cashAdjustment | currency }}</span> } 
+              @else { <span>Straight swap (no cash)</span> }
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end gap-3">
+            <button (click)="showCounterModal.set(null)" class="px-4 py-2 text-sm text-slate-400 hover:text-white">Cancel</button>
+            <button (click)="submitCounterOffer()" class="rounded bg-indigo-600 px-6 py-2 text-sm font-bold text-white hover:bg-indigo-500">Submit Counter</button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Finalize Trade Modal -->
+    @if (showFinalizeModal(); as trade) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" (click)="showFinalizeModal.set(null)">
+        <div class="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-950 shadow-2xl animate-fade-in-up" (click)="$event.stopPropagation()">
+          <div class="p-6 border-b border-slate-800">
+            <h3 class="text-lg font-bold text-white">Confirm Trade</h3>
+            <p class="text-sm text-slate-400 mt-1">Please review the details below before executing the final transaction on the DPA™ ledger.</p>
+          </div>
+          
+          <div class="p-6 space-y-6">
+            <div class="grid grid-cols-2 gap-4 items-start">
+              <!-- You Give -->
+              <div class="space-y-3 p-4 bg-slate-900 rounded-lg border border-rose-500/20">
+                <div class="text-xs font-bold text-rose-400 uppercase tracking-wider">You Give</div>
+                <div class="flex items-center gap-3">
+                  <img [src]="trade.requestedDevice.artworkUrl" class="w-12 h-12 rounded object-cover">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-white truncate">{{ trade.requestedDevice.albumTitle }}</div>
+                    <div class="text-xs text-slate-400 font-mono truncate">{{ trade.requestedDevice.deviceId }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- You Receive -->
+              <div class="space-y-3 p-4 bg-slate-900 rounded-lg border border-emerald-500/20">
+                <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider">You Receive</div>
+                <div class="flex items-center gap-3">
+                  <img [src]="trade.offeredDevice.artworkUrl" class="w-12 h-12 rounded object-cover">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-white truncate">{{ trade.offeredDevice.albumTitle }}</div>
+                    <div class="text-xs text-slate-400 font-mono truncate">{{ trade.offeredDevice.deviceId }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cash Summary -->
+            <div class="p-4 rounded-lg bg-slate-800/50">
+              <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Cash Adjustment</div>
+                @if (trade.cashAdjustment > 0) {
+                  <p class="text-lg font-bold text-emerald-400">You will receive {{ trade.cashAdjustment | currency }}.</p>
+                } @else if (trade.cashAdjustment < 0) {
+                  <p class="text-lg font-bold text-rose-400">You will pay {{ -trade.cashAdjustment | currency }}.</p>
+                } @else {
+                  <p class="text-sm text-slate-300">This is a straight swap with no cash involved.</p>
+                }
+            </div>
+          </div>
+          
+          <div class="p-4 bg-slate-900/50 rounded-b-xl flex justify-end gap-3">
+            <button (click)="showFinalizeModal.set(null)" class="px-4 py-2 text-sm text-slate-400 hover:text-white">Cancel</button>
+            <button (click)="confirmFinalization()" class="rounded bg-emerald-600 px-6 py-2 text-sm font-bold text-white hover:bg-emerald-500 shadow-lg shadow-emerald-900/20">
+              Confirm & Execute Trade
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Device Detail Modal -->
+    @if (selectedDeviceDetails(); as details) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" (click)="showDeviceDetailModal.set(null)">
+        <div class="w-full max-w-3xl rounded-xl border border-slate-800 bg-slate-950 shadow-2xl animate-fade-in-up" (click)="$event.stopPropagation()">
+          <div class="p-6 border-b border-slate-800 flex justify-between items-start">
+            <div>
+              <h3 class="text-lg font-bold text-white">{{ details.listing.albumTitle }}</h3>
+              <p class="text-sm text-slate-400 mt-1">by {{ details.listing.albumArtist }}</p>
+            </div>
+            <button (click)="showDeviceDetailModal.set(null)" class="text-slate-500 hover:text-white">✕</button>
+          </div>
+
+          <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
+            <!-- Left Side: Device Info & Actions -->
+            <div class="space-y-6">
+              <!-- Device Mockup -->
+              <div class="relative w-full aspect-[16/10] rounded-lg bg-gradient-to-br from-slate-200 to-slate-400 border border-slate-400">
+                <div class="absolute inset-0 h-[75%]"><img [src]="details.listing.artworkUrl" class="h-full w-full object-cover rounded-t-lg"></div>
+                <div class="absolute bottom-0 left-0 right-0 h-[25%] px-4 flex items-center justify-end">
+                  <div class="text-right">
+                    <div class="text-[10px] font-bold text-slate-500">DPA<span class="align-top text-[6px]">TM</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Authenticity Badge -->
+              <div class="p-3 rounded-lg bg-emerald-900/20 border border-emerald-500/30 flex items-center gap-3">
+                <div class="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                  <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                <div>
+                  <div class="text-sm font-bold text-emerald-400">Verified Authentic DPA™</div>
+                  <div class="text-xs text-slate-400">Ownership transfer via secure ledger.</div>
+                </div>
+              </div>
+              
+              <!-- Transfer Info -->
+              <div class="space-y-2">
+                <div class="text-xs text-slate-500 uppercase font-bold">Current Owner</div>
+                <div class="p-3 rounded bg-slate-900 border border-slate-800 font-mono text-sm text-slate-300 truncate">{{ details.listing.sellerHash }}</div>
+              </div>
+              
+              <!-- Actions -->
+              <div class="pt-4 border-t border-slate-800 space-y-3">
+                <div class="text-2xl font-bold text-indigo-400">{{ details.listing.priceUsd | currency }}</div>
+                <div class="flex gap-2">
+                    <button (click)="addToCart(details.listing); showDeviceDetailModal.set(null)" [disabled]="cartService.isInCart(details.listing.id)" class="flex-1 rounded-full bg-indigo-600 text-white font-bold px-4 py-3 hover:bg-indigo-500 transition-colors disabled:bg-slate-700 disabled:cursor-not-allowed">
+                      {{ cartService.isInCart(details.listing.id) ? 'Added ✔' : 'Add to Cart' }}
+                    </button>
+                    <button (click)="makeOffer(details.listing); showDeviceDetailModal.set(null)" class="rounded-full bg-slate-800 text-slate-300 font-bold px-6 py-3 hover:bg-slate-700 transition-colors">
+                      Make Offer
+                    </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Side: Tabs (Tracklist, Capsules) -->
+            <div class="space-y-4">
+              <!-- Tab Headers -->
+              <div class="border-b border-slate-800 flex gap-4">
+                <button (click)="detailTab.set('tracks')" [class.text-indigo-400]="detailTab() === 'tracks'" [class.border-indigo-500]="detailTab() === 'tracks'" class="pb-2 border-b-2 border-transparent text-sm font-medium text-slate-400 hover:text-white">Tracklist</button>
+                <button (click)="detailTab.set('capsules')" [class.text-indigo-400]="detailTab() === 'capsules'" [class.border-indigo-500]="detailTab() === 'capsules'" class="pb-2 border-b-2 border-transparent text-sm font-medium text-slate-400 hover:text-white">Included Capsules</button>
+              </div>
+
+              <!-- Tab Content -->
+              @if(details.album) {
+                @if(detailTab() === 'tracks') {
+                  <div class="space-y-2 animate-fade-in-up">
+                    @for(track of details.album.tracks; track track.id) {
+                      <div class="flex items-baseline gap-3 text-sm p-2 rounded hover:bg-slate-800/50">
+                        <span class="text-slate-500 font-mono text-xs w-6 text-right">{{ track.trackIndex + 1 }}.</span>
+                        <span class="text-slate-200 flex-1">{{ track.title }}</span>
+                        <span class="text-slate-500 font-mono text-xs">{{ formatTime(track.durationSec) }}</span>
+                      </div>
+                    } @empty {
+                      <div class="text-center text-xs text-slate-500 py-8">Tracklist not available.</div>
+                    }
+                  </div>
+                }
+
+                @if(detailTab() === 'capsules') {
+                  <div class="space-y-3 animate-fade-in-up">
+                    @for(capsule of details.album.dcnpEvents; track capsule.id) {
+                      <div class="flex items-center gap-3 p-2 rounded bg-slate-900 border border-slate-800">
+                          <div class="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded bg-slate-800 text-slate-400 w-20 text-center">{{ capsule.eventType }}</div>
+                          <div class="flex-1 text-sm text-slate-300 truncate">{{ capsule.payload.title }}</div>
+                      </div>
+                    } @empty {
+                      <div class="text-center text-xs text-slate-500 py-8">No special capsules included with this album.</div>
+                    }
+                  </div>
+                }
+              } @else {
+                <div class="text-center text-xs text-slate-500 py-8">Detailed album information not found.</div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    }

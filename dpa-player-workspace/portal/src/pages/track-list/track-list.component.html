@@ -1,0 +1,210 @@
+
+<div class="max-w-4xl space-y-8">
+
+  <!-- Upload Area -->
+  <div 
+    (dragover)="onDragOver($event)" 
+    (dragleave)="onDragLeave($event)" 
+    (drop)="onDrop($event)"
+    class="relative rounded-xl border-2 border-dashed transition-all duration-200 p-10 flex flex-col items-center justify-center text-center group cursor-pointer"
+    [class.border-teal-500]="isDragging()"
+    [class.bg-teal-500/10]="isDragging()"
+    [class.border-slate-700]="!isDragging()"
+    [class.bg-slate-900/30]="!isDragging()"
+    [class.hover:border-slate-500]="!isDragging()"
+    (click)="fileInput.click()">
+    
+    <input #fileInput type="file" multiple accept="audio/*,.wav,.flac" class="hidden" (change)="onFileSelected($event)">
+    
+    <div class="h-16 w-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+      </svg>
+    </div>
+    
+    <h3 class="text-lg font-semibold text-slate-200">Transfer Masters to Device</h3>
+    <p class="text-sm text-slate-400 mt-2 max-w-md mx-auto">
+      Drag and drop WAV/FLAC files to encrypt into `.dpa` and transfer directly to your connected device.
+      <br><span class="text-xs text-slate-500">No cloud streaming. Portal keeps no master file after successful transfer.</span>
+    </p>
+    @if (uploadGateMessage()) {
+      <div class="mt-4 rounded border border-rose-500/40 bg-rose-900/20 px-3 py-2 text-xs text-rose-300">
+        {{ uploadGateMessage() }}
+      </div>
+    }
+  </div>
+
+  <!-- Active Upload Queue -->
+  @if (uploads().length > 0) {
+    <div class="space-y-3">
+      <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Processing Queue</h4>
+      @for (upload of uploads(); track upload.id) {
+        <div class="rounded-lg border border-slate-800 bg-slate-900 p-4 flex items-center gap-4">
+          <!-- Icon -->
+          <div class="h-10 w-10 rounded bg-slate-800 flex items-center justify-center shrink-0">
+            @if (upload.status === 'done') {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            } @else {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+            }
+          </div>
+          
+          <!-- Info -->
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between mb-1">
+              <div class="text-sm font-medium text-slate-200 truncate">{{ upload.filename }}</div>
+              <div class="text-xs text-slate-500">{{ upload.status === 'done' ? 'Complete' : upload.progress + '%' }}</div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+              <div class="h-full transition-all duration-300 ease-out"
+                [class.bg-teal-500]="upload.status === 'uploading' || upload.status === 'done'"
+                [class.bg-indigo-500]="upload.status === 'encrypting'"
+                [class.bg-amber-500]="upload.status === 'transferring'"
+                [class.bg-cyan-500]="upload.status === 'processing'"
+                [style.width.%]="upload.progress"></div>
+            </div>
+
+            <div class="flex justify-between mt-1">
+              <div class="text-[10px] text-slate-500">{{ upload.size }}</div>
+              @if (upload.status === 'processing') {
+                <div class="text-[10px] text-cyan-400 font-mono">Processing Audio...</div>
+              }
+              @if (upload.status === 'encrypting') {
+                <div class="text-[10px] text-indigo-400 font-mono">Encrypting to .dpa...</div>
+              }
+              @if (upload.status === 'transferring') {
+                <div class="text-[10px] text-amber-400 font-mono">Transferring to Device...</div>
+              }
+              @if (upload.status === 'error' && upload.error) {
+                <div class="text-[10px] text-rose-400 font-mono">{{ upload.error }}</div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Track List Table -->
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+    @if (isConnected() && deviceTracks().length > 0) {
+      <div class="px-4 py-2 bg-teal-500/5 border-b border-teal-500/20 flex items-center gap-2">
+        <span class="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+        <span class="text-xs text-teal-300 font-semibold">Live from device storage</span>
+        <span class="text-xs text-teal-500 ml-auto font-mono">{{ deviceTracks().length }} track(s)</span>
+      </div>
+    }
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-900 border-b border-slate-800">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider w-12">#</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider w-10"></th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider w-12" title="Per-track artwork (1400x1400 JPG/PNG recommended)">Art</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Title</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Format</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Plays</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Duration</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/50">
+          @for (track of displayTracks(); track track.id) {
+            <tr class="hover:bg-slate-800/30 transition-colors group">
+              <td class="px-4 py-3 text-slate-500 font-mono text-xs">{{ track.index + 1 }}</td>
+              <td class="px-4 py-3">
+                @if (track.isDevice) {
+                  <div class="flex items-center gap-1">
+                    <button (click)="playOnDevice(track.filename)" class="h-7 w-7 rounded-full bg-teal-600 hover:bg-teal-500 text-white flex items-center justify-center transition-colors" title="Play on device">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 ml-0.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+                    </button>
+                    <button (click)="stopOnDevice()" class="h-7 w-7 rounded-full bg-slate-700 hover:bg-rose-600 text-white flex items-center justify-center transition-colors" title="Stop playback">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><rect x="6" y="6" width="8" height="8" rx="1" /></svg>
+                    </button>
+                  </div>
+                }
+              </td>
+              <td class="px-4 py-2">
+                <label class="relative block w-9 h-9 rounded bg-slate-800 overflow-hidden cursor-pointer group/art border border-slate-700 hover:border-slate-500 transition-colors"
+                       title="Upload track artwork (1400x1400 JPG/PNG, max 5 MB)">
+                  @if (track.artworkUrl) {
+                    <img [src]="track.artworkUrl" class="w-full h-full object-cover">
+                  } @else {
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-600 absolute inset-0 m-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  }
+                  <div class="absolute inset-0 bg-black/50 opacity-0 group-hover/art:opacity-100 transition-opacity flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                  </div>
+                  <input type="file" accept="image/*" class="hidden" (change)="onTrackArtSelected($event, track.id)">
+                </label>
+              </td>
+              <td class="px-4 py-3 text-slate-100 font-medium">{{ track.title }}</td>
+              <td class="px-4 py-3 text-slate-500 font-mono text-xs">
+                @if (track.isDevice && track.sampleRate) {
+                  {{ track.bitsPerSample }}-bit / {{ (track.sampleRate! / 1000).toFixed(1) }}kHz
+                } @else {
+                  {{ track.format }}
+                }
+              </td>
+              <td class="px-4 py-3 text-right text-slate-500 font-mono text-xs">{{ track.plays }}</td>
+              <td class="px-4 py-3 text-right text-slate-400 font-mono text-xs">{{ formatTime(track.durationSec) }}</td>
+              <td class="px-4 py-3 text-right">
+                @if (track.isDevice) {
+                  <button (click)="deleteFromDevice(track.filename)" class="text-rose-500 hover:text-rose-300 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                    Delete
+                  </button>
+                } @else {
+                  <button (click)="deleteTrack(track.id)" class="text-rose-500 hover:text-rose-300 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                    Delete
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+          @empty {
+            <tr>
+              <td colspan="8" class="px-4 py-12 text-center text-slate-500 text-xs">
+                No tracks yet. Drag audio files above or add manually below.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="px-4 py-2 border-t border-slate-800/50 text-[10px] text-slate-600">
+      Hover any art thumbnail to upload per-track artwork. 1400x1400 JPG/PNG recommended, max 5 MB. Pushed to device <code class="text-slate-500">/art/</code> folder when WiFi connected.
+    </div>
+  </div>
+
+  <!-- Manual Add Form (Collapsed/Secondary) -->
+  <details class="group rounded-xl border border-slate-800 bg-slate-900/30">
+    <summary class="flex cursor-pointer items-center justify-between p-4 text-xs font-medium text-slate-400 hover:text-slate-200">
+      <span>Or Add Track Metadata Manually</span>
+      <span class="transition-transform group-open:rotate-180">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+      </span>
+    </summary>
+    <div class="p-6 pt-0 border-t border-slate-800/50 mt-4">
+      <div class="flex flex-col md:flex-row gap-4 md:items-end">
+        <div class="flex-1 w-full">
+          <label class="block text-xs text-slate-400 mb-1">Track Title</label>
+          <input [ngModel]="newTitle()" (ngModelChange)="newTitle.set($event)" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none" placeholder="e.g. Intro">
+        </div>
+        <div class="w-full md:w-32">
+          <label class="block text-xs text-slate-400 mb-1">Duration (s)</label>
+          <input type="number" [ngModel]="newDuration()" (ngModelChange)="newDuration.set($event)" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none">
+        </div>
+        <button (click)="addTrack()" [disabled]="!newTitle() || !canTransferToDevice()" class="w-full md:w-auto shrink-0 rounded bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed">
+          Add Row
+        </button>
+      </div>
+      @if (!canTransferToDevice()) {
+        <p class="mt-3 text-[11px] text-amber-400">
+          Manual metadata is disabled until a real device is connected over WiFi.
+        </p>
+      }
+    </div>
+  </details>
+</div>

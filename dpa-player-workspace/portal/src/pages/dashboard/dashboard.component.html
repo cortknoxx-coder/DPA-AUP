@@ -1,0 +1,88 @@
+
+<div class="space-y-6">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-50">Dashboard</h1>
+      <p class="text-sm text-slate-400 mt-1">Manage your DPA™ projects and releases.</p>
+    </div>
+    <div class="flex gap-2">
+      <a routerLink="/artist/fleet" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+        Fleet Tracker
+      </a>
+      <a routerLink="/artist/albums/new" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 transition-colors">
+        + New Album
+      </a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    @for (album of albums(); track album.id) {
+      <a [routerLink]="['/artist/albums', album.albumId]" class="group block rounded-xl border border-slate-800 bg-slate-900/50 hover:border-slate-700 hover:bg-slate-900 transition-all overflow-hidden">
+        <div class="relative">
+          <!-- DPA Device Mockup -->
+          <div class="relative w-full aspect-[16/10] bg-gradient-to-br from-slate-200 via-slate-50 to-slate-400 overflow-hidden">
+            <!-- Skin -->
+            <div class="absolute inset-0 h-[75%] bg-slate-300 overflow-hidden border-b border-slate-400/30">
+              <img [src]="album.artworkUrl || ('https://picsum.photos/seed/' + album.albumId + '/400/400')" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300">
+            </div>
+            <!-- Chin -->
+            <div class="absolute bottom-0 left-0 right-0 h-[25%] px-4 flex items-center justify-end">
+              <div class="text-right">
+                <div class="text-[10px] font-bold text-slate-500 tracking-tighter">DPA<span class="align-top text-[6px] font-normal">TM</span></div>
+                <div class="text-[6px] font-semibold text-slate-400 uppercase tracking-widest -mt-1">Audio</div>
+              </div>
+            </div>
+          </div>
+          <!-- Authenticity Badge -->
+          <div class="absolute top-3 left-3 z-10 flex items-center gap-1 bg-emerald-950/60 border border-emerald-500/30 rounded-full px-2 py-1 text-emerald-400 text-[9px] font-bold backdrop-blur-sm">
+            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+            AUTHENTIC
+          </div>
+          <!-- Status Badge -->
+          <span class="absolute top-3 right-3 z-10 inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset"
+            [class.bg-teal-900/30]="album.status === 'ready'"
+            [class.text-teal-400]="album.status === 'ready'"
+            [class.ring-teal-400/30]="album.status === 'ready'"
+            [class.bg-slate-800]="album.status !== 'ready'"
+            [class.text-slate-400]="album.status !== 'ready'"
+            [class.ring-slate-700]="album.status !== 'ready'">
+            {{ album.status | uppercase }}
+          </span>
+        </div>
+        
+        <!-- Info section below the mockup -->
+        <div class="p-4">
+          <h3 class="text-base font-semibold text-slate-100 group-hover:text-teal-400 transition-colors truncate">
+            {{ album.title }}
+          </h3>
+          <p class="mt-1 text-xs text-slate-500 font-mono">{{ album.albumId }}</p>
+          <div class="mt-4 flex items-center justify-between border-t border-slate-800/50 pt-3 text-xs text-slate-400">
+            <span>{{ album.skuType | titlecase }} SKU</span>
+            <span>v{{ album.dpacVersion }}</span>
+          </div>
+        </div>
+      </a>
+    }
+    @empty {
+      <div class="col-span-full rounded-xl border border-dashed border-slate-800 p-12 text-center text-slate-500">
+        No albums found. Create your first DPA™ project to get started.
+      </div>
+    }
+  </div>
+
+  <!-- Masters Storage Policy -->
+  <div class="mt-8 rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+    <h3 class="text-sm font-semibold text-slate-100 mb-4">Masters Storage Policy</h3>
+    <div class="flex gap-4 items-start">
+      <div class="h-8 w-8 rounded bg-slate-800 flex items-center justify-center text-teal-500 shrink-0">
+        🛡️
+      </div>
+      <div class="text-xs text-slate-400 leading-relaxed max-w-2xl">
+        Your unencrypted WAV/FLAC masters are stored temporarily in a secure intake bucket. 
+        Once the DPAC (Encrypted Capsule) is successfully built, the raw source files are 
+        <span class="text-slate-200 font-semibold">permanently purged</span> from our cloud. 
+        Only the encrypted assets remain to ensure maximum security for your IP.
+      </div>
+    </div>
+  </div>
+</div>

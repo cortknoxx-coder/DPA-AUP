@@ -1,0 +1,72 @@
+
+<div class="flex flex-col items-center">
+  <!-- Perspective Wrapper -->
+  <div class="perspective-[1000px] group">
+    <!-- Wrapper for device and its animated glow -->
+    <div class="relative"
+         [style.--glow-color]="glowOverride() ? glowOverride()!.color : (ledPattern() === 'off' ? 'transparent' : ledColor())"
+         [style.--pulse-duration]="glowOverride()?.customDuration || '500ms'">
+
+      <!-- The Glow Element -->
+      @if (glowOverride(); as glow) {
+        <div class="absolute -inset-2 rounded-2xl"
+             [class]="glow.cssClass"
+             [style.--glow-color]="glow.color"
+             [style.animation-duration]="glow.customDuration || null"
+             [style.box-shadow]="glow.cssClass === 'led-solid' ? '0 0 30px 4px ' + glow.color : null">
+        </div>
+      } @else {
+        <div class="absolute -inset-2 rounded-2xl transition-opacity duration-300"
+             [class.opacity-0]="glowClass() === 'off'"
+             [class.animate-breathe]="glowClass() === 'breathing'"
+             [class.animate-pulse-fast]="glowClass() === 'pulse' || glowClass() === 'animated'"
+             [style.box-shadow]="glowClass() === 'solid' ? '0 0 30px 4px var(--glow-color)' : 'none'">
+        </div>
+      }
+
+      <!-- The Physical Device Chassis -->
+      <div class="relative w-[240px] h-[151px] rounded-xl shadow-2xl transform transition-transform duration-500 ease-out group-hover:rotate-y-12 group-hover:-rotate-x-8 bg-gradient-to-br from-slate-200 via-slate-50 to-slate-400 overflow-hidden border border-slate-400">
+        <!-- Metallic Sheen -->
+        <div class="absolute inset-0 rounded-xl overflow-hidden pointer-events-none z-20">
+          <div class="absolute -top-1/4 -left-full w-1/2 h-[150%] bg-white/10 -skew-x-12 transform transition-transform duration-700 ease-in-out group-hover:translate-x-[450px] blur-md"></div>
+        </div>
+
+        <!-- Skin Area -->
+        <div class="absolute top-0 left-0 right-0 bg-slate-300 overflow-hidden transition-all duration-300 z-10"
+             [class.h-full]="skinType() === 'full'"
+             [class.h-[75%]]="skinType() === 'partial'"
+             [class.border-b]="skinType() === 'partial'"
+             [class.border-slate-400/30]="skinType() === 'partial'">
+          @if (skinImage()) {
+            <img [src]="skinImage()" class="h-full w-full object-cover">
+          } @else {
+            <div class="h-full w-full flex items-center justify-center text-slate-400 text-[10px] uppercase tracking-widest font-semibold bg-slate-200/50">
+              No Skin
+            </div>
+          }
+        </div>
+
+        <!-- Control Chin -->
+        <div class="absolute bottom-0 left-0 right-0 h-[25%] flex items-center justify-between px-4 z-20"
+             [class.bg-gradient-to-b]="skinType() === 'partial'"
+             [class.from-slate-100]="skinType() === 'partial'"
+             [class.to-slate-300]="skinType() === 'partial'">
+          <div class="flex gap-2 items-center">
+            <div class="h-6 w-6 rounded bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.1)] flex items-center justify-center text-slate-400">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z" /></svg>
+            </div>
+            <div class="h-6 w-6 rounded bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.1)] flex items-center justify-center text-slate-400">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor"><path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798l-5.445-3.63z" /></svg>
+            </div>
+            <div class="h-6 w-6 rounded bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.1)] flex items-center justify-center text-slate-400">
+              <div class="h-2.5 w-2.5 bg-slate-400 rounded-sm"></div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-[8px] font-bold text-slate-500 tracking-tighter">DPA<span class="align-top text-[6px] font-normal">TM</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

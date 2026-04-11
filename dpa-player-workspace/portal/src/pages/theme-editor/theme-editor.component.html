@@ -1,0 +1,400 @@
+
+<div class="flex flex-col lg:flex-row gap-8">
+  
+  <!-- Left Column: Form -->
+  <form [formGroup]="form" (ngSubmit)="save()" class="flex-1 space-y-8 order-2 lg:order-1">
+    
+    <!-- Skin Builder -->
+    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-slate-100">Device Skin Builder</h2>
+        <button type="button" (click)="downloadTemplate()" class="text-[10px] text-teal-400 hover:text-teal-300 flex items-center gap-1 transition-colors border border-teal-500/30 rounded px-2 py-1 bg-teal-500/5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Download DPA Spec PSD
+        </button>
+      </div>
+      
+      <!-- Skin Type Selector -->
+      <div class="grid grid-cols-2 gap-2 p-1 rounded-lg bg-slate-950 border border-slate-800 mb-6">
+        <button type="button" 
+                (click)="form.controls.skinType.setValue('partial')"
+                class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors"
+                [class.bg-slate-700]="form.value.skinType === 'partial'"
+                [class.text-white]="form.value.skinType === 'partial'"
+                [class.text-slate-400]="form.value.skinType !== 'partial'">
+          Partial Wrap
+        </button>
+        <button type="button"
+                (click)="form.controls.skinType.setValue('full')"
+                class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors"
+                [class.bg-slate-700]="form.value.skinType === 'full'"
+                [class.text-white]="form.value.skinType === 'full'"
+                [class.text-slate-400]="form.value.skinType !== 'full'">
+          Full Wrap
+        </button>
+      </div>
+
+      <!-- Tech Specs Box -->
+      <div class="mb-6 p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Form Factor</div>
+          <div class="text-sm text-slate-200 font-mono">DPA Silver (Landscape)</div>
+        </div>
+        <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
+        <div class="space-y-1">
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Dimensions</div>
+          <div class="text-sm text-slate-200 font-mono">85.6mm x 54.0mm</div>
+        </div>
+        <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
+        @if (form.value.skinType === 'partial') {
+          <div class="space-y-1 animate-fade-in-up" style="animation-duration: 0.2s;">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Asset Req (300DPI)</div>
+            <div class="text-sm text-teal-400 font-mono">1050 x 510 px (Partial)</div>
+          </div>
+        } @else {
+          <div class="space-y-1 animate-fade-in-up" style="animation-duration: 0.2s;">
+            <div class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Asset Req (300DPI)</div>
+            <div class="text-sm text-teal-400 font-mono">1050 x 670 px (Full)</div>
+          </div>
+        }
+      </div>
+
+      <div class="flex items-start gap-6">
+        <!-- Preview Thumbnail (Landscape) -->
+        <div class="h-[75px] w-40 flex-shrink-0 rounded-lg border border-slate-800 bg-slate-950 flex items-center justify-center overflow-hidden relative group shadow-inner">
+           <!-- Transparency Grid -->
+           <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#334155 1px, transparent 1px); background-size: 8px 8px;"></div>
+           
+          @if (form.value.skinImage) {
+            <div class="absolute inset-0 transition-all duration-300" 
+                 [class.h-full]="form.value.skinType === 'full'"
+                 [class.h-[75%]]="form.value.skinType === 'partial'">
+              <img [src]="form.value.skinImage" class="h-full w-full object-cover z-10 relative">
+            </div>
+          } @else {
+            <div class="text-center z-10 relative">
+              <span class="block text-[10px] text-slate-600 mb-2">No Skin</span>
+              <div class="h-6 w-10 rounded border border-dashed border-slate-700 mx-auto opacity-50"></div>
+            </div>
+          }
+        </div>
+
+        <div class="flex-1 space-y-4 pt-2">
+          <input type="file" #fileInput (change)="onFileSelected($event)" accept="image/png, image/jpeg" class="hidden">
+          
+          <div class="flex flex-wrap gap-3">
+            <button type="button" (click)="fileInput.click()" class="rounded bg-slate-800 px-4 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 border border-slate-700 transition-colors flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              Select Artwork
+            </button>
+            
+            @if (form.value.skinImage) {
+              <button type="button" (click)="removeSkin()" class="rounded px-4 py-2 text-xs font-medium text-rose-400 hover:bg-rose-950/30 border border-transparent hover:border-rose-900 transition-colors flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Remove
+              </button>
+            }
+          </div>
+          @if (form.value.skinType === 'partial') {
+            <p class="text-[10px] text-slate-500 leading-relaxed">
+              Wrap covers top ~75% of front face. <br>
+              Asset dimensions: <strong>1050 x 510 px</strong> to account for the metal chin.
+            </p>
+          } @else {
+            <p class="text-[10px] text-slate-500 leading-relaxed">
+              Wrap covers 100% of the device face. <br>
+              Asset dimensions: <strong>1050 x 670 px</strong>.
+            </p>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- Colors -->
+    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6" formGroupName="albumColor">
+      <h2 class="text-sm font-semibold text-slate-100 mb-1">Companion App Palette</h2>
+      <p class="text-xs text-slate-500 mb-4">Defines the mobile app UI colors.</p>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div>
+          <label class="block text-xs text-slate-400 mb-2">Primary</label>
+          <div class="flex gap-2">
+            <input type="color" formControlName="primary" class="h-9 w-12 rounded bg-transparent cursor-pointer">
+            <input type="text" formControlName="primary" class="flex-1 rounded bg-slate-950 border border-slate-800 px-3 py-1 text-xs text-slate-300 font-mono">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-2">Accent</label>
+          <div class="flex gap-2">
+            <input type="color" formControlName="accent" class="h-9 w-12 rounded bg-transparent cursor-pointer">
+            <input type="text" formControlName="accent" class="flex-1 rounded bg-slate-950 border border-slate-800 px-3 py-1 text-xs text-slate-300 font-mono">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-2">Background</label>
+          <div class="flex gap-2">
+            <input type="color" formControlName="background" class="h-9 w-12 rounded bg-transparent cursor-pointer">
+            <input type="text" formControlName="background" class="flex-1 rounded bg-slate-950 border border-slate-800 px-3 py-1 text-xs text-slate-300 font-mono">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DCNP / perk LED (creator). Strip idle/playback/charging is configured in the fan portal, not here. -->
+    <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6" formGroupName="dcnp">
+      <div class="flex flex-wrap items-start justify-between gap-3 mb-1">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-100">Perk & notification LED (DCNP)</h2>
+          <p class="text-xs text-slate-500 mt-1">Colors the device uses when you push perks / DCNP capsules. Idle, playback, and charging strip patterns stay with the fan experience — tune those under <span class="text-slate-400">My Devices</span> on the fan portal.</p>
+        </div>
+        @if (connectionService.connectionStatus() === 'wifi') {
+          <button type="button"
+                  (click)="pullDcnpFromDevice(true)"
+                  class="shrink-0 rounded border border-teal-600/50 bg-teal-950/30 px-3 py-1.5 text-xs font-semibold text-teal-300 hover:bg-teal-900/40 transition-colors">
+            Sync perk colors from device
+          </button>
+        }
+      </div>
+      @if (connectionService.connectionStatus() === 'wifi') {
+        <p class="text-[11px] text-slate-500 mb-4">
+          Over WiFi we can read the device’s current DCNP palette from <span class="font-mono text-slate-400">/api/status</span>. Saving or pushing still sends the full capsule theme (including strip defaults from album data) via <span class="font-mono text-slate-400">/api/theme</span>.
+        </p>
+      } @else {
+        <p class="text-xs text-slate-500 mb-4">Connect over WiFi to pull perk colors already on hardware for reference.</p>
+      }
+      @if (deviceLedSyncMessage()) {
+        <div class="mb-4 rounded border px-3 py-2 text-xs"
+             [class.border-teal-500/40]="deviceLedSyncStatus() === 'ok'"
+             [class.text-teal-300]="deviceLedSyncStatus() === 'ok'"
+             [class.border-rose-500/40]="deviceLedSyncStatus() === 'error'"
+             [class.text-rose-300]="deviceLedSyncStatus() === 'error'"
+             [class.border-slate-700]="deviceLedSyncStatus() === 'syncing'"
+             [class.text-slate-400]="deviceLedSyncStatus() === 'syncing'">
+          {{ deviceLedSyncMessage() }}
+        </div>
+      }
+
+      <div class="grid grid-cols-3 md:grid-cols-6 gap-4">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Concert</label>
+          <input type="color" formControlName="concert" class="w-full h-8 rounded bg-transparent">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Video</label>
+          <input type="color" formControlName="video" class="w-full h-8 rounded bg-transparent">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Merch</label>
+          <input type="color" formControlName="merch" class="w-full h-8 rounded bg-transparent">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Signing</label>
+          <input type="color" formControlName="signing" class="w-full h-8 rounded bg-transparent">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Remix</label>
+          <input type="color" formControlName="remix" class="w-full h-8 rounded bg-transparent">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Other</label>
+          <input type="color" formControlName="other" class="w-full h-8 rounded bg-transparent">
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <label class="block text-xs text-slate-400 mb-2">Mock device edge glow</label>
+        <p class="text-[10px] text-slate-600 mb-2">Pick which perk color to show on the preview chassis (static). Use “Preview notification” below for the full timed sequence.</p>
+        <div class="flex flex-wrap gap-1.5">
+          @for (type of dcnpTypes; track type) {
+            <button type="button"
+                    (click)="setPerkPreviewCategory(perkPreviewCategory() === type ? null : type)"
+                    class="rounded-full px-2.5 py-1 text-[10px] font-semibold border transition-colors"
+                    [class.border-teal-500/60]="perkPreviewCategory() === type"
+                    [class.bg-teal-950/40]="perkPreviewCategory() === type"
+                    [class.text-teal-200]="perkPreviewCategory() === type"
+                    [class.border-slate-700]="perkPreviewCategory() !== type"
+                    [class.bg-slate-900/50]="perkPreviewCategory() !== type"
+                    [class.text-slate-400]="perkPreviewCategory() !== type">
+              {{ type | titlecase }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Notification Preview Buttons -->
+      <div class="mt-6 pt-4 border-t border-slate-800">
+        <label class="block text-xs text-slate-400 mb-3">Preview Notification</label>
+        <div class="flex flex-wrap gap-2">
+          @for (type of dcnpTypes; track type) {
+            <button type="button"
+                    (click)="previewNotification(type)"
+                    [disabled]="notificationPreviewActive() !== null"
+                    class="px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all"
+                    [class.border-slate-700]="notificationPreviewActive() !== type"
+                    [class.bg-slate-800]="notificationPreviewActive() !== type"
+                    [class.text-slate-300]="notificationPreviewActive() !== type"
+                    [class.hover:bg-slate-700]="notificationPreviewActive() === null"
+                    [class.border-teal-500]="notificationPreviewActive() === type"
+                    [class.bg-teal-900/30]="notificationPreviewActive() === type"
+                    [class.text-teal-300]="notificationPreviewActive() === type"
+                    [class.disabled:opacity-40]="true"
+                    [class.disabled:cursor-not-allowed]="true">
+              @if (notificationPreviewActive() === type) {
+                <span class="inline-block h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse mr-1.5"></span>
+              }
+              {{ type | titlecase }}
+            </button>
+          }
+        </div>
+      </div>
+    </section>
+
+    <div class="flex justify-end pt-4 gap-2">
+      <button type="button"
+              (click)="pushThemeToDevice()"
+              [disabled]="pushStatus() === 'pushing'"
+              class="rounded border border-indigo-600 px-6 py-2 text-sm font-semibold text-indigo-300 hover:bg-indigo-900/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        @if (pushStatus() === 'pushing') { Pushing... } @else { Push Theme to Device }
+      </button>
+      <button type="submit" class="rounded bg-teal-600 px-6 py-2 text-sm font-semibold text-white hover:bg-teal-500 shadow-lg shadow-teal-900/20 transition-all">
+        Save Theme & Queue Rebuild
+      </button>
+    </div>
+  </form>
+
+  <!-- Right Column: DPA mockup + LED preview (always visible on this tab) -->
+  <div class="w-full lg:w-80 order-1 lg:order-2">
+    <div class="sticky top-24 rounded-2xl border border-slate-800 bg-slate-950/90 backdrop-blur-sm p-6 shadow-2xl">
+      <div class="flex flex-col items-center">
+          @if (connectionService.connectionStatus() === 'disconnected') {
+            <p class="mb-6 w-full rounded-lg border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 leading-snug text-center">
+              LED glow preview uses your perk colors below. Connect over WiFi to sync DCNP from hardware.
+            </p>
+          }
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-8 text-center">DPA Silver Edition</h3>
+          
+          <!-- Perspective Wrapper -->
+          <div class="perspective-[1000px] group">
+            
+            <!-- Wrapper for device and its animated glow -->
+            <div class="relative"
+                 [style.--glow-color]="glowOverride() ? glowOverride()!.color : (perkPreviewCategory() ? (form.value.dcnp?.[perkPreviewCategory()!] || '#ffffff') : 'transparent')"
+                 [style.--pulse-duration]="glowOverride()?.customDuration || '500ms'">
+
+              <!-- The Glow Element (animated) -->
+              @if (glowOverride(); as glow) {
+                <!-- Notification preview override -->
+                <div class="absolute -inset-2 rounded-2xl"
+                     [class]="glow.cssClass"
+                     [style.--glow-color]="glow.color"
+                     [style.animation-duration]="glow.customDuration || null"
+                     [style.box-shadow]="glow.cssClass === 'led-solid' ? '0 0 30px 4px ' + glow.color : null">
+                </div>
+              } @else if (perkPreviewCategory(); as cat) {
+                <div class="absolute -inset-2 rounded-2xl animate-breathe transition-opacity duration-300"
+                     [style.--glow-color]="form.value.dcnp?.[cat] || '#ffffff'">
+                </div>
+              } @else {
+                <div class="absolute -inset-2 rounded-2xl opacity-0 pointer-events-none"></div>
+              }
+              
+              <!-- The Physical Device Chassis -->
+              <div class="relative w-[290px] h-[183px] sm:w-[340px] sm:h-[214px] rounded-xl shadow-2xl transform transition-transform duration-500 ease-out group-hover:rotate-y-12 group-hover:-rotate-x-8 bg-gradient-to-br from-slate-200 via-slate-50 to-slate-400 overflow-hidden border border-slate-400">
+                
+                <!-- Metallic Sheen / Glare on hover -->
+                <div class="absolute inset-0 rounded-xl overflow-hidden pointer-events-none z-20">
+                  <div class="absolute -top-1/4 -left-full w-1/2 h-[150%] bg-white/10 -skew-x-12 transform transition-transform duration-700 ease-in-out group-hover:translate-x-[550px] blur-md"></div>
+                </div>
+
+                <!-- Subtle Brushed Metal Texture Overlay -->
+                <div class="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] pointer-events-none mix-blend-multiply"></div>
+
+                <!-- Skin Area -->
+                <div class="absolute top-0 left-0 right-0 bg-slate-300 overflow-hidden transition-all duration-300 z-10"
+                    [class.h-full]="form.value.skinType === 'full'"
+                    [class.h-[75%]]="form.value.skinType === 'partial'"
+                    [class.border-b]="form.value.skinType === 'partial'"
+                    [class.border-slate-400/30]="form.value.skinType === 'partial'">
+                   @if (form.value.skinImage) {
+                     <img [src]="form.value.skinImage" class="h-full w-full object-cover">
+                     <div class="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent pointer-events-none"></div>
+                   } @else {
+                     <div class="h-full w-full flex items-center justify-center text-slate-400 text-xs uppercase tracking-widest font-semibold bg-slate-200/50">
+                       No Skin
+                     </div>
+                   }
+                </div>
+
+                <!-- Control Chin (Titanium Finish) -->
+                <div class="absolute bottom-0 left-0 right-0 h-[25%] flex items-center justify-between px-6 z-20"
+                     [class.bg-gradient-to-b]="form.value.skinType === 'partial'"
+                     [class.from-slate-100]="form.value.skinType === 'partial'"
+                     [class.to-slate-300]="form.value.skinType === 'partial'"
+                     [class.shadow-[inset_0_1px_2px_rgba(255,255,255,0.8)]]="form.value.skinType === 'partial'">
+                  <!-- Buttons: [Prev] [Next] [Stop] [BT] -->
+                  <div class="flex gap-4 items-center">
+                      <!-- Prev -->
+                      <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z" /></svg>
+                      </div>
+                      <!-- Next -->
+                      <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798l-5.445-3.63z" /></svg>
+                      </div>
+                      <!-- Stop (Square) -->
+                      <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                        <div class="h-3 w-3 bg-slate-400 rounded-sm"></div>
+                      </div>
+                      <!-- Bluetooth -->
+                      <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-300 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1),1px_1px_0px_rgba(255,255,255,1)] flex items-center justify-center text-slate-400 cursor-pointer active:scale-95 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 010 1.414l-3 3A1 1 0 0110 10.414V8.414l1.293-1.293-1.293-1.293V3zm0 10.414l1.293-1.293 1.293 1.293-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414l1.414 1.414v-1.414z" clip-rule="evenodd" /></svg>
+                      </div>
+                  </div>
+
+                  <!-- Logo -->
+                  <div class="text-right">
+                      <div class="text-xs font-bold text-slate-500 tracking-tighter">DPA<span class="align-top text-[8px] font-normal">TM</span></div>
+                      <div class="text-[8px] font-semibold text-slate-400 uppercase tracking-widest -mt-1">Audio</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+  
+          <div class="mt-6 text-center space-y-1">
+            @if (notificationPreviewActive(); as notifType) {
+              <div class="text-sm font-medium text-teal-300 capitalize">
+                {{ notifType }} Notification
+              </div>
+              <div class="text-xs text-teal-500 font-mono flex items-center justify-center gap-1.5">
+                <span class="inline-block h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+                Playing preview
+              </div>
+            } @else if (perkPreviewCategory(); as pc) {
+              <div class="text-sm font-medium text-slate-200 capitalize">
+                Perk glow — {{ pc }}
+              </div>
+              <div class="text-xs text-slate-500 font-mono">
+                {{ form.value.dcnp?.[pc] }}
+              </div>
+            } @else {
+              <div class="text-sm font-medium text-slate-300">
+                Perk & capsule colors
+              </div>
+              <div class="text-xs text-slate-500">
+                Choose a perk above or run a notification preview.
+              </div>
+            }
+          </div>
+  
+          <div class="mt-6 pt-6 border-t border-slate-800 text-center w-full">
+            <p class="text-[10px] text-slate-500 leading-tight">
+              Edge glow matches perk / notification LED preview. Hover the chassis for the metallic sheen.
+            </p>
+          </div>
+      </div>
+    </div>
+  </div>
+</div>

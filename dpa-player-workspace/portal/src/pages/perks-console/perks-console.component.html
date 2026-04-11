@@ -1,0 +1,251 @@
+
+<div class="max-w-4xl space-y-8">
+  <form [formGroup]="form" (ngSubmit)="create()" class="rounded-xl border border-slate-800 bg-slate-900/50">
+    <div class="p-6">
+      <h2 class="text-sm font-semibold text-slate-100 uppercase tracking-wider">Capsule Builder</h2>
+      <p class="text-xs text-slate-500 mt-1">Create and push new content capsules to your fans' devices.</p>
+    </div>
+    
+    <div class="p-6 border-y border-slate-800 space-y-6">
+      <!-- Universal: Type & Title -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Capsule Type</label>
+          <select formControlName="eventType" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none">
+            <option value="concert">Concert / Tour</option>
+            <option value="video">Video Drop</option>
+            <option value="merch">Merch Drop</option>
+            <option value="remix">Remix / Stems</option>
+            <option value="signing">Digital Signing</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs text-slate-400 mb-1">
+             @switch (selectedType()) {
+               @case ('concert') { Event Title }
+               @case ('video') { Video Title }
+               @case ('merch') { Product Name }
+               @case ('remix') { Track Name }
+               @case ('signing') { Event Name }
+               @default { Title / Headline }
+             }
+          </label>
+          <input formControlName="title" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none" placeholder="Enter title...">
+        </div>
+      </div>
+
+      <!-- TYPE SPECIFIC SECTIONS -->
+      <div class="bg-slate-950/50 rounded-lg p-4 border border-slate-800/50">
+        
+        <!-- CONCERT OPTIONS -->
+        @if (selectedType() === 'concert') {
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up">
+             <div>
+               <label class="block text-xs text-slate-400 mb-1">Venue / Location</label>
+               <input formControlName="venue" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none" placeholder="e.g. O2 Arena, London">
+             </div>
+             <div>
+               <label class="block text-xs text-slate-400 mb-1">Date</label>
+               <input type="date" formControlName="eventDate" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none [color-scheme:dark]">
+             </div>
+             <div class="md:col-span-2">
+               <label class="block text-xs text-slate-400 mb-1">Ticket URL (Primary CTA)</label>
+               <input formControlName="ticketUrl" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none" placeholder="https://ticketmaster.com/...">
+             </div>
+          </div>
+        }
+
+        <!-- VIDEO OPTIONS -->
+        @if (selectedType() === 'video') {
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up">
+            <div class="md:col-span-2">
+              <label class="block text-xs text-slate-400 mb-1">Video Source (URL or ID)</label>
+              <input formControlName="videoUrl" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none" placeholder="Link to MP4 or video asset ID">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Price (USD) - Leave 0 for Free</label>
+              <input type="number" formControlName="videoPrice" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none">
+            </div>
+            <div class="flex items-center">
+               <label class="flex items-center gap-2 cursor-pointer">
+                 <input type="checkbox" formControlName="isExclusive" class="h-4 w-4 rounded border-slate-700 bg-slate-900 text-teal-500 focus:ring-teal-500">
+                 <span class="text-sm text-slate-300">DPA Owner Exclusive (DRM)</span>
+               </label>
+            </div>
+          </div>
+        }
+
+        <!-- MERCH OPTIONS -->
+        @if (selectedType() === 'merch') {
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up">
+            <div class="md:col-span-2">
+              <label class="block text-xs text-slate-400 mb-1">Store Product URL</label>
+              <input formControlName="merchUrl" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none" placeholder="https://store.artist.com/product/...">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Discount Code (Optional)</label>
+              <input formControlName="discountCode" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none font-mono" placeholder="DPAVIP20">
+            </div>
+          </div>
+        }
+
+        <!-- REMIX OPTIONS -->
+        @if (selectedType() === 'remix') {
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Format</label>
+              <select formControlName="fileFormat" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none">
+                <option value="WAV">WAV Stems</option>
+                <option value="ABLETON">Ableton Project</option>
+                <option value="LOGIC">Logic Pro Project</option>
+                <option value="FL">FL Studio Project</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Price (USD)</label>
+              <input type="number" formControlName="stemPrice" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none">
+            </div>
+          </div>
+        }
+
+        <!-- SIGNING OPTIONS -->
+        @if (selectedType() === 'signing') {
+           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up">
+             <div>
+               <label class="block text-xs text-slate-400 mb-1">Date & Time</label>
+               <input type="datetime-local" formControlName="signingDate" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none [color-scheme:dark]">
+             </div>
+             <div>
+               <label class="block text-xs text-slate-400 mb-1">Fan Capacity</label>
+               <input type="number" formControlName="capacity" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none">
+             </div>
+           </div>
+        }
+
+        <!-- OTHER OPTIONS -->
+        @if (selectedType() === 'other') {
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Button Label</label>
+              <input formControlName="ctaLabel" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none" placeholder="e.g. Read More">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Target URL (Optional)</label>
+              <input formControlName="ctaUrl" class="w-full rounded bg-slate-900 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none">
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Universal: Description -->
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Description / Message</label>
+        <textarea formControlName="description" rows="3" class="w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-teal-500 outline-none" placeholder="Add details for your fans..."></textarea>
+      </div>
+
+      <!-- Universal: Image -->
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Cover Image (Optional)</label>
+        <div class="mt-2 flex items-center gap-4">
+          @if(form.value.imageUrl) {
+            <img [src]="form.value.imageUrl" class="h-16 w-32 rounded object-cover border border-slate-700">
+          } @else {
+            <div class="h-16 w-32 rounded bg-slate-950 border border-dashed border-slate-700 flex items-center justify-center">
+              <span class="text-[10px] text-slate-600">No Image</span>
+            </div>
+          }
+          <input #fileInput type="file" (change)="onFileSelected($event)" class="hidden" accept="image/*">
+          <button type="button" (click)="fileInput.click()" class="rounded bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700">Upload</button>
+          @if(form.value.imageUrl) {
+            <button type="button" (click)="removeImage()" class="text-rose-500 text-xs hover:text-rose-300">Remove</button>
+          }
+        </div>
+      </div>
+
+    </div>
+
+    <div class="px-4 pt-4">
+      @if (pushMessage()) {
+        <div
+          class="rounded border px-3 py-2 text-xs mb-3"
+          [class.border-teal-500/40]="pushState() === 'ok'"
+          [class.text-teal-300]="pushState() === 'ok'"
+          [class.border-rose-500/40]="pushState() === 'error'"
+          [class.text-rose-300]="pushState() === 'error'"
+          [class.border-slate-700]="pushState() === 'pushing' || pushState() === 'idle'"
+          [class.text-slate-300]="pushState() === 'pushing' || pushState() === 'idle'"
+        >
+          {{ pushMessage() }}
+        </div>
+      }
+    </div>
+
+    <div class="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+      <button
+        type="button"
+        (click)="retryLastPush()"
+        [disabled]="pushState() === 'pushing' || !pushMessage()"
+        class="w-full sm:w-auto rounded border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-40 transition-colors"
+      >
+        Retry Push
+      </button>
+      <button type="submit" [disabled]="form.invalid || pushState() === 'pushing'" class="w-full sm:w-auto rounded bg-teal-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-teal-500 disabled:opacity-50 shadow-lg shadow-teal-900/20 transition-colors">
+        Push Capsule to Devices
+      </button>
+    </div>
+  </form>
+
+  <!-- Capsule History Table -->
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-900 border-b border-slate-800">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Status</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Type</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Details</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Created</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/50">
+          @for (ev of album()?.dcnpEvents; track ev.id) {
+            <tr>
+              <td class="px-4 py-3">
+                <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium"
+                  [class.bg-teal-900/30]="ev.status === 'delivered'"
+                  [class.text-teal-400]="ev.status === 'delivered'"
+                  [class.bg-amber-900/30]="ev.status === 'pending'"
+                  [class.text-amber-400]="ev.status === 'pending'">
+                  {{ ev.status | uppercase }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-slate-300 capitalize">
+                <span class="font-medium text-slate-200">{{ ev.eventType }}</span>
+                @if (ev.payload.price) {
+                  <span class="ml-2 text-[10px] text-emerald-400 border border-emerald-500/20 px-1 rounded">{{ ev.payload.price | currency }}</span>
+                }
+              </td>
+              <td class="px-4 py-3 text-slate-100">
+                <div class="font-medium">{{ ev.payload.title }}</div>
+                @if (ev.payload.metadata; as meta) {
+                   <div class="text-xs text-slate-500 mt-1 flex gap-2">
+                     @if(meta.venue) { <span>📍 {{meta.venue}}</span> }
+                     @if(meta.discountCode) { <span>🏷️ {{meta.discountCode}}</span> }
+                     @if(meta.format) { <span>💿 {{meta.format}}</span> }
+                   </div>
+                }
+              </td>
+              <td class="px-4 py-3 text-right text-slate-500 text-xs font-mono">
+                {{ ev.createdAt | date:'short' }}
+              </td>
+            </tr>
+          }
+          @empty {
+            <tr><td colspan="4" class="p-6 text-center text-slate-500 text-xs">No capsules sent yet.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

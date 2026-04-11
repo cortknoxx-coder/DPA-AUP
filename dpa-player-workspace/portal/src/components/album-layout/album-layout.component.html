@@ -1,0 +1,48 @@
+
+<div class="space-y-8">
+  @if (album(); as a) {
+    <!-- Header -->
+    <div class="border-b border-slate-800 pb-8">
+      <div class="flex items-center gap-2 text-xs text-slate-500 mb-4">
+        <a routerLink="/artist/dashboard" class="hover:text-teal-400">Dashboard</a>
+        <span>/</span>
+        <span class="text-slate-300 font-mono">{{ a.albumId }}</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-slate-50">{{ a.title }}</h1>
+          <div class="flex items-center gap-4 mt-2 text-sm text-slate-400">
+            <span class="uppercase tracking-wide text-xs font-semibold bg-slate-900 border border-slate-800 px-2 py-0.5 rounded text-slate-300">{{ a.skuType }}</span>
+            <span>v{{ a.dpacVersion }}</span>
+            <span [class.text-teal-400]="a.status === 'ready'" 
+                  [class.text-amber-400]="a.status === 'building'"
+                  [class.text-rose-400]="a.status === 'error'">
+              ● {{ a.status | uppercase }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="flex gap-1 overflow-x-auto border-b border-slate-800">
+      <a routerLink="overview" routerLinkActive="border-b-2 border-teal-500 text-teal-400" class="px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap">Overview</a>
+      <a routerLink="metadata" routerLinkActive="border-b-2 border-teal-500 text-teal-400" class="px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap">Metadata</a>
+      <a routerLink="tracks" routerLinkActive="border-b-2 border-teal-500 text-teal-400" class="px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap">Tracks</a>
+      <a routerLink="booklet" routerLinkActive="border-b-2 border-teal-500 text-teal-400" class="px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap">Booklet</a>
+      <a routerLink="theme" routerLinkActive="border-b-2 border-teal-500 text-teal-400" class="px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap">Theme & LED</a>
+      <a routerLink="perks" routerLinkActive="border-b-2 border-teal-500 text-teal-400" class="px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap">Perks (DCNP)</a>
+      <a routerLink="pricing" routerLinkActive="border-b-2 border-teal-500 text-teal-400" class="px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap">Pricing</a>
+      <a routerLink="devices" routerLinkActive="border-b-2 border-teal-500 text-teal-400" class="px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap">Devices</a>
+    </div>
+
+    <div class="pt-6">
+      <router-outlet></router-outlet>
+    </div>
+  } @else {
+    <div class="p-12 text-center text-slate-500">
+      <div class="animate-pulse mb-4">Redirecting...</div>
+      <a routerLink="/artist/dashboard" class="text-teal-400 hover:text-teal-300 text-sm">← Back to Dashboard</a>
+    </div>
+  }
+</div>

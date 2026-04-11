@@ -1,0 +1,150 @@
+
+@if (isLoading()) {
+  <div class="text-center p-12 text-slate-500 animate-pulse">Loading album from device...</div>
+} @else if (manifest(); as m) {
+  @if (albumMetadata(); as a) {
+    <div class="space-y-12 pb-20">
+      <!-- Hero Header -->
+      <header class="flex flex-col md:flex-row gap-8 items-end relative">
+        <div class="relative group shrink-0">
+           <img [src]="$any(a).artworkUrl || '/assets/dpa-default-cover.png'" 
+                alt="Album Cover" 
+                class="w-64 h-64 md:w-80 md:h-80 rounded-lg shadow-2xl shadow-black/80 object-cover border border-white/10">
+           
+           <button class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm rounded-lg"
+                   (click)="playAlbum()">
+              <div class="h-16 w-16 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform shadow-xl">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 ml-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+              </div>
+           </button>
+        </div>
+
+        <div class="flex flex-col justify-end w-full">
+          <div class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-2">ALBUM LOADED FROM DEVICE</div>
+          <h1 class="text-5xl lg:text-8xl font-black text-white tracking-tighter mt-1 leading-none">{{ a.title }}</h1>
+          <div class="mt-6 flex flex-wrap items-center gap-4 text-sm font-medium border-t border-white/10 pt-4">
+            <div class="text-white text-lg">{{ a.artistName }}</div>
+            <span class="text-slate-600 text-xs uppercase tracking-widest">{{ a.genre }}</span>
+            <span class="text-slate-600">•</span>
+            <span class="text-slate-500">{{ a.releaseDate | date:'y' }}</span>
+            <span class="text-slate-600">•</span>
+            <span class="text-slate-500">{{ m.tracks.length }} Tracks</span>
+            <span class="text-slate-600">•</span>
+            <span class="text-slate-500 font-mono">{{ formatDuration(totalDuration()) }}</span>
+          </div>
+        </div>
+      </header>
+
+      @if (usingLiveDeviceTracks()) {
+        <div class="rounded-xl border border-teal-500/30 bg-teal-500/5 px-4 py-2 text-xs text-teal-300 inline-flex items-center gap-2">
+          <span class="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+          Live firmware track list (Wi-Fi)
+        </div>
+      }
+
+      <!-- TRACKS -->
+      <section id="tracks">
+         <!-- Equalizer keyframes -->
+         <style>
+           @keyframes eq-bar-1 { 0%,100%{height:4px} 50%{height:16px} }
+           @keyframes eq-bar-2 { 0%,100%{height:12px} 50%{height:4px} }
+           @keyframes eq-bar-3 { 0%,100%{height:8px} 50%{height:18px} }
+           .eq-bar { width: 3px; border-radius: 1px; }
+           .eq-bar-1 { animation: eq-bar-1 0.45s ease-in-out infinite; }
+           .eq-bar-2 { animation: eq-bar-2 0.55s ease-in-out infinite 0.1s; }
+           .eq-bar-3 { animation: eq-bar-3 0.5s ease-in-out infinite 0.2s; }
+           .heart-btn { transition: transform 0.2s ease, color 0.2s ease; }
+           .heart-btn:hover { transform: scale(1.25); }
+           .heart-btn:active { transform: scale(0.9); }
+         </style>
+
+         <div class="space-y-1">
+            @for (track of m.tracks; track track.trackId; let idx = $index) {
+              <div
+                class="group flex items-center gap-4 px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent"
+                [class.bg-indigo-500/10]="playerService.currentTrack()?.id === track.trackId"
+                [class.border-indigo-500/20]="playerService.currentTrack()?.id === track.trackId"
+                [class.hover:bg-white/5]="playerService.currentTrack()?.id !== track.trackId"
+                [class.hover:border-white/5]="playerService.currentTrack()?.id !== track.trackId"
+                (click)="playTrack(track)">
+
+                <!-- Track number / Equalizer -->
+                <div class="w-8 flex items-center justify-center shrink-0">
+                  @if (playerService.currentTrack()?.id === track.trackId && playerService.isPlaying()) {
+                    <div class="flex items-end gap-[2px] h-5">
+                      <div class="eq-bar eq-bar-1 bg-indigo-400"></div>
+                      <div class="eq-bar eq-bar-2 bg-indigo-400"></div>
+                      <div class="eq-bar eq-bar-3 bg-indigo-400"></div>
+                    </div>
+                  } @else {
+                    <span class="font-mono text-sm text-slate-500 group-hover:text-white transition-colors">
+                      {{ track.trackNo }}
+                    </span>
+                  }
+                </div>
+
+                <!-- Track info + popularity bar -->
+                <div class="flex-1 min-w-0">
+                   <div class="font-bold text-[15px] leading-snug truncate transition-colors duration-200"
+                        [class.text-indigo-400]="playerService.currentTrack()?.id === track.trackId"
+                        [class.text-slate-200]="playerService.currentTrack()?.id !== track.trackId"
+                        [class.group-hover:text-white]="playerService.currentTrack()?.id !== track.trackId">
+                      {{ track.title }}
+                   </div>
+
+                   <!-- Popularity bar -->
+                   <div class="mt-1.5 h-[3px] rounded-full bg-white/5 overflow-hidden w-full max-w-[200px]">
+                     <div class="h-full rounded-full transition-all duration-700 ease-out"
+                          [style.width.%]="getPopularity(track.trackId)"
+                          [class.bg-indigo-400/60]="playerService.currentTrack()?.id === track.trackId"
+                          [class.bg-white/15]="playerService.currentTrack()?.id !== track.trackId">
+                     </div>
+                   </div>
+                </div>
+
+                <!-- Play count -->
+                <div class="hidden sm:flex items-center gap-1 text-xs text-slate-600 group-hover:text-slate-400 transition-colors shrink-0 tabular-nums">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                  </svg>
+                  {{ trackPlayCounts()[track.trackId] ?? 0 }}
+                </div>
+
+                <!-- Duration -->
+                <div class="font-mono text-sm text-slate-600 group-hover:text-slate-400 transition-colors shrink-0">
+                  {{ formatTime(track.durationSec) }}
+                </div>
+
+                <!-- Heart / Favorite button -->
+                <button class="heart-btn shrink-0 p-1 rounded-full"
+                        [class.text-rose-500]="favorites().has(track.trackId)"
+                        [class.text-slate-600]="!favorites().has(track.trackId)"
+                        [class.hover:text-rose-400]="!favorites().has(track.trackId)"
+                        [style.filter]="favorites().has(track.trackId) ? 'drop-shadow(0 0 6px rgba(244,63,94,0.5))' : 'none'"
+                        (click)="toggleFavorite(track.trackId, $event)">
+                  @if (favorites().has(track.trackId)) {
+                    <!-- Filled heart -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" />
+                    </svg>
+                  } @else {
+                    <!-- Outline heart -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  }
+                </button>
+              </div>
+            }
+         </div>
+      </section>
+
+      <!-- More sections can go here -->
+    </div>
+  }
+} @else {
+  <div class="text-center p-12 text-rose-400 border border-dashed border-rose-500/30 rounded-lg">
+    <h2 class="font-bold">Error Loading Album</h2>
+    <p class="text-sm text-slate-400 mt-2">Could not retrieve manifest from the connected device. Please ensure the device is connected properly and contains this album.</p>
+  </div>
+}
