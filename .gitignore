@@ -11,6 +11,7 @@ node_modules
 dist
 .angular
 .pio
+.internal-ingest-data
 dist-ssr
 *.local
 .angular/

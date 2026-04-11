@@ -18,5 +18,11 @@
       "Connection": "close"
     },
     "pathRewrite": { "^/dpa-upload": "" }
+  },
+  "/internal-api": {
+    "target": "http://127.0.0.1:8787",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug"
   }
 }
