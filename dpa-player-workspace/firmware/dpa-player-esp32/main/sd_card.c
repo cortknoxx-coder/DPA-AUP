@@ -18,19 +18,23 @@
 #include <errno.h>
 
 #include "esp_log.h"
+#if !DPA_PLAYER_SIM_SD
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
 #include "driver/sdspi_host.h"
 #include "driver/spi_common.h"
+#endif
 
 static const char *TAG = "sd_card";
 
-static bool               s_mounted       = false;
-static sdmmc_card_t      *s_card          = NULL;
-static sdspi_dev_handle_t s_sdspi         = -1;
-static sdmmc_host_t       s_host          = SDSPI_HOST_DEFAULT();
-static uint32_t           s_current_khz   = 0;
-static bool               s_bus_initted   = false;
+static bool     s_mounted     = false;
+static uint32_t s_current_khz = 0;
+
+#if !DPA_PLAYER_SIM_SD
+static sdmmc_card_t *s_card       = NULL;
+static sdmmc_host_t  s_host       = SDSPI_HOST_DEFAULT();
+static bool          s_bus_initted = false;
+#endif
 
 bool dpa_sd_is_mounted(void) { return s_mounted; }
 
@@ -48,13 +52,11 @@ esp_err_t dpa_sd_init(void)
     ESP_LOGW(TAG, "SD SIM mode — no hardware expected, faking a mounted card");
     s_mounted     = true;
     s_current_khz = DPA_PLAYER_SD_FREQ_FAST_KHZ;
-    s_card        = NULL;
     return ESP_OK;
 #else
     ESP_LOGI(TAG, "probing SD card on SPI (CS=%d MOSI=%d SCK=%d MISO=%d)",
              DPA_PLAYER_SD_PIN_CS, DPA_PLAYER_SD_PIN_MOSI,
              DPA_PLAYER_SD_PIN_SCK, DPA_PLAYER_SD_PIN_MISO);
-#endif
 
     s_host = (sdmmc_host_t)SDSPI_HOST_DEFAULT();
     s_host.max_freq_khz = DPA_PLAYER_SD_FREQ_SLOW_KHZ;
@@ -117,6 +119,7 @@ esp_err_t dpa_sd_init(void)
 
     ESP_LOGI(TAG, "SD mounted at %s", DPA_PLAYER_SD_MOUNT);
     return ESP_OK;
+#endif
 }
 
 void dpa_sd_deinit(void)
@@ -222,8 +225,7 @@ esp_err_t dpa_sd_mkdir_p(const char *rel)
     /* No real VFS mount; just pretend we made the directory. */
     ESP_LOGD(TAG, "SIM mkdir -p %s", rel);
     return ESP_OK;
-#endif
-
+#else
     char abs[192];
     dpa_sd_path(abs, sizeof(abs), rel);
 
@@ -241,4 +243,5 @@ esp_err_t dpa_sd_mkdir_p(const char *rel)
         }
     }
     return ESP_OK;
+#endif
 }
