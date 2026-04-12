@@ -17,6 +17,11 @@
     } @else {
       <p class="text-slate-400 mt-2">If your DPA is already on WiFi or attached over USB-C, the portal should now pick it up first.</p>
     }
+    <div class="mt-4 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-left">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-300">Portal Rule</div>
+      <div class="mt-2 text-sm font-semibold text-slate-100">{{ deviceService.deviceAccessHeadline() }}</div>
+      <p class="mt-1 text-xs leading-5 text-slate-400">{{ deviceService.deviceAccessDetail() }}</p>
+    </div>
   </div>
 
   <div class="w-full max-w-sm space-y-4 mt-12 z-10" [class.opacity-50]="autoProbing()" [class.pointer-events-none]="autoProbing()">
@@ -69,11 +74,11 @@
         }
       </div>
       <div class="text-left flex-1">
-        <h3 class="font-semibold text-white">WiFi Direct</h3>
+        <h3 class="font-semibold text-white">WiFi / Same LAN</h3>
         @if (connectingVia() === 'wifi') {
           <p class="text-xs text-emerald-400">Probing device at {{ deviceService.wifi.deviceIp() }}...</p>
         } @else {
-          <p class="text-xs text-slate-400">Join the DPA™ WiFi network first, then connect.</p>
+          <p class="text-xs text-slate-400">Use the DPA SSID or keep the DPA on the same home WiFi, then connect.</p>
         }
       </div>
     </button>
@@ -110,6 +115,27 @@
       {{ wifiError() || deviceService.connectionError() }}
     </div>
   }
+
+  <div class="mt-8 grid w-full max-w-4xl gap-4 md:grid-cols-3 z-10">
+    <div class="rounded-xl border border-emerald-500/20 bg-emerald-900/10 p-4 text-left">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300">On DPA SSID</div>
+      <p class="mt-2 text-xs leading-5 text-slate-300">
+        Authenticate, connect to the branded DPA WiFi network, pull state directly from the device, then reveal the fan portal.
+      </p>
+    </div>
+    <div class="rounded-xl border border-sky-500/20 bg-sky-900/10 p-4 text-left">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-300">On Same Home WiFi</div>
+      <p class="mt-2 text-xs leading-5 text-slate-300">
+        Keep the phone and the DPA on the same LAN, then let the portal confirm the live device session before showing the dashboard. Chrome is recommended here.
+      </p>
+    </div>
+    <div class="rounded-xl border border-amber-500/20 bg-amber-900/10 p-4 text-left">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-300">Remote Only</div>
+      <p class="mt-2 text-xs leading-5 text-slate-300">
+        The fan dashboard stays locked until a live DPA is reachable. Remote account context can exist, but the device-authenticated experience does not reveal yet.
+      </p>
+    </div>
+  </div>
 
   <div class="mt-8 z-10">
     <button (click)="useSimulator()" class="text-xs text-slate-500 hover:text-amber-400 transition-colors">

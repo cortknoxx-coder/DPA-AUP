@@ -226,6 +226,7 @@ export interface FirmwareStatus {
   ver: string;
   env: string;
   duid: string;
+  apSsid?: string;
   artist?: string;
   album?: string;
   coverBytes?: number;
