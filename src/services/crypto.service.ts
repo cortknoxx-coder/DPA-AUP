@@ -232,9 +232,11 @@ export class CryptoService {
       const ciphertext = data.slice(28);
 
       const keyBytes = b64ToBytes(sessionKeyB64);
+      const rawKeyBytes = new Uint8Array(keyBytes.byteLength);
+      rawKeyBytes.set(keyBytes);
       const key = await crypto.subtle.importKey(
         'raw',
-        keyBytes,
+        rawKeyBytes,
         { name: 'AES-GCM' },
         false,
         ['decrypt']

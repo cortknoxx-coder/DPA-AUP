@@ -148,11 +148,13 @@
 
   @if (showGlobalDeviceUi()) {
     <div
-      class="pointer-events-none fixed right-4 z-[70] flex w-[min(100%-2rem,24rem)] flex-col gap-3"
-      [class.top-20]="hideArtistNav()"
-      [class.top-36]="!hideArtistNav()">
-      <app-device-hud-overlay />
+      class="pointer-events-none fixed right-4 z-[70] flex w-[min(100%-2rem,20rem)] flex-col gap-3"
+      [class.bottom-28]="hideArtistNav()"
+      [class.bottom-6]="!hideArtistNav()">
       <app-device-notification-center />
+      @if (showFloatingHud()) {
+        <app-device-hud-overlay />
+      }
     </div>
   }
 </div>

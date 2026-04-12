@@ -158,6 +158,13 @@ export class TrackListComponent {
     return noExt.replace(/[^a-zA-Z0-9_-]/g, '_') || 'track';
   }
 
+  private sanitizeDeviceFilename(filename: string): string {
+    return filename
+      .replace(/ /g, '_')
+      .replace(/[()']/g, '')
+      .replace(/[&#]/g, '_');
+  }
+
   onTrackArtSelected(event: Event, trackId: string) {
     const input = event.target as HTMLInputElement;
     const file = input?.files?.[0];
@@ -298,8 +305,9 @@ export class TrackListComponent {
     this.updateItemStatus(item.id, 'transferring', 0);
 
     let transferOk = false;
+    const deviceFilename = this.sanitizeDeviceFilename(file.name);
     try {
-      transferOk = await this.connectionService.wifi.uploadFileToPath(file, `/tracks/${file.name}`, (percent) => {
+      transferOk = await this.connectionService.wifi.uploadFileToPath(file, `/tracks/${deviceFilename}`, (percent) => {
         this.uploads.update(items => items.map(u =>
           u.id === item.id ? { ...u, progress: percent } : u
         ));
@@ -327,7 +335,7 @@ export class TrackListComponent {
     if (a) {
       const title = file.name.replace(/\.[^/.]+$/, '');
       const duration = await this.getAudioDuration(file);
-      this.dataService.addTrack(a.albumId, title, duration, `device://${duid}/${file.name}`);
+      this.dataService.addTrack(a.albumId, title, duration, `device://${duid}/${deviceFilename}`);
     }
 
     // Refresh device track list after successful upload

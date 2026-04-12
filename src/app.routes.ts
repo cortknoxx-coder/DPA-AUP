@@ -22,7 +22,9 @@ import { FanSettingsComponent } from './pages/fan-portal/fan-settings.component'
 import { FanAudioComponent } from './pages/fan-portal/fan-audio.component';
 import { FleetTrackerComponent } from './pages/fleet-tracker/fleet-tracker.component';
 import { FanAuthComponent } from './pages/fan-portal/fan-auth.component';
-import { requireCreatorPortalGuard, requireFanPortalGuard } from './guards/portal-access.guard';
+import { requireCreatorPortalGuard, requireFanPortalGuard, requireOperatorPortalGuard } from './guards/portal-access.guard';
+import { InternalIngestComponent } from './pages/internal/internal-ingest.component';
+import { InternalLoginComponent } from './pages/internal/internal-login.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -78,6 +80,16 @@ export const routes: Routes = [
           { path: 'settings', component: FanSettingsComponent }
         ]
       }
+    ]
+  },
+
+  // Internal Operator Surface
+  {
+    path: 'internal',
+    children: [
+      { path: 'login', component: InternalLoginComponent },
+      { path: '', redirectTo: 'ingest', pathMatch: 'full' },
+      { path: 'ingest', canActivate: [requireOperatorPortalGuard], component: InternalIngestComponent }
     ]
   }
 ];

@@ -25,6 +25,8 @@ export interface PortalEntitlements {
   providedIn: 'root'
 })
 export class UserService {
+  private readonly OPERATOR_PREVIEW_KEY = 'dpa_operator_preview';
+
   // Temporary scaffold until the real license/entitlement backend exists.
   // Default to dual-role so current internal testing can still use both portals.
   entitlements = signal<PortalEntitlements>({
@@ -82,7 +84,9 @@ export class UserService {
     { id: '4', title: 'Echoes of Silence', type: 'album', totalPlays: 8000, revenue: 4200, trend: 150.0 }
   ]);
 
-  constructor() {}
+  constructor() {
+    this.bootstrapOperatorPreview();
+  }
 
   licensedRoles = computed(() => this.entitlements().roles);
   licenseTier = computed(() => this.entitlements().licenseTier);
@@ -92,32 +96,55 @@ export class UserService {
     return this.licensedRoles().includes(role);
   }
 
-  canAccessPortal(portal: 'fan' | 'creator'): boolean {
+  canAccessPortal(portal: UserRole): boolean {
     return this.hasRole(portal);
   }
 
   bestAvailableRoute(): string {
     if (this.canAccessPortal('creator')) return '/artist/dashboard';
     if (this.canAccessPortal('fan')) return '/fan';
+    if (this.canAccessPortal('operator')) return '/internal/ingest';
     return '/login';
   }
 
-  deniedPortalRedirect(portal: 'fan' | 'creator'): string {
+  deniedPortalRedirect(portal: UserRole): string {
     const fallback = this.bestAvailableRoute();
     if (portal === 'creator' && this.canAccessPortal('fan')) return '/fan';
     if (portal === 'fan' && this.canAccessPortal('creator')) return '/artist/dashboard';
+    if (portal === 'operator' && this.canAccessPortal('creator')) return '/artist/dashboard';
+    if (portal === 'operator' && this.canAccessPortal('fan')) return '/fan';
     return fallback;
   }
 
-  portalAccessMessage(portal: 'fan' | 'creator'): string {
-    return portal === 'creator'
-      ? 'Creator access requires a creator or dual-role license.'
-      : 'Fan access requires a fan or dual-role license.';
+  portalAccessMessage(portal: UserRole): string {
+    if (portal === 'creator') {
+      return 'Creator access requires a creator or dual-role license.';
+    }
+    if (portal === 'fan') {
+      return 'Fan access requires a fan or dual-role license.';
+    }
+    return 'Operator access requires internal preview to be enabled.';
   }
 
   setEntitlements(entitlements: PortalEntitlements) {
     const roles = Array.from(new Set(entitlements.roles));
     this.entitlements.set({ ...entitlements, roles });
+  }
+
+  enableOperatorPreview() {
+    this.persistOperatorPreview(true);
+    this.entitlements.update((current) => ({
+      ...current,
+      roles: Array.from(new Set([...current.roles, 'operator'])),
+    }));
+  }
+
+  disableOperatorPreview() {
+    this.persistOperatorPreview(false);
+    this.entitlements.update((current) => ({
+      ...current,
+      roles: current.roles.filter((role) => role !== 'operator'),
+    }));
   }
 
   updateProfile(profile: UserProfile) {
@@ -175,5 +202,29 @@ export class UserService {
       totalEarnings: f.totalEarnings + amount,
       perksSource: f.perksSource + amount
     }));
+  }
+
+  private bootstrapOperatorPreview() {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('internalPreview') === '1') {
+      this.enableOperatorPreview();
+      return;
+    }
+    if (window.localStorage.getItem(this.OPERATOR_PREVIEW_KEY) === '1') {
+      this.entitlements.update((current) => ({
+        ...current,
+        roles: Array.from(new Set([...current.roles, 'operator'])),
+      }));
+    }
+  }
+
+  private persistOperatorPreview(enabled: boolean) {
+    if (typeof window === 'undefined') return;
+    if (enabled) {
+      window.localStorage.setItem(this.OPERATOR_PREVIEW_KEY, '1');
+    } else {
+      window.localStorage.removeItem(this.OPERATOR_PREVIEW_KEY);
+    }
   }
 }

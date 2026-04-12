@@ -1,0 +1,116 @@
+{
+  "operatorSessions": [
+    {
+      "id": "ops_765ac7f157943207",
+      "tokenHash": "e1261f717dd8e458f6bee5d069bdff449ac032d08cf2f23a542c1a6d0f27875d",
+      "createdAt": "2026-04-12T07:16:01.357Z",
+      "expiresAt": "2026-04-12T15:16:01.360Z"
+    }
+  ],
+  "devices": [
+    {
+      "id": "dev_8fb0561106e37aaa",
+      "deviceId": "DPA-EB95",
+      "label": "Hardware smoke DPA",
+      "albumId": "The Wack Game",
+      "tokenHash": "53dbbe8f36ac0ba1c122ec25869f5c5980fb88647ecfa68007653dedfbdf45d2",
+      "createdAt": "2026-04-12T07:16:01.365Z",
+      "updatedAt": "2026-04-12T07:16:01.365Z",
+      "lastSeenAt": ""
+    }
+  ],
+  "uploadSessions": [
+    {
+      "id": "upl_23711a3a607f2d3a",
+      "deviceId": "DPA-EB95",
+      "albumId": "The Wack Game",
+      "source": "operator",
+      "filename": "cap_smoke_hw_001.dpa",
+      "mimeType": "application/octet-stream",
+      "contentKind": "capsule",
+      "status": "complete",
+      "fileId": "file_ce5e991cbfc954ca",
+      "sizeBytes": 27,
+      "sha256": "5dabcc36d190ea816ad31671cba5ed156594d7eb9b3930494a03a2b886f4976f",
+      "createdAt": "2026-04-12T07:16:01.366Z",
+      "updatedAt": "2026-04-12T07:16:01.371Z",
+      "completedAt": "2026-04-12T07:16:01.371Z",
+      "expiresAt": "2026-04-12T07:31:01.366Z",
+      "uploadTokenHash": "80344f8a15ad16e82f68e8555556a84530ce68d26ec267406dc9ceeb5a328241",
+      "uploadTokenPlain": "1d8b93aafb1f6aa483c861cf9119a8b6527ab15efd729525"
+    }
+  ],
+  "files": [
+    {
+      "id": "file_ce5e991cbfc954ca",
+      "sessionId": "upl_23711a3a607f2d3a",
+      "deviceId": "DPA-EB95",
+      "albumId": "The Wack Game",
+      "filename": "cap_smoke_hw_001.dpa",
+      "storedFilename": "file_ce5e991cbfc954ca.dpa",
+      "mimeType": "application/octet-stream",
+      "contentKind": "capsule",
+      "source": "operator",
+      "sizeBytes": 27,
+      "sha256": "5dabcc36d190ea816ad31671cba5ed156594d7eb9b3930494a03a2b886f4976f",
+      "status": "verified",
+      "createdAt": "2026-04-12T07:16:01.370Z",
+      "updatedAt": "2026-04-12T07:16:01.371Z"
+    }
+  ],
+  "capsules": [
+    {
+      "id": "cap_smoke_hw_001",
+      "createdAt": "2026-04-12T07:16:01.372Z",
+      "albumId": "The Wack Game",
+      "type": "audio",
+      "title": "Hardware OTA Smoke",
+      "description": "End-to-end OTA smoke capsule.",
+      "version": 1,
+      "payloadKind": "dpa",
+      "payloadFileId": "file_ce5e991cbfc954ca",
+      "payloadUrl": "",
+      "payloadFilename": "cap_smoke_hw_001.dpa",
+      "payloadMimeType": "application/octet-stream",
+      "payloadSha256": "5dabcc36d190ea816ad31671cba5ed156594d7eb9b3930494a03a2b886f4976f",
+      "payloadSizeBytes": 27,
+      "artworkUrl": "",
+      "ledIntent": "capsule_arrival",
+      "updatedAt": "2026-04-12T07:16:01.372Z"
+    }
+  ],
+  "entitlements": [
+    {
+      "id": "ent_75c753d26658e994",
+      "capsuleId": "cap_smoke_hw_001",
+      "userId": "",
+      "deviceId": "DPA-EB95",
+      "albumId": "The Wack Game",
+      "sourceType": "grant",
+      "priority": "high",
+      "availableAt": "2026-04-12T07:16:01.374Z",
+      "expiresAt": null,
+      "createdAt": "2026-04-12T07:16:01.374Z"
+    }
+  ],
+  "deliveries": [
+    {
+      "id": "del_ecb40c505493a814",
+      "entitlementId": "ent_75c753d26658e994",
+      "capsuleId": "cap_smoke_hw_001",
+      "deviceId": "DPA-EB95",
+      "albumId": "The Wack Game",
+      "status": "pending",
+      "attemptCount": 0,
+      "progressBytes": 0,
+      "installedPath": "",
+      "lastError": "",
+      "announcedAt": "",
+      "downloadStartedAt": "",
+      "downloadCompletedAt": "",
+      "installedAt": "",
+      "seenAt": "",
+      "updatedAt": "2026-04-12T07:16:01.374Z"
+    }
+  ]
+}

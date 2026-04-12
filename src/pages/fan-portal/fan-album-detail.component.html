@@ -9,7 +9,8 @@
         <div class="relative group shrink-0">
            <img [src]="albumCoverUrl() || defaultCover" 
                 alt="Album Cover" 
-                class="w-64 h-64 md:w-80 md:h-80 rounded-lg shadow-2xl shadow-black/80 object-cover border border-white/10">
+                class="w-64 h-64 md:w-80 md:h-80 rounded-lg shadow-2xl shadow-black/80 object-cover border border-white/10"
+                (error)="handleAlbumCoverError($event)">
            
            <button class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm rounded-lg"
                    (click)="playAlbum()">
@@ -42,7 +43,48 @@
         </div>
       }
 
+      @if (ingestSummary(); as ingest) {
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Private Ingest Summary</div>
+              <p class="mt-2 text-sm text-slate-300">
+                This album may also include operator-side private drops. Only safe status is shown here.
+              </p>
+            </div>
+            <div class="rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-xs text-slate-400">
+              {{ ingest.verifiedFiles }} verified
+            </div>
+          </div>
+          <div class="mt-4 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+              <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Total Files</div>
+              <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.totalFiles }}</div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+              <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Active Sessions</div>
+              <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.activeSessions }}</div>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+              <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Last Upload</div>
+              <div class="mt-2 text-sm font-semibold text-slate-100">
+                {{ ingest.lastUploadedAt ? (ingest.lastUploadedAt | date:'medium') : 'None yet' }}
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+
       <div class="flex flex-wrap gap-2 rounded-xl border border-slate-800 bg-slate-900/40 p-2">
+        <button
+          type="button"
+          (click)="activeSection.set('overview')"
+          class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
+          [class.bg-white]="activeSection() === 'overview'"
+          [class.text-black]="activeSection() === 'overview'"
+          [class.text-slate-400]="activeSection() !== 'overview'">
+          Overview
+        </button>
         <button
           type="button"
           (click)="activeSection.set('tracks')"
@@ -92,6 +134,20 @@
         }
       </div>
 
+      @if (activeSection() === 'overview') {
+        <section id="overview">
+          <app-compiled-album-view
+            [album]="a"
+            [tracks]="m.tracks"
+            [totalDuration]="totalDuration()"
+            [coverUrl]="albumCoverUrl()"
+            [sourceLabel]="usingLiveDeviceTracks() ? 'Fan Portal Live Device View' : 'Fan Portal Album Overview'"
+            [policyHash]="m.policyHash"
+            [buildVersion]="a.dpacVersion">
+          </app-compiled-album-view>
+        </section>
+      }
+
       <!-- TRACKS -->
       @if (activeSection() === 'tracks') {
       <section id="tracks">
@@ -138,7 +194,7 @@
                 <div class="w-10 h-10 rounded overflow-hidden bg-slate-800 shrink-0">
                   <img [src]="trackArtUrls()[track.trackId] || albumCoverUrl()"
                        class="w-full h-full object-cover"
-                       (error)="$any($event.target).src = albumCoverUrl() || defaultCover"
+                       (error)="handleTrackArtError($event, track.trackId)"
                        loading="lazy">
                 </div>
 

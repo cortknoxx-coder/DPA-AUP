@@ -38,7 +38,11 @@
 // SD clock speeds
 #define SD_SLOW_HZ   400000      // 400kHz — reliable for XTSD writes/uploads
 #define SD_FAST_HZ   20000000    // 20MHz — proven for audio playback
+#define SD_UPLOAD_WARM_HZ  1000000   // 1MHz — safer step-up for writes
+#define SD_UPLOAD_MEDIUM_HZ 4000000  // 4MHz — usually stable on this module
+#define SD_UPLOAD_TURBO_HZ  8000000  // 8MHz — try first, fall back if probe fails
 #define SD_BOOT_SETTLE_MS 450    // brief power/card settle before first mount
+#define SD_WRITE_PROBE_BYTES 1024 // tiny temp-file probe before real uploads
 
 // ── Globals owned by .ino ────────────────────────────────────
 extern bool  g_sdMounted;
@@ -49,6 +53,7 @@ extern int   g_sdFileCount;
 
 // Current SD mount speed
 static uint32_t g_sdCurrentHz = 0;
+static uint32_t g_sdPreferredUploadHz = 0;
 
 // Track if SPI bus is initialized
 static bool g_sdSpiReady = false;
@@ -99,6 +104,44 @@ static String dpaJsonEscape(const String& s) {
   out.replace("\\", "\\\\");
   out.replace("\"", "\\\"");
   return out;
+}
+
+static bool sdWriteProbeCurrentMount() {
+  if (!g_sdMounted) return false;
+
+  const char* probePath = "/.dpa-upload-probe.tmp";
+  uint8_t probeBuf[SD_WRITE_PROBE_BYTES];
+  memset(probeBuf, 0xA5, sizeof(probeBuf));
+
+  if (SD.exists(probePath)) SD.remove(probePath);
+
+  File probe = SD.open(probePath, FILE_WRITE);
+  if (!probe) {
+    Serial.printf("[SD] Write probe open failed at %lu Hz\n", (unsigned long)g_sdCurrentHz);
+    return false;
+  }
+
+  size_t wrote = probe.write(probeBuf, sizeof(probeBuf));
+  probe.flush();
+  probe.close();
+
+  bool ok = (wrote == sizeof(probeBuf));
+  if (ok) {
+    File verify = SD.open(probePath, FILE_READ);
+    if (!verify) {
+      ok = false;
+    } else {
+      ok = (verify.size() == sizeof(probeBuf));
+      verify.close();
+    }
+  }
+
+  if (SD.exists(probePath)) SD.remove(probePath);
+
+  Serial.printf("[SD] Write probe %s at %lu Hz\n",
+    ok ? "OK" : "FAIL",
+    (unsigned long)g_sdCurrentHz);
+  return ok;
 }
 
 static void sdPopulateStats() {
@@ -193,6 +236,40 @@ static bool sdRemount(uint32_t hz) {
 // Convenience wrappers
 static bool sdMountFast() { return sdRemount(SD_FAST_HZ); }
 static bool sdMountSlow() { return sdRemount(SD_SLOW_HZ); }
+static bool sdMountUploadAuto() {
+  uint32_t speeds[] = {
+    g_sdPreferredUploadHz,
+    SD_UPLOAD_TURBO_HZ,
+    SD_UPLOAD_MEDIUM_HZ,
+    SD_UPLOAD_WARM_HZ,
+    SD_SLOW_HZ
+  };
+
+  for (size_t i = 0; i < (sizeof(speeds) / sizeof(speeds[0])); i++) {
+    uint32_t hz = speeds[i];
+    if (hz == 0) continue;
+
+    bool duplicate = false;
+    for (size_t j = 0; j < i; j++) {
+      if (speeds[j] == hz) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (duplicate) continue;
+
+    if (!sdRemount(hz)) continue;
+    if (!sdWriteProbeCurrentMount()) continue;
+
+    g_sdPreferredUploadHz = hz;
+    Serial.printf("[SD] Upload speed selected: %lu Hz\n", (unsigned long)hz);
+    return true;
+  }
+
+  g_sdPreferredUploadHz = 0;
+  return false;
+}
+static bool sdMountUploadSafe() { return sdMountSlow(); }
 
 // ── Public API ───────────────────────────────────────────────
 static bool sdInit() {
@@ -290,6 +367,7 @@ static String sdListFilesJson(const char* dirPath) {
   }
   if (entry) entry.close();
 
+  json += "]";
   dir.close();
   return json;
 }

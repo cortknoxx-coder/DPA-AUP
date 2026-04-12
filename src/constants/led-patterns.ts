@@ -3,7 +3,7 @@ import { LedPattern } from '../types';
 export type LedPatternOption = { value: LedPattern; label: string };
 export type LedPatternGroup = { label: string; options: LedPatternOption[] };
 
-/** Must match firmware `led.h` pattern strings and device dashboard ordering. */
+/** Persistent LED mode patterns supported by firmware `led.h`. */
 export const FIRMWARE_LED_PATTERN_GROUPS: LedPatternGroup[] = [
   {
     label: 'Basic',
@@ -47,15 +47,6 @@ export const FIRMWARE_LED_PATTERN_GROUPS: LedPatternGroup[] = [
       { value: 'vu_split', label: 'VU Stereo Split' },
       { value: 'vu_bass', label: 'VU Bass' },
       { value: 'vu_energy', label: 'VU Energy' },
-    ],
-  },
-  {
-    label: 'Notification',
-    options: [
-      { value: 'chase_fwd', label: 'Chase Forward' },
-      { value: 'chase_rev', label: 'Chase Reverse' },
-      { value: 'heartbeat', label: 'Heartbeat' },
-      { value: 'fade_out', label: 'Fade Out' },
     ],
   },
 ];

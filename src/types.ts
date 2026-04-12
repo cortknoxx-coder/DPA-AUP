@@ -203,6 +203,16 @@ export interface DeviceRuntimeStatus {
   wifiMaintenance?: string;
   lastUploadPath?: string;
   lastUploadBytes?: number;
+  mcu?: McuHealthStatus;
+}
+
+export interface McuHealthStatus {
+  freeHeapBytes?: number;
+  minFreeHeapBytes?: number;
+  largestHeapBlockBytes?: number;
+  playbackStackHighWaterBytes?: number;
+  lowMemory?: boolean;
+  stackTight?: boolean;
 }
 
 export interface A2dpDevice {
@@ -233,11 +243,20 @@ export interface FirmwareStatus {
   wifiMaintenance?: string;
   lastUploadPath?: string;
   lastUploadBytes?: number;
+  ingestConfigured?: boolean;
+  ingestState?: string;
+  ingestLastError?: string;
+  ingestLastFile?: string;
+  ingestLastSessionId?: string;
+  ingestLastAlbumId?: string;
+  ingestLastAt?: number;
+  mcu?: McuHealthStatus;
   sta?: {
     connected: boolean;
     ssid: string;
     ip: string;
     rssi: number;
+    joinPending?: boolean;
   };
   uptime_s: number;
   battery: BatteryStatus;
@@ -261,9 +280,9 @@ export interface FirmwareStatus {
     favorite?: boolean;
   };
   led?: {
-    idle?: { color: string; pattern: string };
-    playback?: { color: string; pattern: string };
-    charging?: { color: string; pattern: string };
+    idle?: { color: string; pattern: string; fullSpectrum?: boolean };
+    playback?: { color: string; pattern: string; fullSpectrum?: boolean };
+    charging?: { color: string; pattern: string; fullSpectrum?: boolean };
     brightness?: number;
     gradEnd?: string;
   };
@@ -378,6 +397,8 @@ export interface Album {
   tracks: Track[];
   dcnpEvents: DcnpEvent[];
   lastBuiltAt?: string;
+  lastVerifiedAt?: string;
+  lastBuildMessage?: string;
   
   // Cover Art
   artworkUrl?: string;

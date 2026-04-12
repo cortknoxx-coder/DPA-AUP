@@ -8,13 +8,13 @@ type BrandMarkTone = 'teal' | 'indigo' | 'slate';
   standalone: true,
   template: `
     <span [class]="shellClasses()">
-      <span class="flex flex-col leading-none">
+      <span class="flex min-w-0 flex-col items-center justify-center text-center leading-none">
         <span class="flex items-start gap-[0.18em]">
           <span [class]="wordClasses()">DPA</span>
           <span [class]="tmClasses()">TM</span>
         </span>
         @if (descriptor()) {
-          <span class="mt-1 flex items-center gap-2">
+          <span class="mt-1 flex items-center justify-center gap-2">
             <span [class]="ruleClasses()"></span>
             <span [class]="descriptorClasses()">{{ descriptor() }}</span>
           </span>
@@ -110,7 +110,7 @@ export class BrandMarkComponent {
     const size = this.sizeConfig();
     const tone = this.toneConfig();
     const frame = this.framed() ? `${tone.shell} border` : 'border-transparent bg-transparent shadow-none';
-    return `inline-flex items-center leading-none select-none ${size.shell} ${frame}`;
+    return `inline-flex items-center justify-center leading-none select-none ${size.shell} ${frame}`;
   });
 
   wordClasses = computed(() => {

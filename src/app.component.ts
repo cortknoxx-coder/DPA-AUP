@@ -1,5 +1,5 @@
 
-import { Component, inject, computed, signal } from '@angular/core';
+import { Component, DestroyRef, inject, computed, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
 import { DeviceConnectionService } from './services/device-connection.service';
 import { UserService } from './services/user.service';
@@ -20,16 +20,20 @@ export class AppComponent {
   connectionService = inject(DeviceConnectionService);
   userService = inject(UserService);
   private router = inject(Router);
+  private destroyRef = inject(DestroyRef);
 
   showConnectionMenu = signal(false);
   connectionAction = signal<'detect' | 'wifi' | 'usb' | 'nfc' | null>(null);
+  private mobileMediaQuery =
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 639px)') : null;
+  isSmallScreen = signal(this.mobileMediaQuery?.matches ?? false);
 
   // Check if current route is NOT Artist portal
   // We hide the global nav on Login and Fan Portal routes
   hideArtistNav = toSignal(
     this.router.events.pipe(
       filter(e => e instanceof NavigationEnd),
-      map((e: any) => e.url.startsWith('/fan') || e.url.startsWith('/login') || e.url === '/')
+      map((e: any) => e.url.startsWith('/fan') || e.url.startsWith('/login') || e.url.startsWith('/internal') || e.url === '/')
     ),
     { initialValue: true } // Default to hidden (Login screen)
   );
@@ -37,10 +41,12 @@ export class AppComponent {
   showGlobalDeviceUi = toSignal(
     this.router.events.pipe(
       filter(e => e instanceof NavigationEnd),
-      map((e: any) => !(e.url.startsWith('/login') || e.url === '/'))
+      map((e: any) => !(e.url.startsWith('/login') || e.url.startsWith('/internal') || e.url === '/'))
     ),
     { initialValue: false }
   );
+
+  showFloatingHud = computed(() => this.showGlobalDeviceUi() && !this.isSmallScreen());
 
   userInitials = computed(() => {
     const name = this.userService.userProfile().name;
@@ -51,6 +57,14 @@ export class AppComponent {
     }
     return name.substring(0, 2).toUpperCase();
   });
+
+  constructor() {
+    if (this.mobileMediaQuery) {
+      const handleChange = (event: MediaQueryListEvent) => this.isSmallScreen.set(event.matches);
+      this.mobileMediaQuery.addEventListener('change', handleChange);
+      this.destroyRef.onDestroy(() => this.mobileMediaQuery?.removeEventListener('change', handleChange));
+    }
+  }
 
   toggleConnectionMenu() {
     this.showConnectionMenu.update(v => !v);

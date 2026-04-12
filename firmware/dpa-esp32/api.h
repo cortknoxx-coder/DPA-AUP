@@ -11,6 +11,9 @@
 #define DPA_API_H
 
 #include <ESPAsyncWebServer.h>
+#include <esp_heap_caps.h>
+#include <esp_system.h>
+#include <freertos/task.h>
 #include "dpa_wifi.h"
 #include "led.h"
 #include "sd_card.h"
@@ -30,10 +33,33 @@ extern unsigned long g_bootTime;
 extern int g_playCount, g_pauseCount, g_nextCount, g_prevCount;
 extern String g_firstPlayableWav;
 extern bool g_sdMounted;
+extern volatile bool g_uploadInProgress;
 extern String g_bootState, g_sdState, g_uploadState, g_degradedReason;
 extern String g_httpMode, g_wifiMaintenanceMode, g_lastUploadPath;
 extern size_t g_lastUploadBytes;
+extern String g_lastUploadMode;
+extern uint32_t g_lastUploadDurationMs, g_lastUploadRateKBps, g_lastUploadSdHz;
 extern bool g_httpReady, g_wifiReady, g_audioHardwareVerified;
+extern String g_disconnectBreadcrumbKind, g_disconnectBreadcrumbScope;
+extern String g_disconnectBreadcrumbCause, g_disconnectBreadcrumbDetail;
+extern int g_disconnectBreadcrumbReasonCode;
+extern unsigned long g_disconnectBreadcrumbAtMs, g_disconnectBreadcrumbUptimeS;
+extern uint32_t g_disconnectBreadcrumbFreeHeap, g_disconnectBreadcrumbLargestHeapBlock;
+extern int g_disconnectBreadcrumbStaRssi, g_disconnectBreadcrumbApClients;
+extern unsigned long g_httpRestartCount;
+extern unsigned long g_lastPortalHttpActivityAtMs;
+extern bool g_portalHttpWatchdogArmed;
+extern void notePortalHttpActivity();
+extern String g_ingestBaseUrl, g_ingestDeviceToken, g_ingestState;
+extern String g_ingestLastError, g_ingestLastFile, g_ingestLastSessionId, g_ingestLastAlbumId;
+extern unsigned long g_ingestLastAt;
+extern String g_capsuleOtaState, g_capsuleOtaLastError;
+extern String g_capsuleOtaPendingDeliveryId, g_capsuleOtaPendingCapsuleId;
+extern String g_capsuleOtaPendingTitle, g_capsuleOtaPendingInstallPath;
+extern String g_capsuleOtaPendingDownloadUrl, g_capsuleOtaPendingLedIntent;
+extern uint32_t g_capsuleOtaPendingCount, g_capsuleOtaUnseenCount;
+extern unsigned long g_capsuleOtaLastPollAt, g_capsuleOtaLastChangeAt, g_capsuleOtaNextPollAt;
+extern unsigned long g_capsuleOtaLastInstalledAtMs;
 extern String g_wavPaths[];
 extern int g_wavCount;
 extern String g_favorites[];
@@ -43,6 +69,39 @@ extern void toggleFavorite(const String& path);
 extern void scanWavList();
 extern void playTrackByIndex(int idx);
 extern bool g_adminMode;
+extern void ingestSetConfig(const String& baseUrl, const String& deviceToken);
+extern void ingestClearConfig();
+extern bool ingestIsConfigured();
+extern bool ingestPushFile(const String& sdPath, const String& albumId, const String& contentKind);
+
+static constexpr uint32_t kControlPlanePressureTotalFreeMinBytes = 56 * 1024;
+static constexpr uint32_t kControlPlanePressureLargestBlockMinBytes = 32 * 1024;
+static constexpr uint32_t kControlPlanePressureInternalFreeMinBytes = 56 * 1024;
+static constexpr uint32_t kControlPlanePressureInternalLargestBlockMinBytes = 28 * 1024;
+static constexpr uint32_t kControlPlaneCriticalTotalFreeMinBytes = 48 * 1024;
+static constexpr uint32_t kControlPlaneCriticalLargestBlockMinBytes = 28 * 1024;
+static constexpr uint32_t kControlPlaneCriticalInternalFreeMinBytes = 48 * 1024;
+static constexpr uint32_t kControlPlaneCriticalInternalLargestBlockMinBytes = 24 * 1024;
+static constexpr uint32_t kControlPlaneRecoveryInternalFreeMinBytes = 48 * 1024;
+static constexpr uint32_t kControlPlaneRecoveryInternalLargestBlockMinBytes = 24 * 1024;
+static constexpr uint32_t kControlPlanePlaybackSafeInternalLargestBlockMinBytes = 28 * 1024;
+static constexpr unsigned long kPortalHttpSilenceRestartMs = 12000UL;
+
+static inline uint32_t controlPlaneFreeHeapBytes() {
+  return ESP.getFreeHeap();
+}
+
+static inline uint32_t controlPlaneLargestHeapBlockBytes() {
+  return heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+}
+
+static inline uint32_t controlPlaneInternalFreeHeapBytes() {
+  return heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
+
+static inline uint32_t controlPlaneInternalLargestHeapBlockBytes() {
+  return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
 
 // ── Mock Track Data ──────────────────────────────────────────
 struct TrackInfo {
@@ -100,10 +159,15 @@ struct RuntimeCapsule {
   String desc;
   String date;
   bool delivered;
+  int version;
+  bool seen;
   float price;      // 0 = free
   String ctaLabel;  // e.g. "Get Tickets", "Shop Now"
   String ctaUrl;    // link target
   bool hasImage;    // portal holds actual base64; device just knows it exists
+  String localPath;   // installed capsule path for OTA-delivered content
+  String deliveryId;  // backend delivery link when capsule came from OTA
+  String source;      // "wifi" or "ota"
 };
 static RuntimeCapsule g_runtimeCapsules[24];
 static int g_runtimeCapsuleCount = 0;
@@ -114,6 +178,7 @@ static const char* ALBUM_META_PATH = "/data/album_meta.json";
 // Forward declarations for JSON helpers (defined later in this file)
 String jsonVal(const String& body, const String& key);
 bool jsonBool(const String& body, const String& key, bool fallback);
+String jsonScalarVal(const String& body, const String& key);
 String escJson(const String& s);
 
 // Save capsules to SD as JSON array
@@ -130,10 +195,15 @@ void capsulesSave() {
     f.print("\",\"desc\":\""); f.print(escJson(g_runtimeCapsules[i].desc));
     f.print("\",\"date\":\""); f.print(escJson(g_runtimeCapsules[i].date));
     f.print("\",\"delivered\":"); f.print(g_runtimeCapsules[i].delivered ? "true" : "false");
+    f.print(",\"version\":"); f.print(String(g_runtimeCapsules[i].version));
+    f.print(",\"seen\":"); f.print(g_runtimeCapsules[i].seen ? "true" : "false");
     f.print(",\"price\":"); f.print(String(g_runtimeCapsules[i].price, 2));
     f.print(",\"ctaLabel\":\""); f.print(escJson(g_runtimeCapsules[i].ctaLabel));
     f.print("\",\"ctaUrl\":\""); f.print(escJson(g_runtimeCapsules[i].ctaUrl));
     f.print("\",\"hasImage\":"); f.print(g_runtimeCapsules[i].hasImage ? "true" : "false");
+    f.print(",\"localPath\":\""); f.print(escJson(g_runtimeCapsules[i].localPath));
+    f.print("\",\"deliveryId\":\""); f.print(escJson(g_runtimeCapsules[i].deliveryId));
+    f.print("\",\"source\":\""); f.print(escJson(g_runtimeCapsules[i].source));
     f.print("}");
   }
   f.print("]");
@@ -163,17 +233,95 @@ void capsulesLoad() {
     c.desc = jsonVal(obj, "desc");
     c.date = jsonVal(obj, "date");
     c.delivered = jsonBool(obj, "delivered", false);
-    String priceStr = jsonVal(obj, "price");
+    String versionStr = jsonScalarVal(obj, "version");
+    c.version = versionStr.length() > 0 ? (int)versionStr.toInt() : 1;
+    if (c.version < 1) c.version = 1;
+    c.seen = jsonBool(obj, "seen", false);
+    String priceStr = jsonScalarVal(obj, "price");
     c.price = priceStr.length() > 0 ? priceStr.toFloat() : 0;
     c.ctaLabel = jsonVal(obj, "ctaLabel");
     c.ctaUrl = jsonVal(obj, "ctaUrl");
     c.hasImage = jsonBool(obj, "hasImage", false);
+    c.localPath = jsonVal(obj, "localPath");
+    c.deliveryId = jsonVal(obj, "deliveryId");
+    c.source = jsonVal(obj, "source");
+    if (c.source.length() == 0) c.source = "wifi";
     if (c.id.length() > 0) {
       g_runtimeCapsules[g_runtimeCapsuleCount++] = c;
     }
     pos = end + 1;
   }
   Serial.printf("[CAPSULE] Loaded %d capsules from SD\n", g_runtimeCapsuleCount);
+}
+
+bool upsertRuntimeCapsuleRecord(
+  const String& capsuleId,
+  const String& eventType,
+  const String& title,
+  const String& desc,
+  const String& date,
+  bool delivered,
+  int version,
+  bool seen,
+  float price,
+  const String& ctaLabel,
+  const String& ctaUrl,
+  bool hasImage,
+  const String& localPath,
+  const String& deliveryId,
+  const String& source
+) {
+  RuntimeCapsule cap;
+  cap.id = capsuleId;
+  cap.type = eventType;
+  cap.title = title;
+  cap.desc = desc;
+  cap.date = date;
+  cap.delivered = delivered;
+  cap.version = max(1, version);
+  cap.seen = seen;
+  cap.price = price;
+  cap.ctaLabel = ctaLabel;
+  cap.ctaUrl = ctaUrl;
+  cap.hasImage = hasImage;
+  cap.localPath = localPath;
+  cap.deliveryId = deliveryId;
+  cap.source = source.length() > 0 ? source : "wifi";
+
+  bool found = false;
+  for (int i = 0; i < g_runtimeCapsuleCount; i++) {
+    if (g_runtimeCapsules[i].id == capsuleId) {
+      g_runtimeCapsules[i] = cap;
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    if (g_runtimeCapsuleCount < 24) {
+      g_runtimeCapsules[g_runtimeCapsuleCount++] = cap;
+    } else {
+      for (int i = 0; i < 23; i++) g_runtimeCapsules[i] = g_runtimeCapsules[i + 1];
+      g_runtimeCapsules[23] = cap;
+    }
+  }
+
+  capsulesSave();
+  return true;
+}
+
+bool markRuntimeCapsuleSeenAndSave(const String& capsuleId) {
+  bool changed = false;
+  for (int i = 0; i < g_runtimeCapsuleCount; i++) {
+    if (g_runtimeCapsules[i].id == capsuleId) {
+      if (!g_runtimeCapsules[i].seen) {
+        g_runtimeCapsules[i].seen = true;
+        changed = true;
+      }
+      break;
+    }
+  }
+  if (changed) capsulesSave();
+  return changed;
 }
 
 // ── JSON Helpers ─────────────────────────────────────────────
@@ -266,6 +414,140 @@ static void sendJsonFromSd(AsyncWebServerRequest* req, const char* path) {
   response->addHeader("Access-Control-Allow-Origin", "*");
   response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+  req->send(response);
+}
+
+static bool apiHeavyRouteUnderPressure(
+  uint32_t* freeHeapOut = nullptr,
+  uint32_t* largestHeapBlockOut = nullptr,
+  uint32_t* internalFreeHeapOut = nullptr,
+  uint32_t* internalLargestHeapBlockOut = nullptr
+) {
+  const uint32_t freeHeap = controlPlaneFreeHeapBytes();
+  const uint32_t largestHeapBlock = controlPlaneLargestHeapBlockBytes();
+  const uint32_t internalFreeHeap = controlPlaneInternalFreeHeapBytes();
+  const uint32_t internalLargestHeapBlock = controlPlaneInternalLargestHeapBlockBytes();
+  if (freeHeapOut) *freeHeapOut = freeHeap;
+  if (largestHeapBlockOut) *largestHeapBlockOut = largestHeapBlock;
+  if (internalFreeHeapOut) *internalFreeHeapOut = internalFreeHeap;
+  if (internalLargestHeapBlockOut) *internalLargestHeapBlockOut = internalLargestHeapBlock;
+  return freeHeap < kControlPlanePressureTotalFreeMinBytes ||
+         largestHeapBlock < kControlPlanePressureLargestBlockMinBytes ||
+         internalFreeHeap < kControlPlanePressureInternalFreeMinBytes ||
+         internalLargestHeapBlock < kControlPlanePressureInternalLargestBlockMinBytes;
+}
+
+static bool apiHeavyRouteCriticalPressure(
+  uint32_t freeHeap,
+  uint32_t largestHeapBlock,
+  uint32_t internalFreeHeap,
+  uint32_t internalLargestHeapBlock
+) {
+  return freeHeap < kControlPlaneCriticalTotalFreeMinBytes ||
+         largestHeapBlock < kControlPlaneCriticalLargestBlockMinBytes ||
+         internalFreeHeap < kControlPlaneCriticalInternalFreeMinBytes ||
+         internalLargestHeapBlock < kControlPlaneCriticalInternalLargestBlockMinBytes;
+}
+
+static bool apiRejectHeavyRequest(AsyncWebServerRequest* req, const char* scope) {
+  uint32_t freeHeap = 0;
+  uint32_t largestHeapBlock = 0;
+  uint32_t internalFreeHeap = 0;
+  uint32_t internalLargestHeapBlock = 0;
+  const bool underPressure = apiHeavyRouteUnderPressure(
+    &freeHeap,
+    &largestHeapBlock,
+    &internalFreeHeap,
+    &internalLargestHeapBlock
+  );
+  const bool criticalPressure = apiHeavyRouteCriticalPressure(
+    freeHeap,
+    largestHeapBlock,
+    internalFreeHeap,
+    internalLargestHeapBlock
+  );
+  if (!underPressure || (!criticalPressure && !g_audioPlaying && !g_uploadInProgress)) {
+    return false;
+  }
+
+  String j = "{\"error\":\"busy\",\"scope\":\"" + String(scope) + "\",\"reason\":\"memory_guard\"";
+  j += ",\"freeHeap\":" + String(freeHeap);
+  j += ",\"largestHeapBlock\":" + String(largestHeapBlock);
+  j += ",\"internalFreeHeap\":" + String(internalFreeHeap);
+  j += ",\"internalLargestHeapBlock\":" + String(internalLargestHeapBlock);
+  j += "}";
+  AsyncWebServerResponse* response = req->beginResponse(503, "application/json", j);
+  response->addHeader("Cache-Control", "no-store");
+  response->addHeader("Retry-After", "2");
+  req->send(response);
+  return true;
+}
+
+static void attachChurnGuards(
+  AsyncWebHandler& handler,
+  size_t maxRequests,
+  uint32_t windowSeconds,
+  bool stripRequestHeaders = true
+) {
+  if (maxRequests > 0 && windowSeconds > 0) {
+    AsyncRateLimitMiddleware* rateLimit = new AsyncRateLimitMiddleware();
+    rateLimit->setMaxRequests(maxRequests);
+    rateLimit->setWindowSize(windowSeconds);
+    handler.addMiddleware(rateLimit);
+  }
+
+  if (stripRequestHeaders) {
+    AsyncHeaderFreeMiddleware* headerFree = new AsyncHeaderFreeMiddleware();
+    handler.addMiddleware(headerFree);
+  }
+}
+
+static String capsuleNotificationColor(const String& eventType) {
+  if (eventType == "concert") return g_dcnpConcert;
+  if (eventType == "video") return g_dcnpVideo;
+  if (eventType == "merch") return g_dcnpMerch;
+  if (eventType == "signing") return g_dcnpSigning;
+  if (eventType == "remix") return g_dcnpRemix;
+  return g_dcnpOther;
+}
+
+static String capsuleNotificationPattern(const String& eventType) {
+  if (eventType == "concert") return "flash_burst";
+  if (eventType == "video") return "fade_glow";
+  if (eventType == "merch") return "flash_hold";
+  if (eventType == "signing") return "breathing";
+  if (eventType == "remix") return "rhythmic_pulse";
+  return "pulse";
+}
+
+static unsigned long capsuleNotificationDurationMs(const String& eventType) {
+  if (eventType == "concert") return 1800UL;
+  if (eventType == "video") return 7000UL;
+  if (eventType == "merch") return 2600UL;
+  if (eventType == "signing") return 8000UL;
+  if (eventType == "remix") return 5000UL;
+  return 1200UL;
+}
+
+static void triggerCapsuleLedNotification(const String& eventType) {
+  const String color = capsuleNotificationColor(eventType);
+  const String pattern = capsuleNotificationPattern(eventType);
+  const unsigned long durationMs = capsuleNotificationDurationMs(eventType);
+  Serial.printf("[CAPSULE] LED notify type=%s color=%s pattern=%s duration=%lu\n",
+    eventType.c_str(),
+    color.c_str(),
+    pattern.c_str(),
+    durationMs);
+  ledNotify(color, pattern, durationMs);
+}
+
+static void sendDeferredFeatures(AsyncWebServerRequest* req) {
+  AsyncWebServerResponse* response = req->beginResponse(
+    200,
+    "application/json",
+    "{\"active\":false,\"peakL\":0,\"peakR\":0,\"rms\":0,\"envelope\":0,\"bassEnergy\":0,\"beat\":false,\"deferred\":true}"
+  );
+  response->addHeader("Cache-Control", "no-store");
   req->send(response);
 }
 
@@ -399,7 +681,7 @@ String buildStatusJson() {
   favItems += "]";
 
   String j;
-  j.reserve(1800);
+  j.reserve(3000);
   j += "{\"name\":\"" + escJson(g_duid) + "\",\"ver\":\"" + g_fwVersion + "\",";
   j += "\"env\":\"dev\",\"duid\":\"" + g_duid + "\",";
   j += "\"admin\":" + String(g_adminMode ? "true" : "false") + ",";
@@ -411,32 +693,132 @@ String buildStatusJson() {
   // Cover art file size — portal + dashboard use this to detect replacements
   // and force a cache-bust on the next tick. 0 = no cover on SD.
   {
-    unsigned long _coverBytes = 0;
-    if (g_sdMounted) {
+    static unsigned long _coverBytesCached = 0;
+    static unsigned long _coverBytesCheckedAt = 0;
+    static String _coverRefreshKey = "";
+    String nextCoverRefreshKey = g_lastUploadPath + "|" + String((unsigned long)g_lastUploadBytes);
+    bool coverWasUpdated = (
+      g_lastUploadPath == "/art/cover.jpg" ||
+      g_lastUploadPath == "/art/cover.png"
+    ) && nextCoverRefreshKey != _coverRefreshKey;
+    unsigned long coverRefreshWindowMs = g_playing ? 15000UL : 5000UL;
+    if (!g_sdMounted) {
+      _coverBytesCached = 0;
+      _coverBytesCheckedAt = millis();
+      _coverRefreshKey = nextCoverRefreshKey;
+    } else if (
+      coverWasUpdated ||
+      _coverBytesCheckedAt == 0 ||
+      (millis() - _coverBytesCheckedAt) > coverRefreshWindowMs
+    ) {
+      unsigned long _coverBytes = 0;
       File _cf = SD.open("/art/cover.jpg");
       if (_cf) { _coverBytes = _cf.size(); _cf.close(); }
       else {
         File _cfp = SD.open("/art/cover.png");
         if (_cfp) { _coverBytes = _cfp.size(); _cfp.close(); }
       }
+      _coverBytesCached = _coverBytes;
+      _coverBytesCheckedAt = millis();
+      _coverRefreshKey = nextCoverRefreshKey;
     }
-    j += "\"coverBytes\":" + String(_coverBytes) + ",";
+    j += "\"coverBytes\":" + String(_coverBytesCached) + ",";
   }
   j += "\"ble\":false,\"wifi\":true,\"ip\":\"192.168.4.1\",";
-  j += "\"sta\":{\"connected\":" + String(g_staConnected ? "true" : "false");
-  j += ",\"ssid\":\"" + escJson(g_staSSID) + "\"";
-  j += ",\"ip\":\"" + g_staIP + "\"";
-  j += ",\"rssi\":" + String(g_staRSSI) + "},";
+    j += "\"sta\":{\"connected\":" + String(g_staConnected ? "true" : "false");
+    j += ",\"ssid\":\"" + escJson(g_staSSID) + "\"";
+    j += ",\"ip\":\"" + g_staIP + "\"";
+    j += ",\"rssi\":" + String(g_staRSSI);
+    j += ",\"joinPending\":" + String(g_staJoinPending ? "true" : "false") + "},";
   j += "\"bootState\":\"" + escJson(g_bootState) + "\",";
   j += "\"sdState\":\"" + escJson(g_sdState) + "\",";
   j += "\"uploadState\":\"" + escJson(g_uploadState) + "\",";
   j += "\"degradedReason\":\"" + escJson(g_degradedReason) + "\",";
   j += "\"httpReady\":" + String(g_httpReady ? "true" : "false") + ",";
   j += "\"httpMode\":\"" + escJson(g_httpMode) + "\",";
+  {
+    const unsigned long portalHttpAgeMs = g_lastPortalHttpActivityAtMs > 0 ? (millis() - g_lastPortalHttpActivityAtMs) : 0;
+    j += "\"portalHttp\":{";
+    j += "\"watchdogArmed\":" + String(g_portalHttpWatchdogArmed ? "true" : "false") + ",";
+    j += "\"lastActivityAtMs\":" + String(g_lastPortalHttpActivityAtMs) + ",";
+    j += "\"lastActivityAgeMs\":" + String(portalHttpAgeMs);
+    j += "},";
+  }
   j += "\"audioVerified\":" + String(g_audioHardwareVerified ? "true" : "false") + ",";
   j += "\"wifiMaintenance\":\"" + escJson(g_wifiMaintenanceMode) + "\",";
   j += "\"lastUploadPath\":\"" + escJson(g_lastUploadPath) + "\",";
   j += "\"lastUploadBytes\":" + String((unsigned long)g_lastUploadBytes) + ",";
+  j += "\"lastUploadMode\":\"" + escJson(g_lastUploadMode) + "\",";
+  j += "\"lastUploadDurationMs\":" + String((unsigned long)g_lastUploadDurationMs) + ",";
+  j += "\"lastUploadRateKBps\":" + String((unsigned long)g_lastUploadRateKBps) + ",";
+  j += "\"lastUploadSdHz\":" + String((unsigned long)g_lastUploadSdHz) + ",";
+  {
+    const unsigned long breadcrumbAgeMs = g_disconnectBreadcrumbAtMs > 0 ? (millis() - g_disconnectBreadcrumbAtMs) : 0;
+    j += "\"disconnectBreadcrumb\":{";
+    j += "\"kind\":\"" + escJson(g_disconnectBreadcrumbKind) + "\",";
+    j += "\"scope\":\"" + escJson(g_disconnectBreadcrumbScope) + "\",";
+    j += "\"cause\":\"" + escJson(g_disconnectBreadcrumbCause) + "\",";
+    j += "\"detail\":\"" + escJson(g_disconnectBreadcrumbDetail) + "\",";
+    j += "\"reasonCode\":" + String(g_disconnectBreadcrumbReasonCode) + ",";
+    j += "\"atMs\":" + String(g_disconnectBreadcrumbAtMs) + ",";
+    j += "\"ageMs\":" + String(breadcrumbAgeMs) + ",";
+    j += "\"uptimeSeconds\":" + String(g_disconnectBreadcrumbUptimeS) + ",";
+    j += "\"staRssi\":" + String(g_disconnectBreadcrumbStaRssi) + ",";
+    j += "\"apClients\":" + String(g_disconnectBreadcrumbApClients) + ",";
+    j += "\"freeHeapBytes\":" + String(g_disconnectBreadcrumbFreeHeap) + ",";
+    j += "\"largestHeapBlockBytes\":" + String(g_disconnectBreadcrumbLargestHeapBlock) + ",";
+    j += "\"httpRestartCount\":" + String(g_httpRestartCount);
+    j += "},";
+  }
+  {
+    const uint32_t freeHeap = controlPlaneFreeHeapBytes();
+    const uint32_t minFreeHeap = esp_get_minimum_free_heap_size();
+    const uint32_t largestHeapBlock = controlPlaneLargestHeapBlockBytes();
+    const uint32_t internalFreeHeap = controlPlaneInternalFreeHeapBytes();
+    const uint32_t internalLargestHeapBlock = controlPlaneInternalLargestHeapBlockBytes();
+    const uint32_t playbackStackWords = g_playbackTaskHandle ? uxTaskGetStackHighWaterMark(g_playbackTaskHandle) : 0;
+    const uint32_t playbackStackBytes = playbackStackWords * sizeof(StackType_t);
+    const bool lowMemory = apiHeavyRouteUnderPressure();
+    const bool stackTight = playbackStackBytes > 0 && playbackStackBytes < 3072;
+    j += "\"mcu\":{";
+    j += "\"freeHeapBytes\":" + String(freeHeap) + ",";
+    j += "\"minFreeHeapBytes\":" + String(minFreeHeap) + ",";
+    j += "\"largestHeapBlockBytes\":" + String(largestHeapBlock) + ",";
+    j += "\"internalFreeHeapBytes\":" + String(internalFreeHeap) + ",";
+    j += "\"internalLargestHeapBlockBytes\":" + String(internalLargestHeapBlock) + ",";
+    j += "\"playbackStackHighWaterBytes\":" + String(playbackStackBytes) + ",";
+    j += "\"lowMemory\":" + String(lowMemory ? "true" : "false") + ",";
+    j += "\"stackTight\":" + String(stackTight ? "true" : "false");
+    j += "},";
+  }
+  j += "\"ingestConfigured\":" + String(ingestIsConfigured() ? "true" : "false") + ",";
+  j += "\"ingestState\":\"" + escJson(g_ingestState) + "\",";
+  j += "\"ingestLastError\":\"" + escJson(g_ingestLastError) + "\",";
+  j += "\"ingestLastFile\":\"" + escJson(g_ingestLastFile) + "\",";
+  j += "\"ingestLastSessionId\":\"" + escJson(g_ingestLastSessionId) + "\",";
+  j += "\"ingestLastAlbumId\":\"" + escJson(g_ingestLastAlbumId) + "\",";
+  j += "\"ingestLastAt\":" + String(g_ingestLastAt) + ",";
+  {
+    const unsigned long capsuleOtaNextPollInMs =
+      g_capsuleOtaNextPollAt > millis() ? (g_capsuleOtaNextPollAt - millis()) : 0;
+    j += "\"capsuleOta\":{";
+    j += "\"configured\":" + String(ingestIsConfigured() ? "true" : "false") + ",";
+    j += "\"state\":\"" + escJson(g_capsuleOtaState) + "\",";
+    j += "\"lastError\":\"" + escJson(g_capsuleOtaLastError) + "\",";
+    j += "\"pendingCount\":" + String((unsigned long)g_capsuleOtaPendingCount) + ",";
+    j += "\"unseenCount\":" + String((unsigned long)g_capsuleOtaUnseenCount) + ",";
+    j += "\"deliveryId\":\"" + escJson(g_capsuleOtaPendingDeliveryId) + "\",";
+    j += "\"capsuleId\":\"" + escJson(g_capsuleOtaPendingCapsuleId) + "\",";
+    j += "\"title\":\"" + escJson(g_capsuleOtaPendingTitle) + "\",";
+    j += "\"installPath\":\"" + escJson(g_capsuleOtaPendingInstallPath) + "\",";
+    j += "\"downloadUrl\":\"" + escJson(g_capsuleOtaPendingDownloadUrl) + "\",";
+    j += "\"ledIntent\":\"" + escJson(g_capsuleOtaPendingLedIntent) + "\",";
+    j += "\"lastInstalledAtMs\":" + String(g_capsuleOtaLastInstalledAtMs) + ",";
+    j += "\"lastPollAtMs\":" + String(g_capsuleOtaLastPollAt) + ",";
+    j += "\"lastChangeAtMs\":" + String(g_capsuleOtaLastChangeAt) + ",";
+    j += "\"nextPollInMs\":" + String(capsuleOtaNextPollInMs);
+    j += "},";
+  }
   j += "\"uptime_s\":" + String(uptime) + ",";
   j += "\"battery\":{\"voltage\":" + String(g_battVoltage, 2) + ",";
   j += "\"percent\":" + String(g_battPercent) + ",";
@@ -469,9 +851,9 @@ String buildStatusJson() {
   j += "\"next\":" + String(g_nextCount) + ",";
   j += "\"prev\":" + String(g_prevCount) + "},";
   j += "\"led\":{";
-  j += "\"idle\":{\"color\":\"" + g_ledIdle + "\",\"pattern\":\"" + g_ledIdlePat + "\"},";
-  j += "\"playback\":{\"color\":\"" + g_ledPlay + "\",\"pattern\":\"" + g_ledPlayPat + "\"},";
-  j += "\"charging\":{\"color\":\"" + g_ledCharge + "\",\"pattern\":\"" + g_ledChargePat + "\"},";
+  j += "\"idle\":{\"color\":\"" + g_ledIdle + "\",\"pattern\":\"" + g_ledIdlePat + "\",\"fullSpectrum\":" + String(g_ledIdleFullSpectrum ? "true" : "false") + "},";
+  j += "\"playback\":{\"color\":\"" + g_ledPlay + "\",\"pattern\":\"" + g_ledPlayPat + "\",\"fullSpectrum\":" + String(g_ledPlayFullSpectrum ? "true" : "false") + "},";
+  j += "\"charging\":{\"color\":\"" + g_ledCharge + "\",\"pattern\":\"" + g_ledChargePat + "\",\"fullSpectrum\":" + String(g_ledChargeFullSpectrum ? "true" : "false") + "},";
   j += "\"brightness\":" + String(g_brightness) + ",";
   j += "\"gradEnd\":\"" + g_ledGradEnd + "\"},";
   j += "\"favorites\":{\"count\":" + String(g_favCount) + ",\"items\":" + favItems + ",\"current\":" + String(isFavorite(currentPath) ? "true" : "false") + "},";
@@ -499,6 +881,42 @@ String jsonVal(const String& body, const String& key) {
   int qEnd = body.indexOf('"', qStart + 1);
   if (qEnd < 0) return "";
   return body.substring(qStart + 1, qEnd);
+}
+
+String jsonScalarVal(const String& body, const String& key) {
+  String search = "\"" + key + "\"";
+  int idx = body.indexOf(search);
+  if (idx < 0) return "";
+  int colon = body.indexOf(':', idx + search.length());
+  if (colon < 0) return "";
+
+  int start = colon + 1;
+  while (start < (int)body.length()) {
+    char c = body.charAt(start);
+    if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+      start++;
+      continue;
+    }
+    break;
+  }
+  if (start >= (int)body.length()) return "";
+
+  if (body.charAt(start) == '"') {
+    int qEnd = body.indexOf('"', start + 1);
+    if (qEnd < 0) return "";
+    return body.substring(start + 1, qEnd);
+  }
+
+  int end = start;
+  while (end < (int)body.length()) {
+    char c = body.charAt(end);
+    if (c == ',' || c == '}' || c == ']' ||
+        c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+      break;
+    }
+    end++;
+  }
+  return body.substring(start, end);
 }
 
 bool jsonBool(const String& body, const String& key, bool fallback = false) {
@@ -579,13 +997,15 @@ void handleCommand(uint8_t op) {
 void registerApiRoutes(AsyncWebServer& server) {
 
   // ── GET /api/status ────────────────────────────────────────
-  server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* req) {
+  auto& statusHandler = server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* req) {
+    notePortalHttpActivity();
     AsyncWebServerResponse* response = req->beginResponse(200, "application/json", buildStatusJson());
     response->addHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     response->addHeader("Pragma", "no-cache");
     response->addHeader("Connection", "close");
     req->send(response);
   });
+  attachChurnGuards(statusHandler, 8, 4);
 
   // ── GET /api/admin/unlock?key=<DUID> ──────────────────────
   server.on("/api/admin/unlock", HTTP_GET, [](AsyncWebServerRequest* req) {
@@ -806,6 +1226,10 @@ void registerApiRoutes(AsyncWebServer& server) {
   // ── GET /api/audio/features ──────────────────────────────────
   // Real-time audio feature data for dashboard VU meter / reactive display
   server.on("/api/audio/features", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (apiHeavyRouteUnderPressure() && (g_audioPlaying || g_uploadInProgress)) {
+      sendDeferredFeatures(req);
+      return;
+    }
     String j = "{\"active\":" + String(g_audioFeatures.active ? "true" : "false");
     j += ",\"peakL\":" + String(g_audioFeatures.peakL, 3);
     j += ",\"peakR\":" + String(g_audioFeatures.peakR, 3);
@@ -820,6 +1244,7 @@ void registerApiRoutes(AsyncWebServer& server) {
   // ── GET /api/analytics ────────────────────────────────────────
   // Per-track play/skip counts and ratings
   server.on("/api/analytics", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (apiRejectHeavyRequest(req, "analytics")) return;
     req->send(200, "application/json", analyticsToJson());
   });
 
@@ -865,6 +1290,7 @@ void registerApiRoutes(AsyncWebServer& server) {
   // ── GET /api/audio/tracks ──────────────────────────────────
   // Lists all valid playable tracks (.dpa primary, .wav legacy fallback)
   server.on("/api/audio/tracks", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (apiRejectHeavyRequest(req, "tracks")) return;
     if (!g_sdMounted) {
       req->send(503, "application/json", "{\"error\":\"sd not mounted\"}");
       return;
@@ -887,6 +1313,7 @@ void registerApiRoutes(AsyncWebServer& server) {
   // ── GET /api/art?path=/art/cover.jpg ───────────────────────
   // Serves album + per-track artwork from SD (/art/). Portal pushes here.
   server.on("/api/art", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (apiRejectHeavyRequest(req, "art")) return;
     if (!req->hasParam("path")) {
       req->send(400, "application/json", "{\"error\":\"path required\"}");
       return;
@@ -908,6 +1335,7 @@ void registerApiRoutes(AsyncWebServer& server) {
 
   // ── GET /api/booklet ─────────────────────────────────────────
   server.on("/api/booklet", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (apiRejectHeavyRequest(req, "booklet")) return;
     sendJsonFromSd(req, BOOKLET_PATH);
   });
   server.on("/api/booklet", HTTP_OPTIONS, [](AsyncWebServerRequest* req) {
@@ -920,6 +1348,7 @@ void registerApiRoutes(AsyncWebServer& server) {
 
   // ── GET /api/album/meta ──────────────────────────────────────
   server.on("/api/album/meta", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (apiRejectHeavyRequest(req, "album_meta")) return;
     sendJsonFromSd(req, ALBUM_META_PATH);
   });
   server.on("/api/album/meta", HTTP_OPTIONS, [](AsyncWebServerRequest* req) {
@@ -1176,7 +1605,9 @@ void registerApiRoutes(AsyncWebServer& server) {
 
   // ── GET /api/storage ───────────────────────────────────────
   // Returns cached stats (always fast). Only refreshes if not playing.
-  server.on("/api/storage", HTTP_GET, [](AsyncWebServerRequest* req) {
+  auto& storageHandler = server.on("/api/storage", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (apiRejectHeavyRequest(req, "storage")) return;
+    const bool heavyStorageSuppressed = g_audioPlaying || g_uploadInProgress || apiHeavyRouteUnderPressure();
     sdRefreshStats();  // No-op during playback, uses cached values
     String j = "{\"sdMounted\":" + String(g_sdMounted ? "true" : "false") + ",";
     j += "\"totalMB\":" + String(g_sdTotalMB, 0) + ",";
@@ -1185,9 +1616,12 @@ void registerApiRoutes(AsyncWebServer& server) {
     j += "\"trackCount\":" + String(g_wavCount) + ",";
     j += "\"capsuleCount\":" + String(g_runtimeCapsuleCount) + ",\"videoCount\":1,";
     j += "\"sdSpeed\":" + String(g_sdCurrentHz) + ",";
-    j += "\"files\":" + sdListFilesJson("/tracks") + "}";
+    j += "\"files\":";
+    j += heavyStorageSuppressed ? "[]" : sdListFilesJson("/tracks");
+    j += "}";
     req->send(200, "application/json", j);
   });
+  attachChurnGuards(storageHandler, 4, 4);
 
   // ── GET /api/tracks ────────────────────────────────────────
   server.on("/api/tracks", HTTP_GET, [](AsyncWebServerRequest* req) {
@@ -1215,7 +1649,8 @@ void registerApiRoutes(AsyncWebServer& server) {
 
   // ── GET /api/capsules ──────────────────────────────────────
   // Returns ONLY real pushed capsules (no mock data)
-  server.on("/api/capsules", HTTP_GET, [](AsyncWebServerRequest* req) {
+  auto& capsulesHandler = server.on("/api/capsules", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (apiRejectHeavyRequest(req, "capsules")) return;
     String j = "{\"capsules\":[";
     for (int i = 0; i < g_runtimeCapsuleCount; i++) {
       if (i > 0) j += ",";
@@ -1225,12 +1660,32 @@ void registerApiRoutes(AsyncWebServer& server) {
       j += "\"desc\":\"" + escJson(g_runtimeCapsules[i].desc) + "\",";
       j += "\"date\":\"" + escJson(g_runtimeCapsules[i].date) + "\",";
       j += "\"delivered\":" + String(g_runtimeCapsules[i].delivered ? "true" : "false") + ",";
+      j += "\"version\":" + String(g_runtimeCapsules[i].version) + ",";
+      j += "\"seen\":" + String(g_runtimeCapsules[i].seen ? "true" : "false") + ",";
       j += "\"price\":" + String(g_runtimeCapsules[i].price, 2) + ",";
       j += "\"ctaLabel\":\"" + escJson(g_runtimeCapsules[i].ctaLabel) + "\",";
       j += "\"ctaUrl\":\"" + escJson(g_runtimeCapsules[i].ctaUrl) + "\",";
-      j += "\"hasImage\":" + String(g_runtimeCapsules[i].hasImage ? "true" : "false") + "}";
+      j += "\"hasImage\":" + String(g_runtimeCapsules[i].hasImage ? "true" : "false") + ",";
+      j += "\"localPath\":\"" + escJson(g_runtimeCapsules[i].localPath) + "\",";
+      j += "\"deliveryId\":\"" + escJson(g_runtimeCapsules[i].deliveryId) + "\",";
+      j += "\"source\":\"" + escJson(g_runtimeCapsules[i].source) + "\"}";
     }
     j += "]}";
+    req->send(200, "application/json", j);
+  });
+  attachChurnGuards(capsulesHandler, 3, 4);
+
+  server.on("/api/capsule/seen", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (!req->hasParam("id")) {
+      req->send(400, "application/json", "{\"ok\":false,\"error\":\"id required\"}");
+      return;
+    }
+    const String capsuleId = req->getParam("id")->value();
+    bool changed = markRuntimeCapsuleSeenAndSave(capsuleId);
+    bool reported = capsuleOtaAckSeen(capsuleId);
+    String j = "{\"ok\":true,\"id\":\"" + escJson(capsuleId) + "\"";
+    j += ",\"seen\":" + String(changed ? "true" : "false");
+    j += ",\"reported\":" + String(reported ? "true" : "false") + "}";
     req->send(200, "application/json", j);
   });
 
@@ -1261,44 +1716,29 @@ void registerApiRoutes(AsyncWebServer& server) {
       if (date.length() == 0) date = String((unsigned long)(millis() / 1000));
 
       bool delivered = jsonBool(body, "delivered", false);
-      String priceStr = jsonVal(body, "price");
+      String priceStr = jsonScalarVal(body, "price");
       float price = priceStr.length() > 0 ? priceStr.toFloat() : 0;
       String ctaLabel = jsonVal(body, "ctaLabel");
       String ctaUrl   = jsonVal(body, "ctaUrl");
       bool hasImage   = jsonBool(body, "hasImage", false);
-
-      // Upsert with full payload
-      RuntimeCapsule cap;
-      cap.id = capsuleId;
-      cap.type = eventType;
-      cap.title = title;
-      cap.desc = desc;
-      cap.date = date;
-      cap.delivered = delivered;
-      cap.price = price;
-      cap.ctaLabel = ctaLabel;
-      cap.ctaUrl = ctaUrl;
-      cap.hasImage = hasImage;
-
-      // Insert or update in runtime array
-      bool found = false;
-      for (int i = 0; i < g_runtimeCapsuleCount; i++) {
-        if (g_runtimeCapsules[i].id == capsuleId) {
-          g_runtimeCapsules[i] = cap;
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        if (g_runtimeCapsuleCount < 24) {
-          g_runtimeCapsules[g_runtimeCapsuleCount++] = cap;
-        } else {
-          for (int i = 0; i < 23; i++) g_runtimeCapsules[i] = g_runtimeCapsules[i + 1];
-          g_runtimeCapsules[23] = cap;
-        }
-      }
-
-      capsulesSave();
+      upsertRuntimeCapsuleRecord(
+        capsuleId,
+        eventType,
+        title,
+        desc,
+        date,
+        delivered,
+        1,
+        false,
+        price,
+        ctaLabel,
+        ctaUrl,
+        hasImage,
+        "",
+        "",
+        "wifi"
+      );
+      triggerCapsuleLedNotification(eventType);
 
       Serial.printf("[CAPSULE] Ingested + saved id=%s type=%s title=%s price=%.2f\n",
         capsuleId.c_str(), eventType.c_str(), title.c_str(), price);
@@ -1312,6 +1752,7 @@ void registerApiRoutes(AsyncWebServer& server) {
   // Sets color/pattern and switches the active LED mode to match
   server.on("/api/led/preview", HTTP_GET, [](AsyncWebServerRequest* req) {
     LedMode targetMode = LED_IDLE;
+    bool explicitFullSpectrum = false;
     if (req->hasParam("mode")) {
       String mode = req->getParam("mode")->value();
       if (mode == "playback") targetMode = LED_PLAYBACK;
@@ -1342,6 +1783,14 @@ void registerApiRoutes(AsyncWebServer& server) {
       gc.replace("%23", "#");
       g_ledGradEnd = gc;
     }
+    if (req->hasParam("fullSpectrum")) {
+      String full = req->getParam("fullSpectrum")->value();
+      full.toLowerCase();
+      explicitFullSpectrum = !(full == "0" || full == "false" || full == "off" || full == "no");
+      ledSetModeFullSpectrum(targetMode, explicitFullSpectrum);
+    } else if (req->hasParam("color") || req->hasParam("gradEnd")) {
+      ledSetModeFullSpectrum(targetMode, false);
+    }
     // Only switch LED mode when pattern is explicitly changed (avoids
     // "shock" flicker when color picker sends to both idle+playback modes)
     if (req->hasParam("pattern")) {
@@ -1361,14 +1810,16 @@ void registerApiRoutes(AsyncWebServer& server) {
   });
 
   // ── GET /api/wifi/status ────────────────────────────────────
-  server.on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest* req) {
+  auto& wifiStatusHandler = server.on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest* req) {
     String j = "{\"ap\":{\"ssid\":\"" + escJson(g_apSSID) + "\",\"ip\":\"" + WiFi.softAPIP().toString() + "\",\"clients\":" + String(WiFi.softAPgetStationNum()) + "},";
     j += "\"sta\":{\"connected\":" + String(g_staConnected ? "true" : "false");
     j += ",\"ssid\":\"" + escJson(g_staSSID) + "\"";
     j += ",\"ip\":\"" + g_staIP + "\"";
-    j += ",\"rssi\":" + String(g_staRSSI) + "}}";
+    j += ",\"rssi\":" + String(g_staRSSI);
+    j += ",\"joinPending\":" + String(g_staJoinPending ? "true" : "false") + "}}";
     req->send(200, "application/json", j);
   });
+  attachChurnGuards(wifiStatusHandler, 6, 4);
 
   // ── GET /api/wifi/scan ──────────────────────────── [ADMIN]
   server.on("/api/wifi/scan", HTTP_GET, [](AsyncWebServerRequest* req) {
@@ -1409,6 +1860,12 @@ void registerApiRoutes(AsyncWebServer& server) {
       return;
     }
 
+    if (g_staJoinPending) {
+      String j = "{\"pending\":true,\"ssid\":\"" + escJson(g_staSSID) + "\"}";
+      req->send(200, "application/json", j);
+      return;
+    }
+
     if (g_staConnected) {
       wifiDisconnectSTA();
     }
@@ -1416,18 +1873,10 @@ void registerApiRoutes(AsyncWebServer& server) {
     g_staSSID = req->getParam("ssid")->value();
     g_staPassword = req->hasParam("pass") ? req->getParam("pass")->value() : "";
 
-    bool ok = wifiConnectSTA();
+    g_staJoinPending = true;
+    g_staJoinQueued = true;
 
-    if (ok) {
-      wifiSaveToNVS();
-    } else {
-      g_staSSID = "";
-      g_staPassword = "";
-    }
-
-    String j = "{\"ok\":" + String(ok ? "true" : "false");
-    j += ",\"ip\":\"" + g_staIP + "\"";
-    j += ",\"ssid\":\"" + escJson(req->getParam("ssid")->value()) + "\"}";
+    String j = "{\"pending\":true,\"ssid\":\"" + escJson(g_staSSID) + "\"}";
     req->send(200, "application/json", j);
   });
 
@@ -1440,6 +1889,53 @@ void registerApiRoutes(AsyncWebServer& server) {
     wifiDisconnectSTA();
     wifiClearNVS();
     req->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  // ── GET /api/ingest/config?base=X&token=Y ─────────── [ADMIN]
+  server.on("/api/ingest/config", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (!g_adminMode) {
+      req->send(403, "application/json", "{\"error\":\"admin mode required\"}");
+      return;
+    }
+    if (!req->hasParam("base") || !req->hasParam("token")) {
+      req->send(400, "application/json", "{\"error\":\"base and token required\"}");
+      return;
+    }
+    String base = req->getParam("base")->value();
+    String token = req->getParam("token")->value();
+    ingestSetConfig(base, token);
+    req->send(200, "application/json", "{\"ok\":true,\"configured\":true}");
+  });
+
+  // ── GET /api/ingest/clear ─────────────────────────── [ADMIN]
+  server.on("/api/ingest/clear", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (!g_adminMode) {
+      req->send(403, "application/json", "{\"error\":\"admin mode required\"}");
+      return;
+    }
+    ingestClearConfig();
+    req->send(200, "application/json", "{\"ok\":true,\"configured\":false}");
+  });
+
+  // ── GET /api/ingest/push?path=X&albumId=Y&kind=Z ─── [ADMIN]
+  server.on("/api/ingest/push", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (!g_adminMode) {
+      req->send(403, "application/json", "{\"error\":\"admin mode required\"}");
+      return;
+    }
+    if (!req->hasParam("path")) {
+      req->send(400, "application/json", "{\"error\":\"path required\"}");
+      return;
+    }
+    String sdPath = req->getParam("path")->value();
+    String albumId = req->hasParam("albumId") ? req->getParam("albumId")->value() : "";
+    String kind = req->hasParam("kind") ? req->getParam("kind")->value() : "support";
+    bool ok = ingestPushFile(sdPath, albumId, kind);
+    String j = "{\"ok\":" + String(ok ? "true" : "false");
+    j += ",\"state\":\"" + escJson(g_ingestState) + "\"";
+    j += ",\"lastError\":\"" + escJson(g_ingestLastError) + "\"";
+    j += ",\"lastSessionId\":\"" + escJson(g_ingestLastSessionId) + "\"}";
+    req->send(ok ? 200 : 500, "application/json", j);
   });
 
   // ── POST /api/theme ────────────────────────────────────────

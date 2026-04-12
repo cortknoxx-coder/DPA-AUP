@@ -1,6 +1,6 @@
 /*
  * DPA Audio Engine — audio.h
- * I2S output to Adafruit PCM5122 DAC via new ESP-IDF driver (driver/i2s_std.h)
+ * I2S output to Adafruit PCM5122 DAC via legacy ESP-IDF I2S driver
  * WAV file playback from SD card using FreeRTOS task on core 1
  *
  * Wiring:
@@ -22,20 +22,27 @@
  *   - PCM 32-bit mono/stereo
  *
  * All formats are converted to 32-bit stereo for I2S output.
- * Playback runs on a FreeRTOS task pinned to core 1 with 16KB stack.
+ * Playback runs on a FreeRTOS task pinned to core 1.
  * 16KB read buffer + carry buffer for block alignment.
  */
 
 #ifndef DPA_AUDIO_H
 #define DPA_AUDIO_H
 
-#include <driver/i2s_std.h>
+#include <driver/i2s.h>
+#include <esp_heap_caps.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 extern int g_volume;
 extern String g_eq;
 #include <SD.h>
 #include "dpa_format.h"
 #include "audio_reactive.h"  // Audio feature extraction for LED reactivity
+
+static constexpr uint32_t kAudioPlaybackTaskStackBytes = 12 * 1024;
+static constexpr uint32_t kAudioRestartSettleMs = 100;
+static constexpr size_t kAudioPendingPathMaxLen = 192;
 
 // ── Software EQ (3-band biquad) ─────────────────────────────
 // Each band is a second-order IIR biquad filter applied per-channel.
@@ -248,7 +255,7 @@ static inline void eqApply(int32_t& lSample, int32_t& rSample) {
 #define I2S_DOUT_PIN  8    // Serial data out to DAC
 
 // ── Audio State ─────────────────────────────────────────────
-static i2s_chan_handle_t g_i2sTxHandle = NULL;
+static bool g_i2sInstalled = false;
 bool   g_audioReady    = false;
 
 // Playback state (volatile for cross-task access)
@@ -261,6 +268,8 @@ String g_audioNowPlaying = "";
 
 // Playback task handle
 static TaskHandle_t g_playbackTaskHandle = nullptr;
+static portMUX_TYPE g_audioRequestMux = portMUX_INITIALIZER_UNLOCKED;
+static char g_audioPendingPath[kAudioPendingPathMaxLen] = {};
 
 // WAV header info (read-only after parse, used by API for position reporting)
 static uint16_t g_wavChannels     = 0;
@@ -273,6 +282,30 @@ volatile uint32_t g_wavBytesRead  = 0;
 
 // ── Forward Declarations ─────────────────────────────────────
 void audioStop();
+static bool audioEnsurePlaybackWorker();
+
+static void audioStorePendingPath(const char* path) {
+  taskENTER_CRITICAL(&g_audioRequestMux);
+  size_t i = 0;
+  if (path) {
+    for (; i + 1 < sizeof(g_audioPendingPath) && path[i] != '\0'; ++i) {
+      g_audioPendingPath[i] = path[i];
+    }
+  }
+  g_audioPendingPath[i] = '\0';
+  taskEXIT_CRITICAL(&g_audioRequestMux);
+}
+
+static void audioLoadPendingPath(char* out, size_t outSize) {
+  if (!out || outSize == 0) return;
+  taskENTER_CRITICAL(&g_audioRequestMux);
+  size_t i = 0;
+  for (; i + 1 < outSize && i < sizeof(g_audioPendingPath) && g_audioPendingPath[i] != '\0'; ++i) {
+    out[i] = g_audioPendingPath[i];
+  }
+  out[i] = '\0';
+  taskEXIT_CRITICAL(&g_audioRequestMux);
+}
 
 // ── Playable PCM Info Struct ────────────────────────────────
 // Shared by raw WAV files and DPA1-wrapped WAV payloads.
@@ -398,67 +431,116 @@ static WavInfo audioParsePlayable(File& f, const String& path) {
 
 // ── I2S Init / Shutdown ─────────────────────────────────────
 static void audioShutdownI2S() {
-  if (g_i2sTxHandle) {
-    i2s_channel_disable(g_i2sTxHandle);
-    i2s_del_channel(g_i2sTxHandle);
-    g_i2sTxHandle = NULL;
+  if (g_i2sInstalled) {
+    i2s_zero_dma_buffer(I2S_NUM_0);
+    i2s_driver_uninstall(I2S_NUM_0);
+    g_i2sInstalled = false;
   }
+}
+
+static constexpr size_t kAudioI2SInternalAllocThreshold = 2 * 1024 * 1024;
+static constexpr size_t kRuntimeInternalAllocThreshold = 4 * 1024;
+static constexpr size_t kAudioI2SMinInternalFree = 48 * 1024;
+static constexpr size_t kAudioI2SMinInternalLargestBlock = 24 * 1024;
+static void audioRestoreRuntimeAllocThreshold() {
+  if (!psramFound()) return;
+  heap_caps_malloc_extmem_enable(kRuntimeInternalAllocThreshold);
+  Serial.printf("[AUDIO] Restored extmem threshold to %u bytes after I2S init\n",
+    (unsigned)kRuntimeInternalAllocThreshold);
+}
+
+static bool audioBeginI2SInternalAllocWindow() {
+  if (!psramFound()) return true;
+
+  const size_t internalFree =
+    heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  const size_t internalLargest =
+    heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+
+  if (internalFree < kAudioI2SMinInternalFree ||
+      internalLargest < kAudioI2SMinInternalLargestBlock) {
+    Serial.printf("[AUDIO] Not enough internal heap for I2S/GDMA init: free=%lu largest=%lu\n",
+      (unsigned long)internalFree, (unsigned long)internalLargest);
+    return false;
+  }
+
+  // With PSRAM enabled, make the I2S/GDMA setup path use internal RAM for
+  // essentially all default allocations so callback/user-context objects don't
+  // land in external memory during driver init.
+  heap_caps_malloc_extmem_enable(kAudioI2SInternalAllocThreshold);
+  Serial.printf("[AUDIO] Forced default allocations <= %u bytes into internal RAM for I2S init\n",
+    (unsigned)kAudioI2SInternalAllocThreshold);
+  return true;
 }
 
 static bool audioInitI2S(uint32_t sampleRate) {
   audioShutdownI2S();
 
-  i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+  i2s_config_t i2s_cfg = {};
   // DMA buffer sizing: must fit in free heap (~80-120KB available after WiFi+WebServer)
   // Each frame = 8 bytes (32-bit stereo). Total DMA = desc_num × frame_num × 8
   // Higher sample rates need more buffering to cover SD SPI latency spikes (50-100ms)
   Serial.printf("[AUDIO] Free heap before I2S: %lu bytes (largest block: %lu)\n",
     (unsigned long)esp_get_free_heap_size(), (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+  Serial.printf("[AUDIO] Internal heap before I2S: %lu bytes (largest internal block: %lu)\n",
+    (unsigned long)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+    (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  if (!audioBeginI2SInternalAllocWindow()) return false;
+  i2s_cfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX);
+  i2s_cfg.sample_rate = sampleRate;
+  i2s_cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT;
+  i2s_cfg.bits_per_chan = I2S_BITS_PER_CHAN_32BIT;
+  i2s_cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
+  i2s_cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
+  i2s_cfg.intr_alloc_flags = 0;
+  i2s_cfg.use_apll = false;
+  i2s_cfg.tx_desc_auto_clear = true;
+  i2s_cfg.fixed_mclk = 0;
+  i2s_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
   if (sampleRate >= 88200) {
-    chan_cfg.dma_desc_num  = 8;     // 8 DMA descriptors
-    chan_cfg.dma_frame_num = 768;   // 768 frames each
+    i2s_cfg.dma_desc_num  = 8;     // 8 DMA descriptors
+    i2s_cfg.dma_frame_num = 768;   // 768 frames each
     // = 8 × 768 × 8 = 49,152 bytes ≈ 64ms at 96kHz — fits in heap
   } else if (sampleRate >= 44100) {
-    chan_cfg.dma_desc_num  = 8;     // 8 descriptors for 44.1/48kHz
-    chan_cfg.dma_frame_num = 512;   // 512 frames each
+    i2s_cfg.dma_desc_num  = 8;     // 8 descriptors for 44.1/48kHz
+    i2s_cfg.dma_frame_num = 512;   // 512 frames each
     // = 8 × 512 × 8 = 32KB ≈ 93ms at 44.1kHz
   } else {
-    chan_cfg.dma_desc_num  = 6;
-    chan_cfg.dma_frame_num = 480;
+    i2s_cfg.dma_desc_num  = 6;
+    i2s_cfg.dma_frame_num = 480;
   }
-  if (i2s_new_channel(&chan_cfg, &g_i2sTxHandle, NULL) != ESP_OK) {
-    Serial.println("[AUDIO] Failed to create I2S channel");
+  if (i2s_driver_install(I2S_NUM_0, &i2s_cfg, 0, NULL) != ESP_OK) {
+    Serial.println("[AUDIO] Failed to install legacy I2S driver");
+    audioRestoreRuntimeAllocThreshold();
     return false;
   }
 
-  i2s_std_config_t std_cfg;
-  memset(&std_cfg, 0, sizeof(std_cfg));
-  std_cfg.clk_cfg.sample_rate_hz = sampleRate;
-  std_cfg.clk_cfg.clk_src = I2S_CLK_SRC_DEFAULT;
-  std_cfg.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
-  std_cfg.slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO);
-  std_cfg.gpio_cfg.mclk = I2S_GPIO_UNUSED;
-  std_cfg.gpio_cfg.bclk = (gpio_num_t)I2S_BCK_PIN;
-  std_cfg.gpio_cfg.ws   = (gpio_num_t)I2S_WS_PIN;
-  std_cfg.gpio_cfg.dout = (gpio_num_t)I2S_DOUT_PIN;
-  std_cfg.gpio_cfg.din  = I2S_GPIO_UNUSED;
-  std_cfg.gpio_cfg.invert_flags.mclk_inv = false;
-  std_cfg.gpio_cfg.invert_flags.bclk_inv = false;
-  std_cfg.gpio_cfg.invert_flags.ws_inv   = true;   // CRITICAL for PCM5122
+  i2s_pin_config_t pin_cfg = {
+    .mck_io_num = I2S_PIN_NO_CHANGE,
+    .bck_io_num = I2S_BCK_PIN,
+    .ws_io_num = I2S_WS_PIN,
+    .data_out_num = I2S_DOUT_PIN,
+    .data_in_num = I2S_PIN_NO_CHANGE,
+  };
 
-  if (i2s_channel_init_std_mode(g_i2sTxHandle, &std_cfg) != ESP_OK) {
-    Serial.println("[AUDIO] Failed to init I2S std mode");
+  if (i2s_set_pin(I2S_NUM_0, &pin_cfg) != ESP_OK) {
+    Serial.println("[AUDIO] Failed to set legacy I2S pins");
     audioShutdownI2S();
+    audioRestoreRuntimeAllocThreshold();
     return false;
   }
 
-  if (i2s_channel_enable(g_i2sTxHandle) != ESP_OK) {
-    Serial.println("[AUDIO] Failed to enable I2S channel");
+  if (i2s_zero_dma_buffer(I2S_NUM_0) != ESP_OK) {
+    Serial.println("[AUDIO] Failed to clear legacy I2S DMA buffer");
     audioShutdownI2S();
+    audioRestoreRuntimeAllocThreshold();
     return false;
   }
 
-  Serial.printf("[AUDIO] I2S started: %lu Hz, 32-bit stereo, ws_inv=true\n", (unsigned long)sampleRate);
+  g_i2sInstalled = true;
+  audioRestoreRuntimeAllocThreshold();
+
+  Serial.printf("[AUDIO] Legacy I2S started: %lu Hz, 32-bit stereo\n", (unsigned long)sampleRate);
   return true;
 }
 
@@ -645,11 +727,7 @@ String audioListTracksJson() {
   return json + "]";
 }
 
-// ── FreeRTOS Playback Task (runs on core 1) ─────────────────
-static void audioPlaybackTask(void* param) {
-  String path = *((String*)param);
-  delete (String*)param;
-
+static void audioRunPlaybackPath(const String& path) {
   Serial.printf("[AUDIO] Playback task start: %s\n", path.c_str());
 
   File f = SD.open(path, FILE_READ);
@@ -657,8 +735,8 @@ static void audioPlaybackTask(void* param) {
     Serial.printf("[AUDIO] Failed to open: %s\n", path.c_str());
     g_audioStopRequested = true;  // prevent auto-advance on error
     g_audioPlaying = false;
-    g_playbackTaskHandle = nullptr;
-    vTaskDelete(NULL);
+    g_audioNowPlaying = "";
+    audioReactiveReset();
     return;
   }
 
@@ -668,8 +746,8 @@ static void audioPlaybackTask(void* param) {
     f.close();
     g_audioStopRequested = true;  // prevent auto-advance on error
     g_audioPlaying = false;
-    g_playbackTaskHandle = nullptr;
-    vTaskDelete(NULL);
+    g_audioNowPlaying = "";
+    audioReactiveReset();
     return;
   }
 
@@ -678,8 +756,8 @@ static void audioPlaybackTask(void* param) {
     f.close();
     g_audioStopRequested = true;  // prevent auto-advance to next track
     g_audioPlaying = false;
-    g_playbackTaskHandle = nullptr;
-    vTaskDelete(NULL);
+    g_audioNowPlaying = "";
+    audioReactiveReset();
     return;
   }
 
@@ -744,7 +822,7 @@ static void audioPlaybackTask(void* param) {
     size_t written = 0;
     // Timeout in ticks — use portMAX_DELAY to block until DMA accepts all data
     // This prevents partial writes that cause clicks at buffer boundaries
-    esp_err_t err = i2s_channel_write(g_i2sTxHandle, g_audioOutBuf, outBytes, &written, portMAX_DELAY);
+    esp_err_t err = i2s_write(I2S_NUM_0, g_audioOutBuf, outBytes, &written, portMAX_DELAY);
     if (err != ESP_OK) {
       Serial.printf("[AUDIO] I2S write error: %d\n", (int)err);
       break;
@@ -767,11 +845,43 @@ static void audioPlaybackTask(void* param) {
   bool wasStop = g_audioStopRequested;
   g_audioPlaying = false;
   g_audioNowPlaying = "";
-  g_playbackTaskHandle = nullptr;
   audioReactiveReset();  // Clear audio features when not playing
 
   Serial.printf("[AUDIO] Playback %s\n", wasStop ? "stopped" : "complete");
-  vTaskDelete(NULL);
+}
+
+// ── FreeRTOS Playback Worker (runs on core 1) ───────────────
+static void audioPlaybackWorkerTask(void* param) {
+  (void)param;
+  char pathBuf[kAudioPendingPathMaxLen] = {};
+  while (true) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    while (ulTaskNotifyTake(pdTRUE, 0) > 0) {
+      // Collapse bursts of play requests so the worker uses the latest path.
+    }
+    audioLoadPendingPath(pathBuf, sizeof(pathBuf));
+    if (pathBuf[0] == '\0') continue;
+    audioRunPlaybackPath(String(pathBuf));
+  }
+}
+
+static bool audioEnsurePlaybackWorker() {
+  if (g_playbackTaskHandle) return true;
+  BaseType_t result = xTaskCreatePinnedToCore(
+    audioPlaybackWorkerTask,
+    "audioPlay",
+    kAudioPlaybackTaskStackBytes,
+    nullptr,
+    5,
+    &g_playbackTaskHandle,
+    1
+  );
+  if (result != pdPASS) {
+    g_playbackTaskHandle = nullptr;
+    Serial.println("[AUDIO] Failed to create playback worker");
+    return false;
+  }
+  return true;
 }
 
 // ── Public API ──────────────────────────────────────────────
@@ -785,8 +895,8 @@ static bool audioVerifyHardware(uint32_t sampleRate = 44100) {
 
   int32_t silence[16] = {};
   size_t bytesWritten = 0;
-  esp_err_t err = i2s_channel_write(
-    g_i2sTxHandle,
+  esp_err_t err = i2s_write(
+    I2S_NUM_0,
     silence,
     sizeof(silence),
     &bytesWritten,
@@ -806,6 +916,9 @@ static bool audioVerifyHardware(uint32_t sampleRate = 44100) {
 // Initialize audio subsystem and verify the I2S path can actually come up.
 bool audioInit() {
   g_audioReady = audioVerifyHardware(44100);
+  if (g_audioReady && !audioEnsurePlaybackWorker()) {
+    g_audioReady = false;
+  }
   Serial.printf("[AUDIO] Audio engine %s: BCK=GP%d, WSEL=GP%d, DIN=GP%d (ws_inv=true)\n",
     g_audioReady ? "ready" : "degraded",
     I2S_BCK_PIN, I2S_WS_PIN, I2S_DOUT_PIN);
@@ -818,30 +931,22 @@ bool audioPlayFile(const char* path) {
     Serial.println("[AUDIO] Not ready");
     return false;
   }
+  if (!audioEnsurePlaybackWorker()) {
+    return false;
+  }
 
   // Stop current playback first
   if (g_audioPlaying) {
     audioStop();
-    delay(50);  // Brief settle time after I2S stop (was 250ms)
+    // Let the old playback task finish tearing down before we restart I2S.
+    delay(kAudioRestartSettleMs);
   }
 
   g_audioStopRequested = false;
-  g_audioPlaying = true;  // Set BEFORE task creation to prevent auto-advance race
+  g_audioPlaying = true;  // Set before waking the worker to close the race window.
   g_audioFile = String(path);
-
-  String* arg = new String(path);
-  BaseType_t result = xTaskCreatePinnedToCore(
-    audioPlaybackTask, "audioPlay", 20480, arg, 5, &g_playbackTaskHandle, 1
-    // 20KB stack (was 16KB) — headroom for 96kHz/24-bit + EQ + SD reads
-    // Priority 5 = above WiFi/default tasks, prevents stutter
-  );
-
-  if (result != pdPASS) {
-    delete arg;
-    g_audioPlaying = false;  // Task failed — undo the early set
-    Serial.println("[AUDIO] Failed to create playback task");
-    return false;
-  }
+  audioStorePendingPath(path);
+  xTaskNotifyGive(g_playbackTaskHandle);
 
   Serial.printf("[AUDIO] Started playback: %s\n", path);
   return true;
@@ -917,7 +1022,7 @@ static void audioToneTick() {
   }
 
   size_t bytesWritten = 0;
-  i2s_channel_write(g_i2sTxHandle, buf, samples * 8, &bytesWritten, pdMS_TO_TICKS(100));
+  i2s_write(I2S_NUM_0, buf, samples * 8, &bytesWritten, pdMS_TO_TICKS(100));
   g_toneSamplesLeft -= samples;
   g_wavBytesRead += bytesWritten;
 }

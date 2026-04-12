@@ -1,7 +1,7 @@
 /*
  * DPA ESP32-S3 Dashboard Firmware — Phase 2
  * ──────────────────────────────────────────
- * Hardware: Waveshare ESP32-S3 Zero (8MB flash, no PSRAM)
+ * Hardware: Waveshare ESP32-S3 Zero (8MB flash, embedded 8MB PSRAM)
  *           Onboard WS2812B RGB LED on GPIO 21
  *           External WS2812B strip on GPIO 5 (17 LEDs)
  *           Adafruit PCM5122 DAC via I2S (GPIO 6/7/8)
@@ -27,10 +27,10 @@
  *   - SPI                (built-in)
  *
  * Board settings (Arduino IDE):
- *   Board:            ESP32S3 Dev Module
+ *   Board:            Waveshare ESP32-S3 Zero
  *   Flash Size:       8MB
- *   Partition Scheme: Default 4MB with spiffs (or 8M with spiffs)
- *   PSRAM:            Disabled
+ *   Partition Scheme: Custom single-app 8MB layout (no OTA / no SPIFFS)
+ *   PSRAM:            Enabled (OPI)
  *   USB CDC On Boot:  Enabled
  *
  * Version: 2.3.0
@@ -40,6 +40,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
+#include <esp_heap_caps.h>
 
 // ── Pin Definitions ─────────────────────────────────────────
 #define SD_CS    10
@@ -140,9 +141,30 @@ String g_httpMode           = "starting";
 String g_wifiMaintenanceMode = "normal";
 String g_lastUploadPath     = "";
 size_t g_lastUploadBytes    = 0;
+String g_lastUploadMode     = "safe";
+uint32_t g_lastUploadDurationMs = 0;
+uint32_t g_lastUploadRateKBps = 0;
+uint32_t g_lastUploadSdHz   = 0;
 bool   g_httpReady          = false;
 bool   g_wifiReady          = false;
 bool   g_audioHardwareVerified = false;
+String g_disconnectBreadcrumbKind   = "none";
+String g_disconnectBreadcrumbScope  = "none";
+String g_disconnectBreadcrumbCause  = "";
+String g_disconnectBreadcrumbDetail = "";
+int    g_disconnectBreadcrumbReasonCode = 0;
+unsigned long g_disconnectBreadcrumbAtMs = 0;
+unsigned long g_disconnectBreadcrumbUptimeS = 0;
+uint32_t g_disconnectBreadcrumbFreeHeap = 0;
+uint32_t g_disconnectBreadcrumbLargestHeapBlock = 0;
+int    g_disconnectBreadcrumbStaRssi = 0;
+int    g_disconnectBreadcrumbApClients = 0;
+unsigned long g_httpRestartCount = 0;
+bool   g_apRecoveryPending = false;
+unsigned long g_apRecoveryRequestedAtMs = 0;
+unsigned long g_lastPortalHttpActivityAtMs = 0;
+bool   g_portalHttpWatchdogArmed = false;
+unsigned long g_lastPortalControlPlaneRestartAtMs = 0;
 
 // Battery (real ADC on BATT_ADC_PIN, or USB-powered if no divider wired)
 float  g_battVoltage = 0;
@@ -229,6 +251,32 @@ static void refreshRuntimeState() {
   }
 }
 
+void noteDisconnectBreadcrumb(
+  const String& kind,
+  const String& scope,
+  const String& cause,
+  const String& detail,
+  int reasonCode,
+  int staRssiSnapshot,
+  int apClientCountSnapshot,
+  uint32_t freeHeapSnapshot = 0,
+  uint32_t largestHeapBlockSnapshot = 0
+) {
+  g_disconnectBreadcrumbKind = kind;
+  g_disconnectBreadcrumbScope = scope;
+  g_disconnectBreadcrumbCause = cause;
+  g_disconnectBreadcrumbDetail = detail;
+  g_disconnectBreadcrumbReasonCode = reasonCode;
+  g_disconnectBreadcrumbAtMs = millis();
+  g_disconnectBreadcrumbUptimeS = g_bootTime > 0 ? ((millis() - g_bootTime) / 1000UL) : 0;
+  g_disconnectBreadcrumbFreeHeap = freeHeapSnapshot > 0 ? freeHeapSnapshot : esp_get_free_heap_size();
+  g_disconnectBreadcrumbLargestHeapBlock = largestHeapBlockSnapshot > 0
+    ? largestHeapBlockSnapshot
+    : heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  g_disconnectBreadcrumbStaRssi = staRssiSnapshot;
+  g_disconnectBreadcrumbApClients = apClientCountSnapshot;
+}
+
 // ── Include Modules ──────────────────────────────────────────
 // (Must come after globals since headers reference them as extern)
 #include "dpa_wifi.h"  // WiFi AP+STA manager with NVS persistence
@@ -237,6 +285,7 @@ static void refreshRuntimeState() {
 #include "audio.h"     // I2S DAC playback via PCM5122 (GP6-8)
 #include "intelligence.h" // Smart playlist, analytics, content protection
 #include "captive.h"      // Captive portal DNS hijack (auto-open dashboard on WiFi connect)
+#include "dpa_ingest.h"   // STA-mode private ingest uploader + NVS config
 // #include "espnow_mesh.h"  // ESP-NOW — disabled until device gains traction
 #include "api.h"       // REST API endpoint handlers
 #include "dashboard.h" // PROGMEM gzipped HTML dashboard
@@ -249,6 +298,49 @@ WebServer uploadServer(81);     // Sync: reliable large file uploads (matches DP
 const char* AP_PASSWORD = NULL;  // Open network — no password
 const int   AP_CHANNEL  = 6;
 const int   AP_MAX_CONN = 4;
+
+static void restartPortalControlPlane(bool recycleAp, const char* reason) {
+  const unsigned long nowMs = millis();
+  g_lastPortalControlPlaneRestartAtMs = nowMs;
+  g_portalHttpWatchdogArmed = false;
+  Serial.printf("[HTTP] Restarting portal control plane (%s)%s\n",
+    reason,
+    recycleAp ? " with AP recycle" : "");
+
+  g_httpReady = false;
+  g_httpMode = "starting";
+  g_wifiMaintenanceMode = recycleAp ? "ap-recovering" : "http-recovering";
+  refreshRuntimeState();
+
+  server.end();
+  g_dnsServer.stop();
+  delay(180);
+
+  if (recycleAp) {
+    WiFi.softAPdisconnect(false);
+    delay(120);
+    bool apOk = WiFi.softAP(g_apSSID.c_str(), AP_PASSWORD, AP_CHANNEL, 0, AP_MAX_CONN);
+    WiFi.setSleep(false);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    Serial.printf("[WIFI] AP recycle %s for SSID %s\n", apOk ? "OK" : "FAILED", g_apSSID.c_str());
+    delay(80);
+  }
+
+  captiveInit();
+  delay(120);
+  server.begin();
+
+  g_httpReady = true;
+  g_httpMode = "full";
+  g_wifiMaintenanceMode = "normal";
+  refreshRuntimeState();
+  Serial.printf("[HTTP] Portal control plane ready (%s)\n", reason);
+}
+
+static void notePortalHttpActivity() {
+  g_lastPortalHttpActivityAtMs = millis();
+  g_portalHttpWatchdogArmed = true;
+}
 
 // ── DUID from NVS ────────────────────────────────────────────
 void loadOrGenerateDUID() {
@@ -533,7 +625,7 @@ void buttonsTick() {
 
 // ── Synchronous Upload Server (port 81) ──────────────────────
 // Mirrors the proven DPAC uploader pattern: synchronous WebServer,
-// persistent file handle, 8KB staging buffer, 4-retry writes.
+// persistent file handle, adaptive staging buffer, 4-retry writes.
 // ESPAsyncWebServer (port 80) has known bugs with large file uploads.
 
 static File g_syncUploadFile;
@@ -542,16 +634,83 @@ static String g_syncTempPath;
 static size_t g_syncBytesWritten = 0;
 static bool g_syncWriteError = false;
 static bool g_syncCompleted = false;
-static const size_t SYNC_STAGE_SIZE = 8192;
-static uint8_t g_syncStageBuf[SYNC_STAGE_SIZE];
+static const size_t SYNC_STAGE_TARGET_SIZE = 32768;
+static uint8_t* g_syncStageBuf = nullptr;
+static size_t g_syncStageCapacity = 0;
 static size_t g_syncStageUsed = 0;
+static unsigned long g_syncUploadStartedAtMs = 0;
+static String g_syncUploadMode = "safe";
+static uint32_t g_syncUploadHz = SD_SLOW_HZ;
+
+static bool ensureSyncStageBuffer() {
+  if (g_syncStageBuf && g_syncStageCapacity > 0) return true;
+
+  const size_t candidateSizes[] = { SYNC_STAGE_TARGET_SIZE, 16384, 8192 };
+  for (size_t i = 0; i < (sizeof(candidateSizes) / sizeof(candidateSizes[0])); i++) {
+    const size_t candidate = candidateSizes[i];
+
+    g_syncStageBuf = (uint8_t*)heap_caps_malloc(candidate, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!g_syncStageBuf) {
+      g_syncStageBuf = (uint8_t*)heap_caps_malloc(candidate, MALLOC_CAP_8BIT);
+    }
+    if (g_syncStageBuf) {
+      g_syncStageCapacity = candidate;
+      Serial.printf("[UPLOAD] Stage buffer ready: %u bytes\n", (unsigned)g_syncStageCapacity);
+      return true;
+    }
+  }
+
+  g_syncStageCapacity = 0;
+  Serial.println("[UPLOAD] Stage buffer allocation failed");
+  return false;
+}
+
+static bool selectSyncUploadSpeed(const String& speedArgRaw) {
+  String speedArg = speedArgRaw;
+  speedArg.trim();
+  speedArg.toLowerCase();
+
+  bool ok = false;
+  String mode = "auto";
+
+  if (speedArg.length() == 0 || speedArg == "auto" || speedArg == "turbo") {
+    ok = sdMountUploadAuto();
+    mode = "auto";
+  } else if (speedArg == "safe" || speedArg == "slow") {
+    ok = sdMountUploadSafe();
+    mode = "safe";
+  } else {
+    char* endPtr = nullptr;
+    unsigned long requestedHz = strtoul(speedArg.c_str(), &endPtr, 10);
+    if (endPtr && *endPtr == '\0' && requestedHz >= SD_SLOW_HZ && requestedHz <= SD_FAST_HZ) {
+      ok = sdRemount((uint32_t)requestedHz) && sdWriteProbeCurrentMount();
+      mode = "manual";
+    }
+  }
+
+  if (!ok && mode != "safe") {
+    Serial.printf("[UPLOAD] Requested speed '%s' failed, falling back to safe mode\n", speedArgRaw.c_str());
+    ok = sdMountUploadSafe();
+    mode = "safe-fallback";
+  }
+
+  if (ok) {
+    g_syncUploadMode = mode;
+    g_syncUploadHz = g_sdCurrentHz;
+    Serial.printf("[UPLOAD] Using %s upload path at %lu Hz\n",
+      g_syncUploadMode.c_str(),
+      (unsigned long)g_syncUploadHz);
+  }
+  return ok;
+}
 
 static bool syncFlushStage() {
   if (g_syncStageUsed == 0) return true;
+  if (!g_syncUploadFile || !g_syncStageBuf || g_syncStageCapacity == 0) return false;
   size_t w = 0;
   int retries = 0;
   while (w < g_syncStageUsed && retries < 4) {
-    size_t chunk = min(g_syncStageUsed - w, (size_t)8192);
+    size_t chunk = min(g_syncStageUsed - w, (size_t)16384);
     size_t wrote = g_syncUploadFile.write(g_syncStageBuf + w, chunk);
     if (wrote > 0) {
       w += wrote;
@@ -572,18 +731,53 @@ static bool syncFlushStage() {
 }
 
 static bool syncStageData(const uint8_t* data, size_t len) {
+  if (!g_syncStageBuf || g_syncStageCapacity == 0) return false;
   size_t offset = 0;
   while (offset < len) {
-    size_t space = SYNC_STAGE_SIZE - g_syncStageUsed;
+    size_t space = g_syncStageCapacity - g_syncStageUsed;
     size_t toCopy = min(space, len - offset);
     memcpy(g_syncStageBuf + g_syncStageUsed, data + offset, toCopy);
     g_syncStageUsed += toCopy;
     offset += toCopy;
-    if (g_syncStageUsed == SYNC_STAGE_SIZE) {
+    if (g_syncStageUsed == g_syncStageCapacity) {
       if (!syncFlushStage()) return false;
     }
   }
   return true;
+}
+
+static void resetUploadWatchdogWindow() {
+  // Upload mode intentionally suspends the normal dashboard traffic pattern, so
+  // the portal inactivity watchdog should not treat the upload blackout as a
+  // dead control plane.
+  g_lastPortalHttpActivityAtMs = millis();
+  g_portalHttpWatchdogArmed = false;
+}
+
+static void restoreAfterSyncUpload(bool refreshMediaIndex) {
+  bool remountedFast = sdMountFast();
+  if (!remountedFast) {
+    Serial.println("[UPLOAD] Fast SD remount failed, falling back to slow mount");
+    remountedFast = sdMountSlow();
+  }
+  g_sdState = remountedFast ? "mounted" : "error";
+  sdRefreshStats();
+  if (refreshMediaIndex) {
+    scanWavList();
+  }
+
+  resetUploadWatchdogWindow();
+
+  // Restart everything now that upload isolation is over.
+  // Keep WiFi sleep OFF — re-enabling causes intermittent AP client drops.
+  // wifiInit() already set WIFI_PS_NONE + setSleep(false) for AP stability.
+  captiveInit();
+  server.begin();
+  g_httpMode = "full";
+  g_httpReady = true;
+  g_wifiMaintenanceMode = "normal";
+  refreshRuntimeState();
+  Serial.println("[HTTP] Async server + DNS restarted");
 }
 
 void handleSyncUploadDone() {
@@ -612,6 +806,10 @@ void handleSyncFileUpload() {
     g_wifiMaintenanceMode = "upload-lite";
     g_httpMode = "minimal";
     g_httpReady = true;
+    resetUploadWatchdogWindow();
+    g_syncUploadMode = "safe";
+    g_syncUploadHz = SD_SLOW_HZ;
+    g_syncUploadStartedAtMs = 0;
     refreshRuntimeState();
 
     // Stop EVERYTHING that touches the network/SPI to eliminate bus contention
@@ -619,11 +817,16 @@ void handleSyncFileUpload() {
     g_dnsServer.stop();   // Stop captive DNS server
     delay(100);
 
-    if (!sdMountSlow()) {
+    if (!ensureSyncStageBuffer()) {
       g_sdState = "error";
       g_uploadState = "error";
       refreshRuntimeState();
-      Serial.println("[UPLOAD] Failed to remount SD at slow speed");
+      Serial.println("[UPLOAD] Failed to allocate staging buffer");
+    } else if (!selectSyncUploadSpeed(uploadServer.arg("speed"))) {
+      g_sdState = "error";
+      g_uploadState = "error";
+      refreshRuntimeState();
+      Serial.println("[UPLOAD] Failed to select a verified SD upload speed");
     } else {
       g_sdState = "mounted";
       refreshRuntimeState();
@@ -656,12 +859,18 @@ void handleSyncFileUpload() {
     g_syncWriteError = false;
     g_syncCompleted = false;
     g_syncStageUsed = 0;
+    g_syncUploadStartedAtMs = millis();
 
     if (!g_syncUploadFile) {
       g_syncWriteError = true;
       Serial.printf("[UPLOAD] OPEN FAILED: %s\n", g_syncTempPath.c_str());
     } else {
-      Serial.printf("[UPLOAD] Start: %s (%s)\n", g_syncFinalPath.c_str(), upload.filename.c_str());
+      Serial.printf("[UPLOAD] Start: %s (%s) mode=%s sd=%luHz stage=%u\n",
+        g_syncFinalPath.c_str(),
+        upload.filename.c_str(),
+        g_syncUploadMode.c_str(),
+        (unsigned long)g_syncUploadHz,
+        (unsigned)g_syncStageCapacity);
     }
   }
   else if (upload.status == UPLOAD_FILE_WRITE) {
@@ -719,45 +928,42 @@ void handleSyncFileUpload() {
     g_syncCompleted = renamed;
     g_uploadInProgress = false;
     g_lastUploadBytes = g_syncBytesWritten;
+    g_lastUploadMode = g_syncUploadMode;
+    g_lastUploadSdHz = g_syncUploadHz;
+    g_lastUploadDurationMs = g_syncUploadStartedAtMs > 0 ? (millis() - g_syncUploadStartedAtMs) : 0;
+    g_lastUploadRateKBps = g_lastUploadDurationMs > 0
+      ? (uint32_t)(((uint64_t)g_syncBytesWritten * 1000ULL) / 1024ULL / g_lastUploadDurationMs)
+      : 0;
 
-    bool remountedFast = sdMountFast();
-    if (!remountedFast) {
-      Serial.println("[UPLOAD] Fast SD remount failed, falling back to slow mount");
-      remountedFast = sdMountSlow();
-    }
-    g_sdState = remountedFast ? "mounted" : "error";
-    sdRefreshStats();
-    scanWavList();
-
-    // Restart everything now that upload is done
-    // Keep WiFi sleep OFF — re-enabling causes intermittent AP client drops.
-    // wifiInit() already set WIFI_PS_NONE + setSleep(false) for AP stability.
-    captiveInit();
-    server.begin();
-    g_httpMode = "full";
-    g_httpReady = true;
-    g_wifiMaintenanceMode = "normal";
     g_uploadState = renamed ? "complete" : "error";
-    refreshRuntimeState();
-    Serial.println("[HTTP] Async server + DNS restarted");
+    restoreAfterSyncUpload(true);
 
     Serial.printf("[UPLOAD] End: wrote=%u renamed=%s path=%s\n",
       (unsigned)g_syncBytesWritten, renamed ? "YES" : "NO", g_syncFinalPath.c_str());
+    Serial.printf("[UPLOAD] Stats: mode=%s sd=%luHz duration=%lums avg=%luKB/s\n",
+      g_lastUploadMode.c_str(),
+      (unsigned long)g_lastUploadSdHz,
+      (unsigned long)g_lastUploadDurationMs,
+      (unsigned long)g_lastUploadRateKBps);
   }
   else if (upload.status == UPLOAD_FILE_ABORTED) {
-    if (g_syncUploadFile) g_syncUploadFile.close();
+    if (g_syncUploadFile) {
+      g_syncUploadFile.close();
+    }
     if (g_syncTempPath.length() && SD.exists(g_syncTempPath)) SD.remove(g_syncTempPath);
     g_uploadInProgress = false;
     g_syncWriteError = true;
     g_syncCompleted = false;
     g_syncStageUsed = 0;
-    g_uploadState = "error";
-    g_httpMode = "full";
-    g_wifiMaintenanceMode = "normal";
-    captiveInit();
-    server.begin();
-    refreshRuntimeState();
-    Serial.println("[HTTP] Async server + DNS restarted");
+    g_syncBytesWritten = 0;
+    g_syncUploadStartedAtMs = 0;
+    g_uploadState = "idle";
+    g_lastUploadMode = "aborted";
+    g_lastUploadBytes = 0;
+    g_lastUploadRateKBps = 0;
+    g_lastUploadDurationMs = 0;
+    g_lastUploadSdHz = 0;
+    restoreAfterSyncUpload(true);
     Serial.println("[UPLOAD] Aborted");
   }
 }
@@ -771,6 +977,7 @@ void handleSyncOptions() {
 
 void setupSyncUploadServer() {
   uploadServer.on("/api/status", HTTP_GET, []() {
+    notePortalHttpActivity();
     uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
     uploadServer.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     uploadServer.sendHeader("Pragma", "no-cache");
@@ -799,6 +1006,11 @@ void setup() {
   Serial.println("========================================");
   Serial.println("  DPA Portal -- Firmware v2.4.1");
   Serial.println("========================================");
+  if (psramFound()) {
+    Serial.printf("[BOOT] PSRAM detected: total=%u free=%u\n", ESP.getPsramSize(), ESP.getFreePsram());
+  } else {
+    Serial.println("[BOOT] PSRAM not detected");
+  }
 
   // 0. Button pins init (all INPUT_PULLUP, active LOW)
   pinMode(BOOT_BTN_PIN, INPUT_PULLUP);
@@ -859,6 +1071,8 @@ void setup() {
     // Init on-device intelligence (analytics + capsules)
     analyticsInit();
     capsulesLoad();
+    capsuleOtaLoadIndex();
+    capsuleOtaCleanupStaleParts();
   } else {
     g_sdState = "error";
     Serial.println("[BOOT] SD card not available (continuing without storage)");
@@ -883,6 +1097,9 @@ void setup() {
     Serial.println("[BOOT] No battery detected — USB powered");
   }
 
+  // 5c. Load private ingest config before network services start
+  ingestLoadFromNVS();
+
   // 6. Start WiFi (AP always on + STA if credentials stored)
   wifiInit(AP_PASSWORD, AP_CHANNEL, AP_MAX_CONN);
   g_wifiReady = true;
@@ -899,15 +1116,30 @@ void setup() {
   Serial.println("[BOOT] ESP-NOW mesh: disabled (not compiled)");
 
   // 7. Serve dashboard (gzipped HTML from PROGMEM)
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
+  auto& dashboardHandler = server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
+    notePortalHttpActivity();
+    if (apiRejectHeavyRequest(req, "dashboard")) return;
+
+    const String etag = "\"" + g_fwVersion + "\"";
+    if (req->hasHeader("If-None-Match") && req->header("If-None-Match") == etag) {
+      AsyncWebServerResponse* response = req->beginResponse(304);
+      response->addHeader("Cache-Control", "no-cache, must-revalidate");
+      response->addHeader("ETag", etag);
+      response->addHeader("Connection", "close");
+      req->send(response);
+      return;
+    }
+
     AsyncWebServerResponse* response = req->beginResponse(
       200, "text/html", DASHBOARD_HTML_GZ, DASHBOARD_HTML_GZ_LEN
     );
     response->addHeader("Content-Encoding", "gzip");
     response->addHeader("Cache-Control", "no-cache, must-revalidate");
-    response->addHeader("ETag", "\"" + g_fwVersion + "\"");
+    response->addHeader("ETag", etag);
+    response->addHeader("Connection", "close");
     req->send(response);
   });
+  attachChurnGuards(dashboardHandler, 2, 4, false);
 
   // 9. Register API routes (all /api/* endpoints)
   registerApiRoutes(server);
@@ -1071,20 +1303,49 @@ void loop() {
       wifiDoScan();
     }
 
-    // Captive portal DNS processing (resolves all queries to AP IP)
-    captiveTick();
+    // Keep captive DNS responsive, but avoid servicing it every loop while audio
+    // is active to reduce tiny background CPU bursts during playback.
+    static unsigned long lastCaptiveTick = 0;
+    const unsigned long captiveTickIntervalMs = g_audioPlaying ? 20UL : 0UL;
+    if (captiveTickIntervalMs == 0 || (millis() - lastCaptiveTick) >= captiveTickIntervalMs) {
+      captiveTick();
+      lastCaptiveTick = millis();
+    }
 
-    // Monitor STA connection — skip during playback
+    // Monitor STA/AP maintenance even during playback. This is lightweight
+    // event handling + RSSI refresh and prevents long-session radio drift.
     static unsigned long lastWifiCheck = 0;
-    if (!g_audioPlaying && millis() - lastWifiCheck > 5000) {
+    const unsigned long wifiCheckIntervalMs = g_audioPlaying ? 15000UL : 5000UL;
+    if (millis() - lastWifiCheck > wifiCheckIntervalMs) {
       wifiTick();
       lastWifiCheck = millis();
+    }
+
+    if (g_apRecoveryPending) {
+      int clients = wifiGetApStationCount();
+      if (clients > 0) {
+        g_apRecoveryPending = false;
+        g_apRecoveryRequestedAtMs = 0;
+        Serial.println("[WIFI] AP recovery cancelled: client rejoined before recycle");
+      } else if (millis() - g_apRecoveryRequestedAtMs > 1500) {
+        g_apRecoveryPending = false;
+        g_apRecoveryRequestedAtMs = 0;
+        g_httpRestartCount++;
+        restartPortalControlPlane(true, "last_ap_client_left");
+      }
+    }
+
+    // Keep OTA polling off the hot playback path for now. The install/download
+    // phase will add a fuller state machine once check-in is validated.
+    if (!g_audioPlaying) {
+      capsuleOtaTick();
     }
   }
 
   // Periodic battery read (every 10s)
   static unsigned long lastBattRead = 0;
-  if (millis() - lastBattRead > BATT_READ_INTERVAL) {
+  const unsigned long battReadIntervalMs = g_audioPlaying ? (BATT_READ_INTERVAL * 3UL) : BATT_READ_INTERVAL;
+  if (millis() - lastBattRead > battReadIntervalMs) {
     batteryRead();
     lastBattRead = millis();
   }
@@ -1095,19 +1356,99 @@ void loop() {
   static unsigned long lastHeapCheck = 0;
   if (millis() - lastHeapCheck > 10000) {
     lastHeapCheck = millis();
-    uint32_t freeHeap = ESP.getFreeHeap();
-    if (freeHeap < 40000) {
-      Serial.printf("[HEAP] Low heap: %u bytes — restarting async server\n", freeHeap);
+    const uint32_t freeHeap = controlPlaneFreeHeapBytes();
+    const uint32_t largestHeapBlock = controlPlaneLargestHeapBlockBytes();
+    const uint32_t internalFreeHeap = controlPlaneInternalFreeHeapBytes();
+    const uint32_t internalLargestHeapBlock = controlPlaneInternalLargestHeapBlockBytes();
+    const bool restartCoolingDown = (millis() - g_lastPortalControlPlaneRestartAtMs) < 15000UL;
+    const bool lowControlPlaneHeap = apiHeavyRouteUnderPressure();
+    const bool enoughHeapForRecovery =
+      internalFreeHeap >= kControlPlaneRecoveryInternalFreeMinBytes &&
+      internalLargestHeapBlock >= kControlPlaneRecoveryInternalLargestBlockMinBytes;
+    const bool safeDuringPlayback =
+      !g_audioPlaying || internalLargestHeapBlock >= kControlPlanePlaybackSafeInternalLargestBlockMinBytes;
+    if (lowControlPlaneHeap && !restartCoolingDown && enoughHeapForRecovery && safeDuringPlayback) {
+      Serial.printf(
+        "[HEAP] Control-plane heap low: total=%u/%u internal=%u/%u — restarting async server\n",
+        freeHeap,
+        largestHeapBlock,
+        internalFreeHeap,
+        internalLargestHeapBlock
+      );
+      g_httpRestartCount++;
+      noteDisconnectBreadcrumb(
+        "restart",
+        "http",
+        "low_memory_watchdog",
+        "Async HTTP server restarted after the low-heap watchdog tripped.",
+        0,
+        g_staRSSI,
+        wifiGetApStationCount(),
+        freeHeap,
+        largestHeapBlock
+      );
       g_httpReady = false;
-      g_httpMode = "starting";
-      refreshRuntimeState();
-      server.end();
-      delay(50);
-      server.begin();
-      g_httpReady = true;
-      g_httpMode = "full";
-      refreshRuntimeState();
+      restartPortalControlPlane(false, "low_memory_watchdog");
       Serial.printf("[HEAP] Server restarted, heap now: %u\n", ESP.getFreeHeap());
+    } else if (lowControlPlaneHeap && !restartCoolingDown && (!enoughHeapForRecovery || !safeDuringPlayback)) {
+      Serial.printf(
+        "[HEAP] Control-plane heap low: total=%u/%u internal=%u/%u — restart deferred until recovery is safer\n",
+        freeHeap,
+        largestHeapBlock,
+        internalFreeHeap,
+        internalLargestHeapBlock
+      );
+    } else if (lowControlPlaneHeap && restartCoolingDown) {
+      Serial.printf(
+        "[HEAP] Control-plane heap low: total=%u/%u internal=%u/%u — restart suppressed (cooldown active)\n",
+        freeHeap,
+        largestHeapBlock,
+        internalFreeHeap,
+        internalLargestHeapBlock
+      );
+    }
+  }
+
+  // Portal liveness watchdog — if a browser was actively polling status and
+  // the DPA still has associated AP clients, but status traffic suddenly stops,
+  // treat that as a dead control plane and recycle it proactively.
+  static unsigned long lastPortalWatchdogCheck = 0;
+  if (millis() - lastPortalWatchdogCheck > 4000) {
+    lastPortalWatchdogCheck = millis();
+    const int apClients = wifiGetApStationCount();
+    const bool activeClientSession = apClients > 0 && g_portalHttpWatchdogArmed && g_lastPortalHttpActivityAtMs > 0;
+    const unsigned long silentForMs = activeClientSession ? (millis() - g_lastPortalHttpActivityAtMs) : 0;
+    const uint32_t freeHeap = controlPlaneFreeHeapBytes();
+    const uint32_t largestHeapBlock = controlPlaneLargestHeapBlockBytes();
+    const uint32_t internalFreeHeap = controlPlaneInternalFreeHeapBytes();
+    const uint32_t internalLargestHeapBlock = controlPlaneInternalLargestHeapBlockBytes();
+    const bool restartCoolingDown = (millis() - g_lastPortalControlPlaneRestartAtMs) < 15000UL;
+    const bool enoughHeapForRecovery =
+      internalFreeHeap >= kControlPlaneRecoveryInternalFreeMinBytes &&
+      internalLargestHeapBlock >= kControlPlaneRecoveryInternalLargestBlockMinBytes;
+    if (!g_uploadInProgress && activeClientSession && silentForMs > kPortalHttpSilenceRestartMs && enoughHeapForRecovery && !restartCoolingDown) {
+      g_httpRestartCount++;
+      noteDisconnectBreadcrumb(
+        "restart",
+        "http",
+        "portal_inactivity_watchdog",
+        "Portal status traffic stopped while AP clients were still associated, so the control plane was recycled.",
+        0,
+        g_staRSSI,
+        apClients,
+        freeHeap,
+        largestHeapBlock
+      );
+      g_portalHttpWatchdogArmed = false;
+      restartPortalControlPlane(false, "portal_inactivity_watchdog");
+    } else if (!g_uploadInProgress && activeClientSession && silentForMs > kPortalHttpSilenceRestartMs && !enoughHeapForRecovery) {
+      Serial.printf("[HTTP] Portal inactivity watchdog suppressed: silent=%lu total=%u/%u internal=%u/%u apClients=%d\n",
+        silentForMs,
+        freeHeap,
+        largestHeapBlock,
+        internalFreeHeap,
+        internalLargestHeapBlock,
+        apClients);
     }
   }
 

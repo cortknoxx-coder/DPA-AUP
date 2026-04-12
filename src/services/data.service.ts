@@ -587,6 +587,12 @@ export class DataService {
     }, 3000);
   }
 
+  patchAlbum(albumId: string, patch: Partial<Album>) {
+    this.albumsSignal.update(list => list.map(a =>
+      a.albumId === albumId ? { ...a, ...patch } : a
+    ));
+  }
+
   // --- Marketplace Methods ---
 
   listDeviceForSale(listing: MarketplaceListing) {

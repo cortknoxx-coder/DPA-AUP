@@ -51,7 +51,7 @@ export class FleetTrackerComponent implements OnDestroy {
     this.activitySub.unsubscribe();
   }
 
-  private renderMap(container: HTMLElement, world: FeatureCollection, activations: any[]) {
+  private renderMap(container: HTMLElement, world: FeatureCollection, activations: Array<{ lat: number; lon: number; activity: number }>) {
     d3.select(container).selectAll('*').remove();
     const width = container.clientWidth;
     const height = container.clientHeight;
@@ -86,9 +86,9 @@ export class FleetTrackerComponent implements OnDestroy {
       .data(activations)
       .enter()
       .append('circle')
-      .attr('cx', d => projection([d.lon, d.lat])![0])
-      .attr('cy', d => projection([d.lon, d.lat])![1])
-      .attr('r', d => 2 + d.activity * 3)
+      .attr('cx', (d) => projection([d.lon, d.lat])![0])
+      .attr('cy', (d) => projection([d.lon, d.lat])![1])
+      .attr('r', (d) => 2 + d.activity * 3)
       .attr('fill', '#2dd4bf') // teal-400
       .attr('fill-opacity', 0.4)
       .attr('stroke', '#2dd4bf')
@@ -98,7 +98,7 @@ export class FleetTrackerComponent implements OnDestroy {
     // Animate the circles
     circles.append('animate')
       .attr('attributeName', 'r')
-      .attr('values', d => `${2 + d.activity * 3}; ${2 + d.activity * 6}; ${2 + d.activity * 3}`)
+      .attr('values', (d) => `${2 + d.activity * 3}; ${2 + d.activity * 6}; ${2 + d.activity * 3}`)
       .attr('dur', '2s')
       .attr('repeatCount', 'indefinite');
     

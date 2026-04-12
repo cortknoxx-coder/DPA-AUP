@@ -47,6 +47,19 @@ static esp_netif_t* g_staNetif = nullptr;
 
 // ── Extern Globals (defined in .ino) ─────────────────────────
 extern String g_duid;
+extern void noteDisconnectBreadcrumb(
+  const String& kind,
+  const String& scope,
+  const String& cause,
+  const String& detail,
+  int reasonCode,
+  int staRssiSnapshot,
+  int apClientCountSnapshot,
+  uint32_t freeHeapSnapshot,
+  uint32_t largestHeapBlockSnapshot
+);
+extern bool g_apRecoveryPending;
+extern unsigned long g_apRecoveryRequestedAtMs;
 
 // ── WiFi STA State ──────────────────────────────────────────
 String g_staSSID     = "";
@@ -55,10 +68,15 @@ String g_staIP       = "";
 bool   g_staConnected = false;
 int    g_staRSSI     = 0;
 
+// Queued from HTTP admin handler; processed in wifiTick() to avoid blocking AsyncWebServer.
+bool g_staJoinPending = false;
+bool g_staJoinQueued  = false;
+
 // Event flags (set in ISR/event context, consumed in wifiTick on main loop)
 static volatile bool g_staGotIP          = false;
 static volatile bool g_staDisconnected   = false;
 static volatile int  g_staDisconnectReason = 0;
+static volatile bool g_apClientDisconnected = false;
 
 // Scan results (held in memory after scan)
 struct WifiNetwork {
@@ -75,6 +93,22 @@ static volatile bool g_scanDone = false;
 
 // Throttle RSSI polling
 static uint32_t g_lastRssiPollMs = 0;
+
+static String wifiStaDisconnectReasonLabel(int reason) {
+  switch (reason) {
+    case WIFI_REASON_BEACON_TIMEOUT: return "beacon_timeout";
+    case WIFI_REASON_NO_AP_FOUND: return "no_ap_found";
+    case WIFI_REASON_AUTH_FAIL: return "auth_fail";
+    case WIFI_REASON_HANDSHAKE_TIMEOUT: return "handshake_timeout";
+    case WIFI_REASON_CONNECTION_FAIL: return "connection_fail";
+    case WIFI_REASON_ASSOC_FAIL: return "assoc_fail";
+    case WIFI_REASON_ASSOC_LEAVE: return "assoc_leave";
+    case WIFI_REASON_AUTH_EXPIRE: return "auth_expire";
+    case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT: return "4way_timeout";
+    case WIFI_REASON_ROAMING: return "roaming";
+    default: return "reason_" + String(reason);
+  }
+}
 
 // ── WiFi Event Handler (runs on system event task) ──────────
 static void wifiEventHandler(void* arg, esp_event_base_t base,
@@ -101,6 +135,7 @@ static void wifiEventHandler(void* arg, esp_event_base_t base,
       case WIFI_EVENT_AP_STADISCONNECTED: {
         wifi_event_ap_stadisconnected_t* ev =
           (wifi_event_ap_stadisconnected_t*)data;
+        g_apClientDisconnected = true;
         Serial.printf("[WIFI] AP client left: " MACSTR "\n",
                       MAC2STR(ev->mac));
         break;
@@ -291,6 +326,17 @@ void wifiTick() {
     g_staConnected = false;
     g_staIP = "";
     if (wasConnected) {
+      noteDisconnectBreadcrumb(
+        "disconnect",
+        "sta",
+        wifiStaDisconnectReasonLabel(g_staDisconnectReason),
+        "STA uplink dropped and firmware scheduled an automatic reconnect.",
+        g_staDisconnectReason,
+        g_staRSSI,
+        wifiGetApStationCount(),
+        0,
+        0
+      );
       Serial.printf("[WIFI] STA lost (reason=%d), reconnecting...\n",
                     g_staDisconnectReason);
     }
@@ -316,6 +362,29 @@ void wifiTick() {
     Serial.println("[WIFI] STA reconnected: " + g_staIP);
   }
 
+  if (g_apClientDisconnected) {
+    g_apClientDisconnected = false;
+    int clients = wifiGetApStationCount();
+    noteDisconnectBreadcrumb(
+      "disconnect",
+      "ap",
+      clients > 0 ? "ap_client_left_partial" : "ap_client_left_all",
+      clients > 0
+        ? "A browser/client dropped off the DPA access point while other AP clients remained connected."
+        : "The last browser/client dropped off the DPA access point.",
+      0,
+      g_staRSSI,
+      clients,
+      0,
+      0
+    );
+    if (clients == 0 && !g_apRecoveryPending) {
+      g_apRecoveryPending = true;
+      g_apRecoveryRequestedAtMs = millis();
+      Serial.println("[WIFI] Last AP client left — scheduling AP/control-plane refresh");
+    }
+  }
+
   // Periodic RSSI update (~1 Hz, only when connected)
   if (g_staConnected) {
     uint32_t now = millis();
@@ -326,6 +395,18 @@ void wifiTick() {
         g_staRSSI = ap_info.rssi;
       }
     }
+  }
+
+  if (g_staJoinQueued) {
+    g_staJoinQueued = false;
+    bool ok = wifiConnectSTA();
+    if (ok) {
+      wifiSaveToNVS();
+    } else {
+      g_staSSID = "";
+      g_staPassword = "";
+    }
+    g_staJoinPending = false;
   }
 }
 
