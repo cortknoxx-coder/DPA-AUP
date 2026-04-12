@@ -101,7 +101,7 @@ export class UserService {
   }
 
   bestAvailableRoute(): string {
-    if (this.canAccessPortal('creator')) return '/artist/dashboard';
+    if (this.canAccessPortal('creator')) return '/artist/connect';
     if (this.canAccessPortal('fan')) return '/fan';
     if (this.canAccessPortal('operator')) return '/internal/ingest';
     return '/login';
@@ -110,8 +110,8 @@ export class UserService {
   deniedPortalRedirect(portal: UserRole): string {
     const fallback = this.bestAvailableRoute();
     if (portal === 'creator' && this.canAccessPortal('fan')) return '/fan';
-    if (portal === 'fan' && this.canAccessPortal('creator')) return '/artist/dashboard';
-    if (portal === 'operator' && this.canAccessPortal('creator')) return '/artist/dashboard';
+    if (portal === 'fan' && this.canAccessPortal('creator')) return '/artist/connect';
+    if (portal === 'operator' && this.canAccessPortal('creator')) return '/artist/connect';
     if (portal === 'operator' && this.canAccessPortal('fan')) return '/fan';
     return fallback;
   }
