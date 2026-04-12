@@ -22,9 +22,10 @@ import { FanSettingsComponent } from './pages/fan-portal/fan-settings.component'
 import { FanAudioComponent } from './pages/fan-portal/fan-audio.component';
 import { FleetTrackerComponent } from './pages/fleet-tracker/fleet-tracker.component';
 import { FanAuthComponent } from './pages/fan-portal/fan-auth.component';
-import { requireCreatorPortalGuard, requireFanPortalGuard, requireOperatorPortalGuard } from './guards/portal-access.guard';
+import { requireConnectedDeviceGuard, requireCreatorPortalGuard, requireFanPortalGuard, requireOperatorPortalGuard } from './guards/portal-access.guard';
 import { InternalIngestComponent } from './pages/internal/internal-ingest.component';
 import { InternalLoginComponent } from './pages/internal/internal-login.component';
+import { CreatorConnectComponent } from './pages/creator/creator-connect.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -35,14 +36,17 @@ export const routes: Routes = [
     path: 'artist',
     canActivate: [requireCreatorPortalGuard],
     children: [
-      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
-      { path: 'dashboard', component: DashboardComponent },
-      { path: 'albums/new', component: CreateAlbumComponent },
-      { path: 'account', component: UserAdminComponent },
-      { path: 'fleet', component: FleetTrackerComponent },
+      { path: '', redirectTo: 'connect', pathMatch: 'full' },
+      { path: 'connect', component: CreatorConnectComponent, data: { skipDeviceGate: true } },
+      { path: 'dashboard', component: DashboardComponent, canActivate: [requireConnectedDeviceGuard], data: { deviceGateRedirect: '/artist/connect' } },
+      { path: 'albums/new', component: CreateAlbumComponent, canActivate: [requireConnectedDeviceGuard], data: { deviceGateRedirect: '/artist/connect' } },
+      { path: 'account', component: UserAdminComponent, canActivate: [requireConnectedDeviceGuard], data: { deviceGateRedirect: '/artist/connect' } },
+      { path: 'fleet', component: FleetTrackerComponent, canActivate: [requireConnectedDeviceGuard], data: { deviceGateRedirect: '/artist/connect' } },
       {
         path: 'albums/:id',
         component: AlbumLayoutComponent,
+        canActivate: [requireConnectedDeviceGuard],
+        data: { deviceGateRedirect: '/artist/connect' },
         children: [
           { path: '', redirectTo: 'overview', pathMatch: 'full' },
           { path: 'overview', component: AlbumOverviewComponent },
@@ -68,6 +72,8 @@ export const routes: Routes = [
       {
         path: 'app',
         component: FanLayoutComponent,
+        canActivate: [requireConnectedDeviceGuard],
+        data: { deviceGateRedirect: '/fan/auth' },
         children: [
           { path: '', redirectTo: 'home', pathMatch: 'full' },
           { path: 'home', component: FanHomeComponent },

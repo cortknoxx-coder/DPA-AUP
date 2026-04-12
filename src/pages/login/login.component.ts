@@ -114,7 +114,7 @@ export class LoginComponent {
         this.router.navigateByUrl(this.userService.deniedPortalRedirect('creator'));
         return;
       }
-      this.router.navigate(['/artist/dashboard']);
+      this.router.navigate(['/artist/connect']);
     } else {
       if (!this.fanPortalEnabled()) {
         this.router.navigateByUrl(this.userService.deniedPortalRedirect('fan'));

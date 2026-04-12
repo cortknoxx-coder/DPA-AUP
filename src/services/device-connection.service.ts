@@ -180,6 +180,9 @@ export class DeviceConnectionService {
       this.connectionBusy.set('detect');
       const silent = options?.silent === true;
       const preferCurrent = options?.preferCurrent !== false;
+      const wifiDetectOptions = silent
+        ? { silent: true, retryUntilConnected: true, maxAttempts: 3, retryDelayMs: 900, reason: 'startup-detect' }
+        : { silent: false, retryUntilConnected: true, maxAttempts: 6, retryDelayMs: 1000, reason: 'manual-detect' };
       try {
         if (preferCurrent) {
           if (this.connectionStatus() === 'wifi' && await this.refreshWifiConnection(true)) {
@@ -190,7 +193,7 @@ export class DeviceConnectionService {
           }
         }
 
-        if (await this.connectViaWifi(undefined, { silent: true })) {
+        if (await this.connectViaWifi(undefined, wifiDetectOptions)) {
           return 'wifi';
         }
 
