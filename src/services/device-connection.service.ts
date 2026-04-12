@@ -1,5 +1,5 @@
 
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject, effect } from '@angular/core';
 import { DeviceBridgeService } from './device-bridge.service';
 import { DeviceBleService } from './device-ble.service';
 import { DeviceWifiService } from './device-wifi.service';
@@ -12,6 +12,20 @@ import { normalizeDeviceAlbumMetaPayload, normalizeDeviceBookletPayload } from '
 export type ConnectionStatus = 'disconnected' | 'usb' | 'bluetooth' | 'wifi';
 export type RegistrationStatus = 'unregistered' | 'analyzing' | 'registered' | 'lost';
 export type ConnectionAction = ConnectionStatus | 'nfc' | 'detect';
+
+export interface ConnectionDiagnosticEvent {
+  kind: 'connect_attempt' | 'connect_success' | 'connect_failure' | 'disconnect' | 'reconnect_success';
+  transport: ConnectionStatus | 'detect' | 'nfc' | 'unknown';
+  detail: string;
+  timestamp: string;
+  duid?: string;
+  uptimeSeconds?: number;
+  bootState?: string;
+  uploadState?: string;
+  httpMode?: string;
+  wifiMaintenance?: string;
+  failureCount?: number;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -50,11 +64,39 @@ export class DeviceConnectionService {
       wifiMaintenance: status.wifiMaintenance ?? 'normal',
       lastUploadPath: status.lastUploadPath ?? '',
       lastUploadBytes: status.lastUploadBytes ?? 0,
+      mcu: status.mcu,
     };
   });
   deviceRuntimeMessage = computed(() => this.describeRuntime(this.deviceRuntime()));
+  connectionDiagnostics = signal<ConnectionDiagnosticEvent[]>([]);
+  wifiRecoveryActive = signal(false);
+  lastDisconnectEvent = computed<ConnectionDiagnosticEvent | null>(() => {
+    const events = this.connectionDiagnostics();
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      if (events[i].kind === 'disconnect') return events[i];
+    }
+    return null;
+  });
+  lastDisconnectSummary = computed(() => {
+    const event = this.lastDisconnectEvent();
+    if (!event) return '';
+    const timestamp = new Date(event.timestamp).toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const parts = [`Lost at ${timestamp}`];
+    if (event.failureCount) {
+      parts.push(`${event.failureCount} failed poll${event.failureCount === 1 ? '' : 's'}`);
+    }
+    const runtime = [event.bootState, event.uploadState, event.httpMode].filter(Boolean).join(' / ');
+    if (runtime) parts.push(runtime);
+    if (event.wifiMaintenance) parts.push(event.wifiMaintenance);
+    return parts.join(' • ');
+  });
   deviceReadyForWrites = computed(() => {
     if (this.connectionStatus() !== 'wifi') return false;
+    if (this.wifiRecoveryActive()) return false;
     const runtime = this.deviceRuntime();
     if (!runtime) return true;
     return runtime.bootState !== 'booting'
@@ -67,6 +109,7 @@ export class DeviceConnectionService {
   registeredDeviceId = computed(() => this.deviceInfo()?.serial ?? null);
   connectionTransportLabel = computed(() => {
     if (this.isSimulationMode()) return 'Simulator';
+    if (this.connectionStatus() === 'wifi' && this.wifiRecoveryActive()) return 'WiFi Reconnecting';
     switch (this.connectionStatus()) {
       case 'wifi': return 'WiFi Direct';
       case 'usb': return 'USB-C Bridge';
@@ -78,7 +121,8 @@ export class DeviceConnectionService {
     if (this.isSimulationMode()) return 'Simulator active';
     if (this.connectionStatus() === 'wifi') {
       const status = this.wifi.lastStatus();
-      return status?.duid || status?.album || this.deviceInfo()?.serial || 'DPA connected over WiFi';
+      const base = status?.duid || status?.album || this.deviceInfo()?.serial || 'DPA connected over WiFi';
+      return this.wifiRecoveryActive() ? `${base} • reconnecting` : base;
     }
     if (this.connectionStatus() === 'usb') {
       return this.deviceInfo()?.serial || 'Bridge connected';
@@ -99,6 +143,8 @@ export class DeviceConnectionService {
   private wifiHydrationPromise: Promise<void> | null = null;
   private lastCoverSyncKey = '';
   private lastLedSyncKey = '';
+  private wifiRecoveryTask: Promise<boolean> | null = null;
+  private wifiRecoveryToken = 0;
 
   constructor() {
     // Simulator is opt-in only — user must explicitly click "Use Simulator"
@@ -107,6 +153,15 @@ export class DeviceConnectionService {
     // Auto-probe device WiFi on startup so ALL portal pages (creator + fan)
     // get real data synced into DataService regardless of entry point.
     this.autoProbeConnectedDevice();
+
+    effect(() => {
+      const revision = this.wifi.contentRevision();
+      if (revision === 0 || this.connectionStatus() !== 'wifi') return;
+      const status = this.wifi.lastStatus();
+      if (status) {
+        void this.scheduleWifiHydration(status);
+      }
+    }, { allowSignalWrites: true });
   }
 
   /**
@@ -160,6 +215,7 @@ export class DeviceConnectionService {
     try {
       const ok = await this.wifi.getStatus().then(() => true).catch(() => false);
       if (!ok) return false;
+      this.wifiRecoveryActive.set(false);
       this.connectionStatus.set('wifi');
       const status = this.wifi.lastStatus();
       if (status) {
@@ -181,6 +237,7 @@ export class DeviceConnectionService {
   private async refreshBridgeConnection(silent = false): Promise<boolean> {
     try {
       if (!this.bridge.isConnected()) return false;
+      this.cancelWifiRecovery();
       this.connectionError.set('');
       this.stopWifiStatusPolling();
       if (this.wifi.isConnected()) this.wifi.disconnect();
@@ -195,6 +252,32 @@ export class DeviceConnectionService {
       }
       return false;
     }
+  }
+
+  private async attemptWifiConnection(ip?: string): Promise<boolean> {
+    if (!ip && this.connectionStatus() === 'wifi' && await this.refreshWifiConnection(true)) {
+      return true;
+    }
+    const success = ip ? await this.wifi.probe(ip) : await this.wifi.autoConnect();
+    if (!success) return false;
+
+    this.stopWifiStatusPolling();
+    if (this.bridge.isConnected()) this.bridge.disconnect();
+    if (this.ble.isConnected()) this.ble.disconnect();
+    this.wifiRecoveryActive.set(false);
+    this.connectionError.set('');
+    this.connectionStatus.set('wifi');
+    this.isSimulated.set(false);
+
+    const status = this.wifi.lastStatus();
+    if (status) {
+      this.updateDeviceInfoFromStatus(status);
+      this.registrationStatus.set('registered');
+      this.lastUploadBusy = this.isUploadBusy(status);
+      void this.scheduleWifiHydration(status);
+    }
+    this.startWifiStatusPolling();
+    return true;
   }
 
   // --- USB Bridge Connection ---
@@ -226,6 +309,7 @@ export class DeviceConnectionService {
 
     const success = await this.ble.connect();
     if (success) {
+      this.cancelWifiRecovery();
       this.connectionError.set('');
       this.connectionStatus.set('bluetooth');
       this.isSimulated.set(false);
@@ -244,34 +328,50 @@ export class DeviceConnectionService {
 
   // --- WiFi Connection ---
 
-  async connectViaWifi(ip?: string, options?: { silent?: boolean }): Promise<boolean> {
+  async connectViaWifi(
+    ip?: string,
+    options?: { silent?: boolean; retryUntilConnected?: boolean; maxAttempts?: number; retryDelayMs?: number; reason?: string }
+  ): Promise<boolean> {
     this.connectionError.set('');
-    if (!ip && this.connectionStatus() === 'wifi' && await this.refreshWifiConnection(true)) {
-      return true;
-    }
-    const success = ip ? await this.wifi.probe(ip) : await this.wifi.autoConnect();
-    if (success) {
-      this.stopWifiStatusPolling();
-      if (this.bridge.isConnected()) this.bridge.disconnect();
-      if (this.ble.isConnected()) this.ble.disconnect();
-      this.connectionError.set('');
-      this.connectionStatus.set('wifi');
-      this.isSimulated.set(false);
+    const retryUntilConnected = options?.retryUntilConnected ?? options?.silent !== true;
+    const maxAttempts = retryUntilConnected ? (options?.maxAttempts ?? (options?.silent ? 3 : 20)) : 1;
+    const retryDelayMs = options?.retryDelayMs ?? 1500;
 
-      const status = this.wifi.lastStatus();
-      if (status) {
-        this.updateDeviceInfoFromStatus(status);
-        this.registrationStatus.set('registered');
-        this.lastUploadBusy = this.isUploadBusy(status);
-        // Make the link feel instant first, then hydrate heavy album assets in the background.
-        void this.scheduleWifiHydration(status);
+    this.recordConnectionEvent('connect_attempt', 'Starting WiFi connection attempt.', 'wifi');
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const success = await this.attemptWifiConnection(ip);
+      if (success) {
+        this.recordConnectionEvent(
+          attempt === 1 ? 'connect_success' : 'reconnect_success',
+          attempt === 1
+            ? 'WiFi connection established.'
+            : `WiFi connection recovered after ${attempt} attempts.`,
+          'wifi'
+        );
+        return true;
       }
-      this.startWifiStatusPolling();
 
-      return true;
+      if (attempt >= maxAttempts || !retryUntilConnected) {
+        break;
+      }
+
+      if (!options?.silent) {
+        const maxLabel = Number.isFinite(maxAttempts) ? ` ${attempt + 1}/${maxAttempts}` : '';
+        this.connectionError.set(
+          `Still trying to reach the DPA over WiFi.${maxLabel ? ` Attempt${maxLabel}.` : ''} Stay on the DPA network until the device answers.`
+        );
+      }
+      await this.sleep(retryDelayMs);
     }
+
+    this.recordConnectionEvent(
+      'connect_failure',
+      `WiFi connection did not complete after ${maxAttempts} attempt${maxAttempts === 1 ? '' : 's'}.`,
+      'wifi'
+    );
     if (!options?.silent) {
-      this.connectionError.set('Could not reach DPA over WiFi. Confirm you are on the DPA-Portal network and retry.');
+      this.connectionError.set('Could not reach DPA over WiFi. Stay on the DPA network and retry, or wait while the portal keeps searching.');
     }
     return false;
   }
@@ -330,20 +430,29 @@ export class DeviceConnectionService {
       }
     } catch (e) {
       console.error('Failed to get device info/library', e);
-      this.disconnectDevice();
+      this.disconnectDevice({ expected: false, reason: 'USB bridge lost the device during refresh.' });
     }
   }
 
-  disconnectDevice() {
+  disconnectDevice(options?: { expected?: boolean; reason?: string }) {
+    const expected = options?.expected !== false;
+    const currentStatus = this.connectionStatus();
+    if (!expected) {
+      this.recordConnectionEvent('disconnect', options?.reason || 'Device transport disconnected unexpectedly.', currentStatus, this.wifiPollFailures || undefined);
+    }
+
     // Disconnect all transports
     if (this.ble.isConnected()) this.ble.disconnect();
     if (this.wifi.isConnected()) this.wifi.disconnect();
     if (this.bridge.isConnected()) this.bridge.disconnect();
     if (this.nfc.isScanning()) this.nfc.stopScan();
+    this.cancelWifiRecovery();
     this.stopWifiStatusPolling();
 
     this.connectionStatus.set('disconnected');
-    this.connectionError.set('');
+    if (expected) {
+      this.connectionError.set('');
+    }
     this.isSimulated.set(false);
     this.deviceInfo.set(null);
     this.deviceLibrary.set(null);
@@ -383,8 +492,8 @@ export class DeviceConnectionService {
     const status = this.wifi.lastStatus();
     const creatorAlbum = this.dataService.albums()?.[0];
     const albumTitle = status?.album || creatorAlbum?.title || 'DPA Album';
-    // Prefer real cover art from device SD card over picsum placeholder
-    const albumArt = this.wifi.coverArtUrl('/art/cover.jpg');
+    const coverPath = await this.wifi.resolveAvailableCoverArtPath();
+    const albumArt = coverPath ? this.wifi.coverArtUrl(coverPath) : '';
     this.deviceLibrary.set({
       albums: [
         {
@@ -417,6 +526,20 @@ export class DeviceConnectionService {
     }
   }
 
+  async syncConnectedWifiState(): Promise<boolean> {
+    if (this.connectionStatus() !== 'wifi') return false;
+    try {
+      const status = await this.wifi.getStatus({ forceRefresh: true, maxAgeMs: 0, timeoutMs: 4000 });
+      this.updateDeviceInfoFromStatus(status);
+      this.registrationStatus.set('registered');
+      this.lastUploadBusy = this.isUploadBusy(status);
+      await this.runPostUploadRecovery(status);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async syncWifiStatusIntoLibrary() {
     try {
       const status: FirmwareStatus = await this.wifi.getStatus();
@@ -443,10 +566,10 @@ export class DeviceConnectionService {
   }
 
   private async fetchDeviceCoverDataUrl(): Promise<string | undefined> {
-    const hasCover = await this.wifi.verifyCoverArt();
-    if (!hasCover) return undefined;
+    const coverPath = await this.wifi.resolveAvailableCoverArtPath();
+    if (!coverPath) return undefined;
     try {
-      const response = await fetch(this.wifi.coverArtUrl('/art/cover.jpg'));
+      const response = await fetch(this.wifi.coverArtUrl(coverPath));
       if (!response.ok) return undefined;
       const blob = await response.blob();
       return await new Promise<string>((resolve, reject) => {
@@ -519,10 +642,10 @@ export class DeviceConnectionService {
   private async syncLedColorsFromCover(status?: FirmwareStatus): Promise<void> {
     const syncKey = this.coverSyncKey(status ?? this.wifi.lastStatus());
     if (syncKey && syncKey === this.lastLedSyncKey) return;
-    const coverOk = await this.wifi.verifyCoverArt();
-    if (!coverOk) return;
+    const coverPath = await this.wifi.resolveAvailableCoverArtPath();
+    if (!coverPath) return;
 
-    const url = this.wifi.coverArtUrl('/art/cover.jpg');
+    const url = this.wifi.coverArtUrl(coverPath);
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -620,6 +743,71 @@ export class DeviceConnectionService {
     });
   }
 
+  private recordConnectionEvent(
+    kind: ConnectionDiagnosticEvent['kind'],
+    detail: string,
+    transport: ConnectionDiagnosticEvent['transport'] = 'unknown',
+    failureCount?: number,
+  ) {
+    const status = this.wifi.lastStatus();
+    const nextEvent: ConnectionDiagnosticEvent = {
+      kind,
+      transport,
+      detail,
+      timestamp: new Date().toISOString(),
+      duid: status?.duid || this.deviceInfo()?.serial,
+      uptimeSeconds: typeof status?.uptime_s === 'number' ? status.uptime_s : undefined,
+      bootState: status?.bootState,
+      uploadState: status?.uploadState,
+      httpMode: status?.httpMode,
+      wifiMaintenance: status?.wifiMaintenance,
+      failureCount,
+    };
+    if (kind === 'disconnect' || kind === 'connect_failure') {
+      console.warn('[DPA connection]', nextEvent);
+    }
+    this.connectionDiagnostics.update(events => [...events.slice(-24), nextEvent]);
+  }
+
+  private cancelWifiRecovery() {
+    this.wifiRecoveryToken += 1;
+    this.wifiRecoveryTask = null;
+    this.wifiRecoveryActive.set(false);
+  }
+
+  private startBackgroundWifiRecovery(reason: string) {
+    if (this.wifiRecoveryTask) return;
+
+    const token = ++this.wifiRecoveryToken;
+    this.connectionError.set(`DPA link dropped. ${reason} Retrying automatically until the device answers again.`);
+
+    const task = (async () => {
+      let attempts = 0;
+      while (token === this.wifiRecoveryToken && this.connectionStatus() === 'disconnected') {
+        attempts += 1;
+        const recovered = await this.attemptWifiConnection();
+        if (token !== this.wifiRecoveryToken) return false;
+        if (recovered) {
+          this.recordConnectionEvent('reconnect_success', `Recovered WiFi after ${attempts} background attempt(s).`, 'wifi');
+          this.connectionError.set('');
+          return true;
+        }
+        await this.sleep(2000);
+      }
+      return false;
+    })().finally(() => {
+      if (this.wifiRecoveryTask === task) {
+        this.wifiRecoveryTask = null;
+      }
+    });
+
+    this.wifiRecoveryTask = task;
+  }
+
+  private sleep(ms: number) {
+    return new Promise<void>(resolve => window.setTimeout(resolve, ms));
+  }
+
   async registerDevice(deviceId: string): Promise<boolean> {
     this.registrationStatus.set('analyzing');
 
@@ -676,6 +864,7 @@ export class DeviceConnectionService {
 
   private startWifiStatusPolling() {
     this.stopWifiStatusPolling();
+    this.wifiRecoveryActive.set(false);
     this.wifiPollFailures = 0;
     this.wifiStatusPollTimer = setInterval(() => {
       void this.pollWifiStatus();
@@ -699,6 +888,7 @@ export class DeviceConnectionService {
     try {
       const status = await this.wifi.getStatus();
       this.wifiPollFailures = 0;
+      this.wifiRecoveryActive.set(false);
       this.connectionError.set('');
       this.updateDeviceInfoFromStatus(status);
 
@@ -710,24 +900,34 @@ export class DeviceConnectionService {
     } catch {
       this.wifiPollFailures += 1;
       if (this.wifiPollFailures < 2) return;
+      if (this.wifiPollFailures === 2) {
+        this.wifiRecoveryActive.set(true);
+        this.recordConnectionEvent(
+          'disconnect',
+          'Status polling stopped getting answers from the DPA and active recovery started.',
+          'wifi',
+          this.wifiPollFailures
+        );
+      }
+
+      this.connectionError.set(
+        'DPA WiFi stopped answering. Keeping the last known device UI on screen while reconnect attempts continue.'
+      );
 
       const recovered = await this.wifi.autoConnect();
       if (recovered) {
         this.connectionStatus.set('wifi');
         const status = this.wifi.lastStatus();
         this.wifiPollFailures = 0;
+        this.wifiRecoveryActive.set(false);
         this.connectionError.set('');
+        this.recordConnectionEvent('reconnect_success', 'Recovered WiFi during active status polling.', 'wifi');
         if (status) {
           this.updateDeviceInfoFromStatus(status);
           await this.runPostUploadRecovery(status);
           this.lastUploadBusy = this.isUploadBusy(status);
         }
         return;
-      }
-
-      if (this.wifiPollFailures >= 6) {
-        this.disconnectDevice();
-        this.connectionError.set('Device WiFi was lost. Rejoin the DPA network and retry.');
       }
     }
   }
@@ -750,6 +950,10 @@ export class DeviceConnectionService {
   }
 
   private describeRuntime(runtime: DeviceRuntimeStatus | null): string {
+    if (this.wifiRecoveryActive()) {
+      return 'WiFi control is reconnecting. The portal is holding the last known device state on screen until status polling recovers.';
+    }
+
     if (!runtime) return '';
 
     if (runtime.uploadState === 'error') {
@@ -764,6 +968,14 @@ export class DeviceConnectionService {
 
     if (runtime.bootState === 'booting') {
       return 'Device is still booting and validating SD, audio, WiFi, and HTTP readiness.';
+    }
+
+    if (runtime.mcu?.stackTight) {
+      return 'Playback task stack headroom is getting tight. Let the device settle before heavier transfers or repeated refreshes.';
+    }
+
+    if (runtime.mcu?.lowMemory) {
+      return 'MCU free heap is running low. Live UI can fall behind until memory recovers or the HTTP server resets.';
     }
 
     if (runtime.bootState === 'degraded') {

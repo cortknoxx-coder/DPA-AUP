@@ -938,92 +938,118 @@ body:not(.is-playing) .eq-bars span{animation-play-state:paused}
   }
 }
 @media (max-width:640px) {
+  :root{--hud-height:0px}
   .booklet-sheet{min-height:auto;padding:18px}
   .booklet-album-title{font-size:30px}
   .booklet-track-grid,.booklet-video-grid{grid-template-columns:1fr}
   .booklet-nav-btn{min-width:96px;padding:10px 12px;font-size:11px}
-  .runtime-hud{left:10px;right:10px;bottom:calc(var(--tab-height) + var(--np-bar-height, 0px) + 8px)}
-  .runtime-hud-inner{padding:8px 10px;border-radius:16px}
-  .runtime-hud-main{align-items:flex-start;flex-direction:column;gap:6px}
-  .runtime-hud-meta{max-width:100%}
+  .runtime-hud{display:none}
   .toast-stack{right:10px;left:10px;width:auto}
 }
 
 /* ── Track Detail Sheet ───────────────────────────────────── */
 .track-detail-overlay{
   position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;
-  background:rgba(0,0,0,0.7);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
-  opacity:0;pointer-events:none;transition:opacity 0.3s;
+  display:flex;align-items:flex-end;justify-content:center;padding:14px;
+  background:rgba(3,6,14,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  opacity:0;pointer-events:none;transition:opacity 0.28s ease;
 }
 .track-detail-overlay.visible{opacity:1;pointer-events:auto}
 .track-detail-sheet{
-  position:absolute;bottom:0;left:0;right:0;
-  max-height:85vh;overflow-y:auto;
-  background:linear-gradient(180deg,rgba(20,20,20,0.98),rgba(10,10,10,0.99));
-  /* position:relative for close button positioning */
-  border-radius:20px 20px 0 0;
-  padding:24px 24px 100px;
-  transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.32,0.72,0,1);
+  position:relative;width:min(100%,460px);max-height:min(88vh,760px);overflow-y:auto;
+  background:
+    radial-gradient(circle at top, rgba(0,136,255,0.12), transparent 42%),
+    linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.99));
+  border:1px solid rgba(148,163,184,0.12);
+  box-shadow:0 30px 90px rgba(0,0,0,0.55);
+  border-radius:28px;
+  padding:18px 18px 24px;
+  transform:translateY(22px) scale(0.98);
+  transition:transform 0.32s cubic-bezier(0.32,0.72,0,1);
 }
-.track-detail-overlay.visible .track-detail-sheet{transform:translateY(0)}
+.track-detail-overlay.visible .track-detail-sheet{transform:translateY(0) scale(1)}
 /* Close button */
 .td-close{
-  position:absolute;top:16px;right:16px;z-index:10;
-  width:36px;height:36px;border-radius:50%;
-  background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);
+  position:absolute;top:18px;right:18px;z-index:10;
+  width:38px;height:38px;border-radius:50%;
+  background:rgba(15,23,42,0.86);border:1px solid rgba(148,163,184,0.14);
   display:flex;align-items:center;justify-content:center;
-  color:var(--dim);cursor:pointer;transition:all 0.2s;
+  color:#cbd5e1;cursor:pointer;transition:all 0.2s;
 }
-.td-close:active{background:rgba(255,255,255,0.15);transform:scale(0.9)}
+.td-close:active{background:rgba(30,41,59,0.96);transform:scale(0.92)}
 .td-close svg{width:16px;height:16px}
 
+.track-detail-header{display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:6px}
+.track-detail-kicker{
+  font-size:10px;font-weight:700;letter-spacing:2.2px;text-transform:uppercase;
+  color:var(--cyan);opacity:0.92;text-align:center;
+}
+.track-detail-title{
+  font-size:28px;font-weight:800;line-height:1.02;letter-spacing:-0.04em;
+  color:var(--bright);text-align:center;margin-top:6px;
+}
+.track-detail-artist{
+  font-size:12px;color:var(--dim);text-align:center;margin-top:2px;margin-bottom:14px;
+  letter-spacing:1.8px;text-transform:uppercase;
+}
+.track-detail-art{
+  width:168px;height:168px;margin:0 auto 18px;border-radius:24px;overflow:hidden;
+  box-shadow:0 18px 40px rgba(0,0,0,0.45);
+  border:1px solid rgba(148,163,184,0.12);
+  background:rgba(15,23,42,0.72);
+}
+.track-detail-art img{width:100%;height:100%;object-fit:cover;display:block}
+.track-detail-art svg{width:100%;height:100%}
+.td-command-note{
+  margin:-6px 0 18px;text-align:center;font-size:11px;color:#94a3b8;
+  letter-spacing:0.4px;
+}
+
 /* Transport row */
-.td-transport{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:24px;padding:0 16px}
+.td-transport{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:18px}
+.td-nav-group{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:10px;border-radius:999px;
+  background:rgba(15,23,42,0.72);
+  border:1px solid rgba(148,163,184,0.12);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);
+}
 .td-play{
-  width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;
-  background:linear-gradient(135deg, var(--pink), #0066cc);color:#fff;
+  width:62px;height:62px;border-radius:50%;border:none;cursor:pointer;
+  background:linear-gradient(135deg, var(--pink), #2563eb);color:#fff;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 20px rgba(0,136,255,0.35);transition:all 0.15s;
+  box-shadow:0 12px 28px rgba(37,99,235,0.32), 0 0 36px rgba(232,101,26,0.08);
+  transition:all 0.15s;
 }
-.td-play:active{transform:scale(0.9);box-shadow:0 2px 10px rgba(0,136,255,0.25)}
-.td-play svg{width:24px;height:24px}
+.td-play:active{transform:scale(0.92);box-shadow:0 6px 16px rgba(37,99,235,0.22)}
+.td-play svg{width:24px;height:24px;margin-left:2px}
+.td-play.is-playing svg{margin-left:0}
 .td-skip{
-  width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;
-  background:rgba(255,255,255,0.06);color:var(--text);
+  width:42px;height:42px;border-radius:50%;border:none;cursor:pointer;
+  background:rgba(255,255,255,0.04);color:var(--text);
   display:flex;align-items:center;justify-content:center;transition:all 0.15s;
 }
-.td-skip:active{transform:scale(0.85);background:rgba(255,255,255,0.1)}
+.td-skip:active{transform:scale(0.88);background:rgba(255,255,255,0.08)}
 .td-skip svg{width:18px;height:18px}
-.td-stop{
-  width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;
-  background:rgba(255,255,255,0.06);color:var(--text);
-  display:flex;align-items:center;justify-content:center;transition:all 0.15s;
-}
-.td-stop:active{transform:scale(0.85);background:rgba(255,255,255,0.1)}
-.td-stop svg{width:16px;height:16px}
 .td-heart{
-  width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;
-  background:rgba(255,255,255,0.06);color:var(--dim);
+  width:42px;height:42px;border-radius:50%;border:none;cursor:pointer;
+  background:rgba(15,23,42,0.78);color:var(--dim);
+  border:1px solid rgba(148,163,184,0.12);
   display:flex;align-items:center;justify-content:center;transition:all 0.15s;
 }
-.td-heart:active{transform:scale(0.85)}
+.td-heart:active{transform:scale(0.9)}
 .td-heart svg{width:20px;height:20px}
 .td-heart.liked{color:var(--pink)}
 .td-heart.liked svg{fill:currentColor}
-.td-spacer{width:40px;flex-shrink:0}
-
-.track-detail-handle{width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,0.2);margin:0 auto 20px}
-.track-detail-art{width:200px;height:200px;margin:0 auto 20px;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
-.track-detail-art svg{width:100%;height:100%}
-.track-detail-title{font-size:24px;font-weight:800;color:var(--bright);text-align:center;margin-bottom:4px}
-.track-detail-artist{font-size:14px;color:var(--dim);text-align:center;margin-bottom:20px;letter-spacing:1px;text-transform:uppercase}
-.track-detail-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.track-detail-handle{width:44px;height:4px;border-radius:999px;background:rgba(255,255,255,0.18);margin:0 auto 8px}
+.track-detail-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
 .track-detail-meta-item{
-  padding:12px 16px;border-radius:12px;
-  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);
+  padding:13px 14px;border-radius:16px;
+  background:rgba(15,23,42,0.64);border:1px solid rgba(148,163,184,0.1);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);
 }
-.track-detail-meta-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
-.track-detail-meta-value{font-size:15px;font-weight:700;color:var(--bright)}
+.track-detail-meta-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1.3px;margin-bottom:5px}
+.track-detail-meta-value{font-size:14px;font-weight:700;color:var(--bright)}
 .track-detail-actions{display:none} /* replaced by td-transport */
 .track-detail-play{
   padding:12px 32px;border-radius:24px;border:none;cursor:pointer;
@@ -1040,11 +1066,16 @@ body:not(.is-playing) .eq-bars span{animation-play-state:paused}
 .track-detail-heart.liked svg{fill:#ff3333}
 .track-detail-heart svg{width:22px;height:22px}
 .track-detail-notes{
-  padding:16px;border-radius:14px;
-  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
+  padding:16px 16px 17px;border-radius:18px;
+  background:rgba(15,23,42,0.6);border:1px solid rgba(148,163,184,0.1);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);
 }
-.track-detail-notes-title{font-size:11px;color:var(--pink);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.track-detail-notes-title{font-size:10px;color:var(--cyan);font-weight:700;text-transform:uppercase;letter-spacing:1.8px;margin-bottom:10px}
 .track-detail-notes-text{font-size:13px;color:var(--text);line-height:1.7;opacity:0.85}
+@media (min-width:768px){
+  .track-detail-overlay{align-items:center;padding:22px}
+  .track-detail-sheet{padding:20px 20px 24px}
+}
 
 /* ══════════════════════════════════════════════════════════════
    DEVICE TAB
@@ -1539,31 +1570,32 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
 <!-- Track Detail Sheet -->
 <div class="track-detail-overlay" id="trackDetailOverlay" onclick="closeTrackDetail(event)">
   <div class="track-detail-sheet" onclick="event.stopPropagation()">
-    <!-- Close button — always visible, top-right -->
     <button class="td-close" onclick="closeTrackDetail(null)" aria-label="Close">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
     </button>
-    <div class="track-detail-handle"></div>
+    <div class="track-detail-header">
+      <div class="track-detail-handle"></div>
+      <div class="track-detail-kicker">Track Preview</div>
+    </div>
     <div class="track-detail-art" id="trackDetailArt"></div>
     <div class="track-detail-title" id="trackDetailTitle"></div>
     <div class="track-detail-artist" id="trackDetailArtist"></div>
-    <!-- Transport row — centered play with prev/next + heart -->
+    <div class="td-command-note" id="trackDetailCommandNote">Play this cut on the DPA.</div>
     <div class="td-transport">
       <button class="td-heart" id="trackDetailHeart" onclick="trackDetailToggleHeart()" aria-label="Favorite">
         <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
       </button>
-      <button class="td-skip" onclick="trackDetailPrev()" aria-label="Previous">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6V6zm3.5 6 8.5 6V6l-8.5 6z"/></svg>
-      </button>
-      <button class="td-play" id="trackDetailPlayBtn" onclick="trackDetailPlay()" aria-label="Play">
-        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg>
-      </button>
-      <button class="td-skip" onclick="trackDetailNext()" aria-label="Next">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2V6zM4 18l8.5-6L4 6v12z"/></svg>
-      </button>
-      <button class="td-stop" onclick="trackDetailStop()" aria-label="Stop">
-        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
-      </button>
+      <div class="td-nav-group">
+        <button class="td-skip" onclick="trackDetailPrev()" aria-label="Previous">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6V6zm3.5 6 8.5 6V6l-8.5 6z"/></svg>
+        </button>
+        <button class="td-play" id="trackDetailPlayBtn" onclick="trackDetailPlay()" aria-label="Play">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg>
+        </button>
+        <button class="td-skip" onclick="trackDetailNext()" aria-label="Next">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2V6zM4 18l8.5-6L4 6v12z"/></svg>
+        </button>
+      </div>
     </div>
     <div class="track-detail-meta" id="trackDetailMeta"></div>
     <div class="track-detail-notes" id="trackDetailNotes"></div>
@@ -2066,6 +2098,7 @@ button:active, .pat-card:active, .eq-pill:active, .viz-mode-pill:active, .portal
 const S = {
   connected: false,
   mock: true,
+  activeTab: 'Home',
   playing: false,
   trackIndex: 0,
   trackTitle: '--',
@@ -2081,7 +2114,7 @@ const S = {
   deviceName: 'Portal Console',
   fwVersion: '--',
   admin: false,
-  led: { color: '#0088ff', pattern: 'vu_classic', idlePattern: 'breathing', playPattern: 'vu_classic', brightness: 200, gradEnd: '#ff6600' },
+  led: { color: '#0088ff', pattern: 'vu_classic', idlePattern: 'breathing', playPattern: 'vu_classic', brightness: 200, gradEnd: '#ff6600', idleFullSpectrum: false, playFullSpectrum: false, fullSpectrum: false },
   favorites: [],
   tracks: [],
   capsules: [],
@@ -2181,15 +2214,25 @@ S.favorites = [];
 
 // Fetch real tracks from device SD card — DPA first, WAV legacy fallback
 let realTracksLoaded = false;
+let realTracksLoading = false;
 let realTrackRetries = 0;
 let bookletDataLoaded = false;
+let bookletDataLoading = false;
 let bookletDataRetries = 0;
+let trackAnalyticsLoaded = false;
+let trackAnalyticsLoading = false;
+let realCapsulesLoaded = false;
+let realCapsulesLoading = false;
+let bootDataPrimed = false;
+let bookletRefreshPending = false;
 
 function loadRealTracks() {
-  if (realTracksLoaded) return;
+  if (realTracksLoaded || realTracksLoading) return;
+  realTracksLoading = true;
   fetch(API_BASE + '/api/audio/tracks')
     .then(r => r.json())
     .then(d => {
+      realTracksLoading = false;
       if (d.error) {
         // SD not mounted yet — retry up to 10 times
         if (realTrackRetries < 10) {
@@ -2221,22 +2264,12 @@ function loadRealTracks() {
             format: w.format || 'wav',
           };
         });
-        // Load analytics (play counts) + favorites, then rebuild UI
-        Promise.all([
-          fetch(API_BASE + '/api/analytics').then(r=>r.json()).catch(()=>({})),
-          fetch(API_BASE + '/api/favorites').then(r=>r.json()).catch(()=>({}))
-        ]).then(([analytics, favs]) => {
-          // Merge play counts by path or index
-          const aTracks = analytics.tracks || [];
-          for (var ai = 0; ai < aTracks.length; ai++) {
-            var a = aTracks[ai];
-            var matched = S.tracks.find(t => t.file === a.path) || S.tracks[a.idx];
-            if (matched) matched.plays = a.plays || 0;
-          }
-          S.favorites = favs.favorites || [];
-          buildTrackList();
-          buildHomeTrackList();
-        });
+        buildTrackList();
+        buildHomeTrackList();
+        if (S.activeTab === 'Tracks') {
+          hydrateTrackArtThumbnails();
+          loadTrackAnalytics(false);
+        }
         // Also rebuild booklet pages with live track metadata
         renderBookletPages();
         updateAlbumSummary();
@@ -2244,6 +2277,7 @@ function loadRealTracks() {
       }
     })
     .catch(() => {
+      realTracksLoading = false;
       // Network error — retry
       if (realTrackRetries < 10) {
         realTrackRetries++;
@@ -2252,17 +2286,48 @@ function loadRealTracks() {
     });
 }
 
+function loadTrackAnalytics(force) {
+  if (!realTracksLoaded) return;
+  if ((trackAnalyticsLoaded && !force) || trackAnalyticsLoading) return;
+  trackAnalyticsLoading = true;
+  fetchJsonMaybe('/api/analytics')
+    .then(analytics => {
+      trackAnalyticsLoading = false;
+      if (!analytics || typeof analytics !== 'object') return;
+      trackAnalyticsLoaded = true;
+      const aTracks = analytics.tracks || [];
+      for (var ai = 0; ai < aTracks.length; ai++) {
+        var a = aTracks[ai];
+        var matched = S.tracks.find(t => t.file === a.path) || S.tracks[a.idx];
+        if (matched) matched.plays = a.plays || 0;
+      }
+      buildTrackList();
+      buildHomeTrackList();
+      if (S.activeTab === 'Tracks') hydrateTrackArtThumbnails();
+      if (trackDetailIdx >= 0) renderTrackDetail(trackDetailIdx);
+    })
+    .catch(() => {
+      trackAnalyticsLoading = false;
+    });
+}
+
 function loadRealCapsules() {
+  if (realCapsulesLoaded || realCapsulesLoading) return;
+  realCapsulesLoading = true;
   fetch(API_BASE + '/api/capsules')
     .then(r => r.json())
     .then(d => {
+      realCapsulesLoading = false;
       const caps = d.capsules || [];
       if (caps.length > 0) {
+        realCapsulesLoaded = true;
         S.capsules = caps;
         buildCapsuleList();
       }
     })
-    .catch(() => {});  // keep MOCK_CAPSULES as fallback
+    .catch(() => {
+      realCapsulesLoading = false;
+    });  // keep MOCK_CAPSULES as fallback
 }
 
 function fetchJsonMaybe(path) {
@@ -2322,11 +2387,12 @@ function normalizeAlbumMeta(raw) {
 }
 
 function loadRealBookletData(force) {
-  if (bookletDataLoaded && !force) return;
-  Promise.all([
-    fetchJsonMaybe('/api/booklet'),
-    fetchJsonMaybe('/api/album/meta')
-  ]).then(([bookletRaw, metaRaw]) => {
+  if ((bookletDataLoaded && !force) || bookletDataLoading) return;
+  bookletDataLoading = true;
+  fetchJsonMaybe('/api/booklet')
+    .then(bookletRaw => fetchJsonMaybe('/api/album/meta').then(metaRaw => [bookletRaw, metaRaw]))
+    .then(([bookletRaw, metaRaw]) => {
+    bookletDataLoading = false;
     const bookletOk = !!(bookletRaw && typeof bookletRaw === 'object');
     const metaOk = !!(metaRaw && typeof metaRaw === 'object');
     if (bookletOk || metaOk) {
@@ -2340,6 +2406,7 @@ function loadRealBookletData(force) {
     S.albumMeta = metaOk ? normalizeAlbumMeta(metaRaw) : S.albumMeta;
     renderBookletPages();
   }).catch(() => {
+    bookletDataLoading = false;
     if (bookletDataRetries < 6) {
       bookletDataRetries++;
       setTimeout(() => loadRealBookletData(force), 2200);
@@ -2359,7 +2426,6 @@ function init() {
   buildHomeTrackList();
   buildCapsuleList();
   renderBookletPages();
-  mountBookletCoverFromSd();
   initBookletSwiper();
   initVolumeSlider();
   initBrightnessSlider();
@@ -2372,27 +2438,39 @@ function init() {
   // initBeatSliders(); — removed, VU patterns handle beat internally
   updateUI();
   startPolling();  // delayed 500ms internally to let page assets load
-  // Stagger data loads so they don't overlap with status polling.
-  setTimeout(loadRealTracks, 1500);
-  setTimeout(() => loadRealBookletData(false), 1800);
-  setTimeout(loadRealCapsules, 2500);
   // Overlay stays visible until first successful status poll (see pollStatus).
 }
 
 // ── Tab Switching ────────────────────────────────────────────
 function switchTab(name) {
+  S.activeTab = name;
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   const panel = document.getElementById('panel' + name);
   const btn = document.querySelector(`.tab-btn[data-tab="${name}"]`);
   if (panel) panel.classList.add('active');
   if (btn) btn.classList.add('active');
+  ensureTabData(name);
+  if ((name !== 'Home' && name !== 'Device') && featuresTimer) {
+    clearInterval(featuresTimer);
+    featuresTimer = null;
+  }
   // Animate capsules on tab switch
   if (name === 'Capsules') animateCapsules();
 }
 
 // ── API Communication ────────────────────────────────────────
 const API_BASE = '';  // Same origin on ESP32
+const STATUS_ENDPOINTS = (() => {
+  const urls = [API_BASE + '/api/status'];
+  const host = window.location.hostname;
+  if (host && host !== 'localhost' && host !== '127.0.0.1') {
+    const uploadPlane = window.location.protocol + '//' + host + ':81/api/status';
+    if (!urls.includes(uploadPlane)) urls.push(uploadPlane);
+  }
+  return urls;
+})();
+let lastStatusPlane = 'main';
 
 // Album art from SD: /art/cover.jpg (and .png). Per-track: /art/{basename}.jpg
 function artUrl(relPath) {
@@ -2414,16 +2492,36 @@ function trackArtCandidates(filePath) {
   return ['/art/' + stem + '.jpg', '/art/' + stem + '.png', '/art/' + stem + '.webp'];
 }
 
-function tryLoadImage(img, urls, depth, onFailHtml) {
+function resetArtMissCache() {
+  window.__artMiss = {};
+}
+
+function hasKnownTrackArtMiss(filePath) {
+  return !!(filePath && window.__artMiss && window.__artMiss[filePath]);
+}
+
+function rememberTrackArtMiss(filePath) {
+  if (!filePath) return;
+  window.__artMiss = window.__artMiss || {};
+  window.__artMiss[filePath] = true;
+}
+
+function tryLoadImage(img, urls, depth, onFailHtml, missFile, missBoundary) {
   if (depth >= urls.length) {
     if (typeof onFailHtml === 'string') img.outerHTML = onFailHtml;
     return;
   }
-  img.onerror = function () { tryLoadImage(img, urls, depth + 1, onFailHtml); };
+  img.onerror = function () {
+    const nextDepth = depth + 1;
+    if (missFile && missBoundary > 0 && depth < missBoundary && nextDepth >= missBoundary) {
+      rememberTrackArtMiss(missFile);
+    }
+    tryLoadImage(img, urls, nextDepth, onFailHtml, missFile, missBoundary);
+  };
   img.src = artUrl(urls[depth]);
 }
 
-function mountHeroCoverImage(urls, svgFallbackHtml) {
+function mountHeroCoverImage(urls, svgFallbackHtml, missFile, missBoundary) {
   const cover = document.getElementById('heroCover');
   function applyLoaded(wrap, img) {
     cover.innerHTML = '';
@@ -2463,7 +2561,13 @@ function mountHeroCoverImage(urls, svgFallbackHtml) {
     img.alt = '';
     wrap.appendChild(img);
     img.onload = function () { applyLoaded(wrap, img); };
-    img.onerror = function () { tryIdx(i + 1); };
+    img.onerror = function () {
+      const nextIdx = i + 1;
+      if (missFile && missBoundary > 0 && i < missBoundary && nextIdx >= missBoundary) {
+        rememberTrackArtMiss(missFile);
+      }
+      tryIdx(nextIdx);
+    };
     img.src = artUrl(urls[i]);
   }
   tryIdx(0);
@@ -2474,14 +2578,14 @@ function updateHeroCoverWithImageOrSvg() {
   const track = S.tracks[S.trackIndex];
   const svgFallback = track ? makeHeroSvg(S.trackIndex, track.title, track.artist) : HERO_COVERS[0];
   // Priority: per-track art (unless known-missing), then album cover, then SVG.
-  window.__artMiss = window.__artMiss || {};
+  const trackArtUrls = (track && track.file && !hasKnownTrackArtMiss(track.file))
+    ? trackArtCandidates(track.file)
+    : [];
   const cands = [];
-  if (track && track.file && !window.__artMiss[track.file]) {
-    cands.push(...trackArtCandidates(track.file));
-  }
+  cands.push(...trackArtUrls);
   cands.push('/art/cover.jpg', '/art/cover.png');
   // With updateHeroCover() now idempotent per-track, this only walks once per track change.
-  mountHeroCoverImage(cands, svgFallback);
+  mountHeroCoverImage(cands, svgFallback, track && track.file ? track.file : '', trackArtUrls.length);
   return;
   // eslint-disable-next-line no-unreachable
   cover.innerHTML = svgFallback;
@@ -2497,7 +2601,8 @@ function hydrateTrackArtThumbnails() {
   document.querySelectorAll('.track-art-mount').forEach((el) => {
     const idx = parseInt(el.getAttribute('data-idx') || '0', 10);
     const file = el.getAttribute('data-file') || '';
-    const cands = trackArtCandidates(file);
+    const trackArtUrls = hasKnownTrackArtMiss(file) ? [] : trackArtCandidates(file);
+    const cands = trackArtUrls.slice();
     // Fallback chain: per-track art → album cover → SVG placeholder
     cands.push('/art/cover.jpg', '/art/cover.png');
     const svgFb = TRACK_ART[idx] || '';
@@ -2506,7 +2611,7 @@ function hydrateTrackArtThumbnails() {
     img.alt = '';
     img.loading = 'lazy';
     el.parentNode.replaceChild(img, el);
-    tryLoadImage(img, cands, 0, svgFb);
+    tryLoadImage(img, cands, 0, svgFb, file, trackArtUrls.length);
   });
 }
 
@@ -2604,25 +2709,69 @@ let statusFailCount = 0;      // consecutive failures before going mock
 let statusSuccessStreak = 0;  // consecutive healthy polls before clearing offline warning state
 let offlineSinceMs = 0;
 let offlineToastCooldownUntil = 0;
-const MOCK_THRESHOLD = 3;     // 3 consecutive fails → mock mode
-const STATUS_RECOVERY_POLLS = 3;
+const MOCK_THRESHOLD = 6;     // tolerate short ESP32 HTTP stalls before declaring offline
+const STATUS_RECOVERY_POLLS = 2;
 const OFFLINE_TOAST_COOLDOWN_MS = 30000;
+
+function shouldPollFeaturesForActiveTab() {
+  return S.activeTab === 'Home' || S.activeTab === 'Device';
+}
+
+function ensureTabData(name) {
+  if (name === 'Home' || name === 'Tracks') {
+    loadRealTracks();
+  }
+  if (name === 'Tracks') {
+    if (realTracksLoaded) hydrateTrackArtThumbnails();
+    loadTrackAnalytics(false);
+  }
+  if (name === 'Booklet') {
+    mountBookletCoverFromSd();
+    loadRealBookletData(bookletRefreshPending);
+    bookletRefreshPending = false;
+  }
+  if (name === 'Capsules') {
+    loadRealCapsules();
+  }
+}
+
+function fetchStatusAnyPlane() {
+  let idx = 0;
+  function next(lastErr) {
+    if (idx >= STATUS_ENDPOINTS.length) {
+      return Promise.reject(lastErr || new Error('status unavailable'));
+    }
+    const url = STATUS_ENDPOINTS[idx];
+    const plane = idx === 0 ? 'main' : 'upload';
+    idx++;
+    return fetch(url, {
+      signal: fetchTimeout(3000),
+      cache: 'no-store'
+    })
+      .then(r => {
+        if (!r.ok) throw new Error('status ' + r.status);
+        return r.json();
+      })
+      .then(d => ({ data: d, plane }))
+      .catch(err => next(err));
+  }
+  return next();
+}
 
 function startPolling() {
   // Short delay lets page assets (HTML/CSS/JS) finish loading before API calls.
   // ESP32 has ~5 AsyncTCP sockets — avoids flooding during page load.
   setTimeout(function() {
     pollStatus();
-    statusTimer = setInterval(pollStatus, 2500);  // softer cadence reduces ESP32 poll flapping
+    statusTimer = setInterval(pollStatus, 3000);  // softer cadence reduces ESP32 poll flapping
   }, 500);
 }
 
 function pollStatus() {
   if (statusBusy) return;  // skip if previous request still in flight
   statusBusy = true;
-  fetch(API_BASE + '/api/status', { signal: fetchTimeout(3000) })
-    .then(r => r.json())
-    .then(d => {
+  fetchStatusAnyPlane()
+    .then(({ data: d, plane }) => {
       const prevRuntime = {
         bootState: S.bootState,
         sdState: S.sdState,
@@ -2633,6 +2782,7 @@ function pollStatus() {
       statusBusy = false;
       statusFailCount = 0;     // reset on success
       statusSuccessStreak++;
+      lastStatusPlane = plane;
       S.mock = false;
       S.connected = true;
       if (statusSuccessStreak >= STATUS_RECOVERY_POLLS) {
@@ -2644,6 +2794,13 @@ function pollStatus() {
       if (_ov && !_ov.classList.contains('hidden')) {
         _ov.classList.add('hidden');
         updateConnectionDot();
+      }
+      if (!bootDataPrimed) {
+        bootDataPrimed = true;
+        setTimeout(function() {
+          loadRealTracks();
+          ensureTabData(S.activeTab);
+        }, 250);
       }
       S.playing = d.player?.playing ?? false;
       S.trackIndex = d.player?.trackIndex ?? 0;
@@ -2681,10 +2838,15 @@ function pollStatus() {
       if (d.led) {
         const idleState = d.led.idle || {};
         const playState = d.led.playback || {};
-        S.led.color = idleState.color || playState.color || '#0088ff';
+        S.led.idleFullSpectrum = idleState.fullSpectrum === true;
+        S.led.playFullSpectrum = playState.fullSpectrum === true;
+        const activeLedState = S.playing ? playState : idleState;
+        const fallbackLedState = S.playing ? idleState : playState;
+        S.led.color = activeLedState.color || fallbackLedState.color || '#0088ff';
         S.led.idlePattern = idleState.pattern || 'breathing';
         S.led.playPattern = playState.pattern || 'vu_classic';
         S.led.pattern = S.playing ? S.led.playPattern : S.led.idlePattern;
+        S.led.fullSpectrum = S.playing ? S.led.playFullSpectrum : S.led.idleFullSpectrum;
         if (d.led.gradEnd) S.led.gradEnd = d.led.gradEnd;
       }
       if (d.storage) {
@@ -2701,9 +2863,10 @@ function pollStatus() {
         loadRealBookletData(true);
       }
       // Start/stop features polling — 250ms (was 100ms, 4x less load)
-      if (S.playing && !featuresTimer) {
-        featuresTimer = setInterval(pollFeatures, 1000);  // 1s — prevents socket exhaustion on ESP32
-      } else if (!S.playing && featuresTimer) {
+      const canPollFeatures = S.playing && !document.hidden && lastStatusPlane === 'main' && S.httpMode === 'full' && shouldPollFeaturesForActiveTab();
+      if (canPollFeatures && !featuresTimer) {
+        featuresTimer = setInterval(pollFeatures, 2500);  // lighter cadence reduces long-session flapping
+      } else if ((!canPollFeatures || !S.playing) && featuresTimer) {
         clearInterval(featuresTimer);
         featuresTimer = null;
       }
@@ -2748,10 +2911,14 @@ function pollFeatures() {
     }
     return;
   }
+  if (document.hidden || lastStatusPlane !== 'main' || S.httpMode !== 'full' || !shouldPollFeaturesForActiveTab()) return;
   if (featuresBusy) return;  // skip if previous request still in flight
   featuresBusy = true;
-  fetch(API_BASE + '/api/audio/features', { signal: fetchTimeout(2000) })
-    .then(r => r.json())
+  fetch(API_BASE + '/api/audio/features', { signal: fetchTimeout(2000), cache: 'no-store' })
+    .then(r => {
+      if (!r.ok) throw new Error('features ' + r.status);
+      return r.json();
+    })
     .then(d => {
       featuresBusy = false;
       S.audioFeatures = d;
@@ -2789,10 +2956,16 @@ function updateUI() {
   if (S._metaDirty) {
     S._metaDirty = false;
     window.__artBust = Date.now();
+    resetArtMissCache();
     window.__heroKey = null; // invalidate idempotency cache
     updateHeroCover(true);
-    if (typeof mountBookletCoverFromSd === 'function') mountBookletCoverFromSd();
-    loadRealBookletData(true);
+    if (S.activeTab === 'Booklet') {
+      if (typeof mountBookletCoverFromSd === 'function') mountBookletCoverFromSd();
+      loadRealBookletData(true);
+      bookletRefreshPending = false;
+    } else {
+      bookletRefreshPending = true;
+    }
   }
 }
 
@@ -2834,10 +3007,14 @@ function updatePlayState() {
   document.body.classList.toggle('is-playing', isPlay);
   // Switch LED mirror between idle and playback pattern
   S.led.pattern = isPlay ? S.led.playPattern : S.led.idlePattern;
+  S.led.fullSpectrum = isPlay ? !!S.led.playFullSpectrum : !!S.led.idleFullSpectrum;
   // Sync color indicators to the active pattern's colors
   const activePat = isPlay ? S.led.playPattern : S.led.idlePattern;
   const patColors = _patternColors[activePat] || PATTERN_DEFAULTS[activePat];
-  if (patColors) {
+  if (S.led.fullSpectrum && activePat === 'rainbow') {
+    _lastLedColor = '';
+    _lastLedGrad = '';
+  } else if (patColors) {
     S.led.color = patColors.color;
     S.led.gradEnd = patColors.gradEnd;
     _lastLedColor = '';
@@ -2867,10 +3044,13 @@ function updatePlayState() {
   }
   // Start mock features if playing in mock mode (local data only, no fetches)
   if (S.mock && isPlay && !featuresTimer) {
-    featuresTimer = setInterval(pollFeatures, 1000);
+    featuresTimer = setInterval(pollFeatures, 1500);
   } else if (!isPlay && featuresTimer && S.mock) {
     clearInterval(featuresTimer);
     featuresTimer = null;
+  }
+  if (isTrackDetailVisible() && trackDetailIdx >= 0) {
+    renderTrackDetail(trackDetailFollowsPlayback && S.tracks[S.trackIndex] ? S.trackIndex : trackDetailIdx);
   }
 }
 
@@ -2972,6 +3152,9 @@ function updateTrackInfo() {
   // Track list highlights
   updateTrackListHighlight();
   updateHomeTrackListHighlight();
+  if (trackDetailFollowsPlayback && isTrackDetailVisible() && S.tracks[S.trackIndex]) {
+    renderTrackDetail(S.trackIndex);
+  }
 }
 
 function updateAlbumSummary() {
@@ -3354,7 +3537,7 @@ function buildTrackList() {
       </button>
     </div>`;
   }).join('');
-  hydrateTrackArtThumbnails();
+  if (S.activeTab === 'Tracks') hydrateTrackArtThumbnails();
 }
 
 function updateTrackListHighlight() {
@@ -3428,6 +3611,7 @@ function toggleHeart(idx) {
 
 // ── Track Detail Sheet ───────────────────────────────────────
 let trackDetailIdx = -1;
+let trackDetailFollowsPlayback = false;
 
 const TRACK_NOTES = [
   'A late-night session that turned into the album opener. The rain samples were recorded on a fire escape in Brooklyn.',
@@ -3439,26 +3623,53 @@ const TRACK_NOTES = [
   'The static between stations. Sometimes the most beautiful sound is the one nobody intended.',
 ];
 
-function openTrackDetail(idx) {
+function isTrackDetailVisible() {
+  const overlay = document.getElementById('trackDetailOverlay');
+  return !!overlay && overlay.classList.contains('visible');
+}
+
+function renderTrackDetailArt(idx, t) {
+  const artEl = document.getElementById('trackDetailArt');
+  if (!artEl || !t) return;
+  const fallback = makeHeroSvg(idx, t.title, t.artist || S.deviceArtist || 'Artist');
+  const trackArtUrls = (t.file && !hasKnownTrackArtMiss(t.file)) ? trackArtCandidates(t.file) : [];
+  const candidates = trackArtUrls.slice();
+  candidates.push('/art/cover.jpg', '/art/cover.png');
+  const img = document.createElement('img');
+  img.alt = t.title || 'Track artwork';
+  artEl.innerHTML = '';
+  artEl.appendChild(img);
+  tryLoadImage(img, candidates, 0, fallback, t.file || '', trackArtUrls.length);
+}
+
+function renderTrackDetail(idx) {
   trackDetailIdx = idx;
   const t = S.tracks[idx];
   if (!t) return;
 
-  // Use hero cover art with title overlay
-  const heroSvg = HERO_COVERS[idx % HERO_COVERS.length];
-  if (heroSvg) {
-    const titleY = t.title.length > 20 ? 105 : 110;
-    const titleSize = t.title.length > 20 ? 16 : 20;
-    document.getElementById('trackDetailArt').innerHTML = heroSvg.replace('</svg>',
-      `<text x="120" y="${titleY}" text-anchor="middle" font-size="${titleSize}" fill="#ffffff" font-weight="800" opacity="0.9" font-family="sans-serif">${escXml(t.title)}</text>` +
-      `<text x="120" y="${titleY + 20}" text-anchor="middle" font-size="9" fill="#aaa" font-weight="600" opacity="0.6" font-family="sans-serif" letter-spacing="2">${escXml(t.artist || S.deviceArtist || 'Artist')}</text></svg>`
-    );
-  } else {
-    document.getElementById('trackDetailArt').innerHTML = `<div style="width:100%;height:100%;background:var(--card);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px"><span style="font-size:20px;font-weight:800;color:var(--bright)">${esc(t.title)}</span><span style="font-size:11px;color:var(--dim);letter-spacing:2px">${esc(t.artist||'Cort Knoxx')}</span></div>`;
-  }
+  renderTrackDetailArt(idx, t);
 
   document.getElementById('trackDetailTitle').textContent = t.title;
   document.getElementById('trackDetailArtist').textContent = t.artist || S.deviceArtist || 'Artist';
+  const isCurrentTrack = idx === S.trackIndex;
+  const activeTrack = S.tracks[S.trackIndex];
+  const commandEl = document.getElementById('trackDetailCommandNote');
+  if (commandEl) {
+    commandEl.textContent = isCurrentTrack
+      ? (S.playing ? 'Now playing on the DPA.' : 'Paused on the DPA. Tap to resume.')
+      : (S.playing && activeTrack
+          ? `Currently playing ${activeTrack.title} on the DPA. Tap play to switch.`
+          : 'Play this cut on the DPA.');
+  }
+  const playBtn = document.getElementById('trackDetailPlayBtn');
+  if (playBtn) {
+    const isPlayingCurrent = isCurrentTrack && S.playing;
+    playBtn.classList.toggle('is-playing', isPlayingCurrent);
+    playBtn.setAttribute('aria-label', isPlayingCurrent ? 'Pause' : (isCurrentTrack ? 'Play' : 'Play this track'));
+    playBtn.innerHTML = isPlayingCurrent
+      ? '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg>';
+  }
 
   // Meta grid
   const meta = [];
@@ -3490,7 +3701,15 @@ function openTrackDetail(idx) {
   } else {
     notesEl.style.display = 'none';
   }
+}
 
+function openTrackDetail(idx, options) {
+  const t = S.tracks[idx];
+  if (!t) return;
+  trackDetailFollowsPlayback = options && Object.prototype.hasOwnProperty.call(options, 'followPlayback')
+    ? options.followPlayback === true
+    : idx === S.trackIndex;
+  renderTrackDetail(idx);
   document.getElementById('trackDetailOverlay').classList.add('visible');
 }
 
@@ -3499,26 +3718,42 @@ function closeTrackDetail(e) {
   if (e && e.target !== document.getElementById('trackDetailOverlay')) return;
   document.getElementById('trackDetailOverlay').classList.remove('visible');
   trackDetailIdx = -1;
+  trackDetailFollowsPlayback = false;
 }
 
 function trackDetailPlay() {
   if (trackDetailIdx >= 0) {
+    if (trackDetailIdx === S.trackIndex) {
+      trackDetailFollowsPlayback = true;
+      apiCmd('toggle');
+      renderTrackDetail(trackDetailIdx);
+      return;
+    }
+    trackDetailFollowsPlayback = true;
     playTrack(trackDetailIdx);
-    closeTrackDetail(null);
+    renderTrackDetail(S.trackIndex);
   }
 }
 
 function trackDetailPrev() {
-  if (trackDetailIdx > 0) {
+  if (trackDetailFollowsPlayback || (S.playing && trackDetailIdx === S.trackIndex)) {
+    apiCmd('prev');
+    trackDetailFollowsPlayback = true;
+    renderTrackDetail(S.trackIndex);
+  } else if (trackDetailIdx > 0) {
     trackDetailIdx--;
-    openTrackDetail(trackDetailIdx);
+    openTrackDetail(trackDetailIdx, { followPlayback: false });
   }
 }
 
 function trackDetailNext() {
-  if (trackDetailIdx < S.tracks.length - 1) {
+  if (trackDetailFollowsPlayback || (S.playing && trackDetailIdx === S.trackIndex)) {
+    apiCmd('next');
+    trackDetailFollowsPlayback = true;
+    renderTrackDetail(S.trackIndex);
+  } else if (trackDetailIdx < S.tracks.length - 1) {
     trackDetailIdx++;
-    openTrackDetail(trackDetailIdx);
+    openTrackDetail(trackDetailIdx, { followPlayback: false });
   }
 }
 
@@ -3994,12 +4229,14 @@ function buildLedStrip() {
 let _lastLedPattern = '';
 let _lastLedColor = '';
 let _lastLedGrad = '';
+let _lastLedFullSpectrum = '';
 
 function updateLedMirror() {
   const strip = document.getElementById('ledStrip');
   const color = S.led.color || '#0088ff';
   const gradEnd = S.led.gradEnd || '#ff6600';
   const pattern = S.led.pattern || 'vu_classic';
+  const fullSpectrum = pattern === 'rainbow' && !!S.led.fullSpectrum;
   const brightness = S.led.brightness / 255;
 
   // Only update class if pattern changed (prevents animation restart flicker)
@@ -4010,15 +4247,18 @@ function updateLedMirror() {
   }
 
   // Only update dot colors if changed
-  if (color !== _lastLedColor || gradEnd !== _lastLedGrad) {
+  const fullSpectrumKey = fullSpectrum ? 'full' : 'bounded';
+  if (color !== _lastLedColor || gradEnd !== _lastLedGrad || fullSpectrumKey !== _lastLedFullSpectrum) {
     _lastLedColor = color;
     _lastLedGrad = gradEnd;
+    _lastLedFullSpectrum = fullSpectrumKey;
     for (let i = 0; i < 17; i++) {
       const dot = document.getElementById('led' + i);
       if (dot) {
-        // Show gradient across the strip preview
         const ratio = i / 16;
-        const blended = blendHex(color, gradEnd, ratio);
+        const blended = fullSpectrum
+          ? hslToHex(Math.round(ratio * 360), 100, 50)
+          : blendHex(color, gradEnd, ratio);
         dot.style.backgroundColor = blended;
         dot.style.boxShadow = `0 0 ${8 * brightness}px ${blended}, 0 0 ${2 * brightness}px ${blended}`;
       }
@@ -4028,7 +4268,9 @@ function updateLedMirror() {
   // Update gradient preview bar
   const gradPreview = document.getElementById('gradPreview');
   if (gradPreview) {
-    gradPreview.style.background = `linear-gradient(to right, ${color}, ${gradEnd})`;
+    gradPreview.style.background = fullSpectrum
+      ? 'linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)'
+      : `linear-gradient(to right, ${color}, ${gradEnd})`;
   }
 
   // Sync pattern grid active states (separate idle + playback)
@@ -4117,6 +4359,9 @@ function initColorPicker() {
     const hue = Math.round(pct * 360);
     const color = hslToHex(hue, 100, 50);
     S.led.color = color;
+    S.led.idleFullSpectrum = false;
+    S.led.playFullSpectrum = false;
+    S.led.fullSpectrum = false;
     indicator.style.backgroundColor = color;
     _lastLedColor = '';  // force LED mirror update
     cachePatternColor('color', color);
@@ -4242,6 +4487,8 @@ function initPatternGrid() {
       const genreGrad  = card.dataset.grad  || '';
       S.led.playPattern = pat;
       S.led.pattern = pat;
+      S.led.playFullSpectrum = false;
+      if (S.playing) S.led.fullSpectrum = false;
       _lastLedPattern = '';
       document.querySelectorAll('#playPatternGrid .pat-card').forEach(c => c.classList.remove('active'));
       card.classList.add('active');
@@ -4255,7 +4502,7 @@ function initPatternGrid() {
       }
       updateLedMirror();
       // Send pattern + genre colors to device
-      let url = API_BASE + '/api/led/preview?pattern=' + encodeURIComponent(pat) + '&mode=playback';
+      let url = API_BASE + '/api/led/preview?pattern=' + encodeURIComponent(pat) + '&mode=playback&fullSpectrum=0';
       if (genreColor) url += '&color=' + encodeURIComponent(genreColor);
       if (genreGrad)  url += '&gradEnd=' + encodeURIComponent(genreGrad);
       fetch(url).catch(() => {});
@@ -4267,7 +4514,10 @@ function initPatternGrid() {
       const pat = card.dataset.pat;
       const genreColor = card.dataset.color || '';
       const genreGrad  = card.dataset.grad  || '';
+      const fullSpectrum = pat === 'rainbow' && !genreColor && !genreGrad;
       S.led.idlePattern = pat;
+      S.led.idleFullSpectrum = fullSpectrum;
+      if (!S.playing) S.led.fullSpectrum = fullSpectrum;
       _lastLedPattern = '';
       document.querySelectorAll('#idlePatternGrid .pat-card').forEach(c => c.classList.remove('active'));
       card.classList.add('active');
@@ -4280,7 +4530,7 @@ function initPatternGrid() {
         updateLedMirror();
       }
       // Send pattern + genre colors to device
-      let url = API_BASE + '/api/led/preview?pattern=' + encodeURIComponent(pat) + '&mode=idle';
+      let url = API_BASE + '/api/led/preview?pattern=' + encodeURIComponent(pat) + '&mode=idle&fullSpectrum=' + (fullSpectrum ? '1' : '0');
       if (genreColor) url += '&color=' + encodeURIComponent(genreColor);
       if (genreGrad)  url += '&gradEnd=' + encodeURIComponent(genreGrad);
       fetch(url).catch(() => {});

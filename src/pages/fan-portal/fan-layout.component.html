@@ -25,11 +25,11 @@
     <!-- Desktop Sidebar -->
     <nav class="w-64 bg-slate-950 border-r border-slate-900 flex-shrink-0 hidden lg:flex flex-col">
       <div class="p-6">
-        <div class="flex items-center justify-between mb-8">
-          <a routerLink="/fan/app/home" class="flex items-center">
+        <div class="relative mb-8 flex items-center justify-center">
+          <a routerLink="/fan/app/home" class="flex items-center justify-center">
             <app-brand-mark tone="indigo" size="nav" suffix="PLAYER"></app-brand-mark>
           </a>
-           <button (click)="toggleCartOverlay()" class="text-slate-400 hover:text-white relative">
+           <button (click)="toggleCartOverlay()" class="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white relative">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
             @if(cartService.itemCount() > 0) {
               <span class="absolute -top-1 -right-2 h-4 w-4 rounded-full bg-indigo-500 text-white text-[10px] flex items-center justify-center">{{ cartService.itemCount() }}</span>
@@ -70,7 +70,7 @@
           <div class="mt-2 space-y-1">
             @for (album of connectionService.deviceLibrary()?.albums; track album.id) {
               <a [routerLink]="['/fan/app/album', album.id]" routerLinkActive="text-indigo-400" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-white transition-colors">
-                 <img [src]="album.artworkUrl || defaultCover" class="h-5 w-5 rounded object-cover bg-slate-800">
+                 <img [src]="album.artworkUrl || defaultCover" class="h-5 w-5 rounded object-cover bg-slate-800" (error)="handleAlbumArtworkError($event, album.artworkUrl)">
                  <span class="truncate">{{ album.title }}</span>
               </a>
             }
@@ -189,7 +189,7 @@
       
       <!-- Track Info -->
       <div class="flex items-center gap-3 w-64">
-        <img [src]="track.coverUrl" class="h-12 w-12 rounded object-cover shadow-lg">
+        <img [src]="track.coverUrl" class="h-12 w-12 rounded object-cover shadow-lg" (error)="handlePlayerArtworkError($event, track.coverUrl)">
         <div>
           <div class="text-sm font-semibold text-white truncate">{{ track.title }}</div>
           <div class="text-xs text-slate-400 truncate">{{ track.artist }}</div>
@@ -246,7 +246,7 @@
            <div (click)="selectTrack(qTrack)"
                 class="group flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-white/5 transition-colors"
                 [class.bg-white/10]="qTrack.id === playerService.currentTrack()?.id">
-              <img [src]="qTrack.coverUrl" class="w-10 h-10 rounded object-cover">
+              <img [src]="qTrack.coverUrl" class="w-10 h-10 rounded object-cover" (error)="handlePlayerArtworkError($event, qTrack.coverUrl)">
               <div>
                 <div class="text-sm font-semibold text-white" [class.text-indigo-400]="qTrack.id === playerService.currentTrack()?.id">
                   {{ qTrack.title }}
@@ -271,7 +271,7 @@
       <div class="flex-1 p-6 overflow-y-auto space-y-4">
         @for(item of cartService.items(); track item.id) {
           <div class="flex items-center gap-4">
-            <img [src]="item.artworkUrl" class="w-12 h-12 rounded object-cover">
+            <img [src]="item.artworkUrl" class="w-12 h-12 rounded object-cover" (error)="handlePlayerArtworkError($event, item.artworkUrl)">
             <div class="flex-1">
               <div class="text-sm font-semibold text-white truncate">{{ item.albumTitle }}</div>
               <div class="text-xs text-slate-400">Device: <span class="font-mono">{{ item.deviceId }}</span></div>

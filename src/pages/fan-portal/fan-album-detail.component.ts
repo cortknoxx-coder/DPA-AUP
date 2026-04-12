@@ -1,13 +1,15 @@
 
 import { Component, inject, computed, signal, Input, effect } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
 import { DataService } from '../../services/data.service';
 import { PlayerService, PlayerTrack } from '../../services/player.service';
 import { DeviceBridgeService } from '../../services/device-bridge.service';
 import { Album, Manifest, Theme } from '../../types';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { DEFAULT_COVER_DATA_URL } from '../../default-cover';
+import { CompiledAlbumViewComponent } from '../../components/compiled-album-view/compiled-album-view.component';
+import { PrivateIngestSummary } from '../../services/private-ingest.service';
+import { PrivateIngestPublicService } from '../../services/private-ingest-public.service';
 
 const FALLBACK_THEME: Theme = {
   albumColor: { primary: '#4f46e5', accent: '#06b6d4', background: '#020617' },
@@ -29,7 +31,7 @@ const FALLBACK_THEME: Theme = {
 @Component({
   selector: 'app-fan-album-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, DatePipe],
+  imports: [CommonModule, DatePipe, CompiledAlbumViewComponent],
   templateUrl: './fan-album-detail.component.html'
 })
 export class FanAlbumDetailComponent {
@@ -37,6 +39,7 @@ export class FanAlbumDetailComponent {
   private bridge = inject(DeviceBridgeService);
   private connectionService = inject(DeviceConnectionService);
   private wifi = this.connectionService.wifi;
+  private privateIngest = inject(PrivateIngestPublicService);
   playerService = inject(PlayerService);
   defaultCover = DEFAULT_COVER_DATA_URL;
 
@@ -89,8 +92,9 @@ export class FanAlbumDetailComponent {
   });
   manifest = signal<Manifest | null>(null);
   isLoading = signal(true);
+  ingestSummary = signal<PrivateIngestSummary | null>(null);
 
-  activeSection = signal('tracks');
+  activeSection = signal('overview');
   usingLiveDeviceTracks = computed(() => this.connectionService.connectionStatus() === 'wifi');
   galleryImages = computed(() => this.albumMetadata()?.booklet?.gallery || []);
   bookletVideos = computed(() => this.albumMetadata()?.booklet?.videos || []);
@@ -123,12 +127,13 @@ export class FanAlbumDetailComponent {
 
   /** Album cover URL from device (fallback for tracks without per-track art) */
   albumCoverUrl = computed(() => {
-    const localArtwork = this.albumMetadata()?.artworkUrl || '';
-    if (localArtwork) return localArtwork;
     if (this.connectionService.connectionStatus() === 'wifi') {
-      return this.wifi.coverArtUrl('/art/cover.jpg');
+      const liveArtwork = this.connectionService.deviceLibrary()?.albums?.find((album) => album.id === this.id)?.artworkUrl
+        || this.connectionService.deviceLibrary()?.albums?.[0]?.artworkUrl
+        || '';
+      if (liveArtwork) return liveArtwork;
     }
-    return '';
+    return this.albumMetadata()?.artworkUrl || '';
   });
 
   constructor() {
@@ -153,6 +158,14 @@ export class FanAlbumDetailComponent {
       if (this.connectionService.connectionStatus() === 'wifi') {
         this.refreshFavoritesFromDevice();
       }
+    }, { allowSignalWrites: true });
+    effect(() => {
+      const albumId = this.albumMetadata()?.albumId;
+      if (!albumId) {
+        this.ingestSummary.set(null);
+        return;
+      }
+      void this.loadIngestSummary(albumId);
     }, { allowSignalWrites: true });
   }
 
@@ -256,6 +269,10 @@ export class FanAlbumDetailComponent {
     return tracks.reduce((acc, t) => acc + t.durationSec, 0);
   });
 
+  private async loadIngestSummary(albumId: string) {
+    this.ingestSummary.set(await this.privateIngest.getSummary({ albumId }));
+  }
+
   playTrack(track: Manifest['tracks'][0]) {
     const m = this.manifest();
     if (!m) return;
@@ -306,6 +323,23 @@ export class FanAlbumDetailComponent {
     const m = Math.floor((sec % 3600) / 60);
     if (h > 0) return `${h}h ${m}m`;
     return `${m} min`;
+  }
+
+  handleAlbumCoverError(event: Event) {
+    const localArtwork = this.albumMetadata()?.artworkUrl || '';
+    const liveCandidates = this.connectionService.connectionStatus() === 'wifi'
+      ? this.wifi.coverArtCandidateUrls()
+      : [];
+    this.advanceImageFallback(event, [...liveCandidates, localArtwork, this.defaultCover].filter(Boolean));
+  }
+
+  handleTrackArtError(event: Event, trackId: string) {
+    const path = this.firmwarePathByTrackId()[trackId];
+    this.advanceImageFallback(event, [
+      ...(path ? this.wifi.trackArtCandidateUrls(path) : []),
+      this.albumCoverUrl(),
+      this.defaultCover,
+    ].filter(Boolean));
   }
 
   /** Toggle heart/favorite for a track */
@@ -388,5 +422,29 @@ export class FanAlbumDetailComponent {
 
   private normalizeFwPath(p: string): string {
     return p.trim().replace(/\\/g, '/').toLowerCase();
+  }
+
+  private advanceImageFallback(event: Event, candidates: string[]) {
+    const target = event.target;
+    if (!(target instanceof HTMLImageElement)) return;
+    const current = this.normalizeImageUrl(target.currentSrc || target.src);
+    const next = candidates.find((candidate) => this.normalizeImageUrl(candidate) !== current);
+    if (next) {
+      target.src = next;
+    }
+  }
+
+  private normalizeImageUrl(url: string): string {
+    if (!url) return '';
+    if (url.startsWith('data:')) return url;
+    try {
+      const parsed = new URL(url, window.location.origin);
+      if (parsed.pathname.endsWith('/api/art')) {
+        return `${parsed.origin}${parsed.pathname}?path=${parsed.searchParams.get('path') ?? ''}`;
+      }
+      return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+      return url;
+    }
   }
 }

@@ -1,7 +1,6 @@
-# DPA Custom Partition Table — 8MB Flash, No OTA, No SPIFFS
-# Maximizes app space for firmware + gzipped dashboard
-# Name,   Type, SubType, Offset,   Size,     Flags
-nvs,      data, nvs,     0x9000,   0x5000,
-otadata,  data, ota,     0xe000,   0x2000,
-app0,     app,  ota_0,   0x10000,  0x3F0000,
-nvs2,     data, nvs,     0x400000, 0x10000,
+# DPA Custom Partition Table — full 8MB flash, no OTA, no SPIFFS
+# Gives the firmware a single near-full-size app slot.
+# Name,     Type, SubType, Offset,   Size,     Flags
+nvs,        data, nvs,     0x9000,   0x5000,
+phy_init,   data, phy,     0xf000,   0x1000,
+factory,    app,  factory, 0x10000,  0x7F0000,

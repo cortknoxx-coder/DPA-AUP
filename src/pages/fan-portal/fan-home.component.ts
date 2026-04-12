@@ -44,4 +44,37 @@ export class FanHomeComponent {
     const s = sec % 60;
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
+
+  handleAlbumArtworkError(event: Event, artworkUrl?: string) {
+    const candidates = [
+      ...(this.connectionService.connectionStatus() === 'wifi' ? this.connectionService.wifi.coverArtCandidateUrls() : []),
+      artworkUrl || '',
+      this.defaultCover,
+    ].filter(Boolean);
+    this.advanceImageFallback(event, candidates);
+  }
+
+  private advanceImageFallback(event: Event, candidates: string[]) {
+    const target = event.target;
+    if (!(target instanceof HTMLImageElement)) return;
+    const current = this.normalizeImageUrl(target.currentSrc || target.src);
+    const next = candidates.find((candidate) => this.normalizeImageUrl(candidate) !== current);
+    if (next) {
+      target.src = next;
+    }
+  }
+
+  private normalizeImageUrl(url: string): string {
+    if (!url) return '';
+    if (url.startsWith('data:')) return url;
+    try {
+      const parsed = new URL(url, window.location.origin);
+      if (parsed.pathname.endsWith('/api/art')) {
+        return `${parsed.origin}${parsed.pathname}?path=${parsed.searchParams.get('path') ?? ''}`;
+      }
+      return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+      return url;
+    }
+  }
 }

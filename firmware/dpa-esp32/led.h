@@ -53,6 +53,9 @@ static unsigned long g_notifyStart = 0;
 static unsigned long g_notifyDuration = 0;
 static String g_notifyColor = "";
 static String g_notifyPattern = "";
+static bool g_ledIdleFullSpectrum = false;
+static bool g_ledPlayFullSpectrum = false;
+static bool g_ledChargeFullSpectrum = false;
 
 // ── Extern Globals (defined in .ino) ─────────────────────────
 extern String g_ledIdle, g_ledIdlePat;
@@ -96,6 +99,22 @@ const String& getCurrentPattern() {
   }
 }
 
+bool ledModeUsesFullSpectrum(LedMode mode) {
+  switch (mode) {
+    case LED_PLAYBACK: return g_ledPlayFullSpectrum;
+    case LED_CHARGING: return g_ledChargeFullSpectrum;
+    default:           return g_ledIdleFullSpectrum;
+  }
+}
+
+void ledSetModeFullSpectrum(LedMode mode, bool enabled) {
+  switch (mode) {
+    case LED_PLAYBACK: g_ledPlayFullSpectrum = enabled; break;
+    case LED_CHARGING: g_ledChargeFullSpectrum = enabled; break;
+    default:           g_ledIdleFullSpectrum = enabled; break;
+  }
+}
+
 // ── Helpers ──────────────────────────────────────────────────
 
 // Blend a pixel toward a color with distance-based falloff
@@ -128,14 +147,24 @@ CRGB getGradientEnd() {
   return hexToCRGB(g_ledGradEnd);
 }
 
-// ── VU Idle Fallback (breathing) ─────────────────────────────
-static inline void vuIdleFallback(CRGB color, uint8_t bright) {
+// ── VU Idle Fallback (self-running preview) ──────────────────
+static inline void vuIdleFallback(CRGB color, CRGB gradEnd, uint8_t bright) {
   unsigned long ms = millis();
-  float phase = (ms % 4000) / 4000.0f;
-  float sinVal = (sin(phase * 2.0f * PI - PI / 2.0f) + 1.0f) / 2.0f;
-  uint8_t b = (uint8_t)(sinVal * bright);
-  fill_solid(leds, NUM_LEDS, color);
-  FastLED.setBrightness(b < 8 ? 8 : b);
+  float phase = (ms % 1800) / 1800.0f;
+  float pulse = (sin(phase * 2.0f * PI - PI / 2.0f) + 1.0f) / 2.0f;
+  float eased = pulse * pulse;
+  int center = NUM_LEDS / 2;
+  int litHalf = 1 + (int)(eased * center);
+
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  for (int i = 0; i <= litHalf; i++) {
+    float ratio = center > 0 ? (float)i / (float)center : 0.0f;
+    CRGB c = blend(color, gradEnd, (uint8_t)(ratio * 255));
+    if (center + i < NUM_LEDS) leds[center + i] = c;
+    if (center - i >= 0) leds[center - i] = c;
+  }
+
+  FastLED.setBrightness((uint8_t)(bright * (0.25f + eased * 0.75f)));
 }
 
 // ── Animation Engine (non-blocking) ──────────────────────────
@@ -367,6 +396,104 @@ void ledTick() {
     FastLED.setBrightness(b < 1 ? 0 : b);
   }
 
+  else if (pattern == "flash_burst") {
+    // Front-loaded multi-flash burst for high-energy announcements.
+    fill_solid(leds, NUM_LEDS, color);
+    unsigned long elapsed = millis() - g_notifyStart;
+    float t = (float)elapsed / (float)g_notifyDuration;
+    if (t > 1.0f) t = 1.0f;
+
+    const int flashes = g_notifyDuration >= 1500 ? 3 : 2;
+    float cycle = t * flashes;
+    float local = cycle - floorf(cycle);
+    float val = 0.0f;
+    if (local < 0.12f) {
+      val = local / 0.12f;
+    } else if (local < 0.30f) {
+      val = 1.0f - (local - 0.12f) / 0.18f;
+    }
+    if (t > 0.88f) {
+      val *= (1.0f - (t - 0.88f) / 0.12f);
+    }
+    if (val < 0) val = 0;
+    uint8_t b = (uint8_t)(val * bright);
+    FastLED.setBrightness(b < 2 ? 0 : b);
+  }
+
+  else if (pattern == "flash_hold") {
+    // Quick alert flashes that settle into a confident hold.
+    fill_solid(leds, NUM_LEDS, color);
+    unsigned long elapsed = millis() - g_notifyStart;
+    float t = (float)elapsed / (float)g_notifyDuration;
+    if (t > 1.0f) t = 1.0f;
+
+    float val = 0.0f;
+    if (t < 0.42f) {
+      float burst = (t / 0.42f) * 3.0f;
+      float local = burst - floorf(burst);
+      if (local < 0.12f) {
+        val = local / 0.12f;
+      } else if (local < 0.28f) {
+        val = 1.0f - (local - 0.12f) / 0.16f;
+      }
+    } else if (t < 0.84f) {
+      val = 0.85f;
+    } else {
+      val = 0.85f * (1.0f - (t - 0.84f) / 0.16f);
+    }
+
+    if (val < 0) val = 0;
+    uint8_t b = (uint8_t)(val * bright);
+    FastLED.setBrightness(b < 2 ? 0 : b);
+  }
+
+  else if (pattern == "fade_glow") {
+    // Slow cinematic glow for video-style drops.
+    fill_solid(leds, NUM_LEDS, color);
+    unsigned long elapsed = millis() - g_notifyStart;
+    float t = (float)elapsed / (float)g_notifyDuration;
+    if (t > 1.0f) t = 1.0f;
+
+    float val = 0.0f;
+    if (t < 0.28f) {
+      float ramp = t / 0.28f;
+      val = ramp * ramp;
+    } else if (t < 0.72f) {
+      val = 1.0f;
+    } else {
+      float fade = 1.0f - (t - 0.72f) / 0.28f;
+      val = fade * fade;
+    }
+
+    uint8_t b = (uint8_t)(val * bright);
+    FastLED.setBrightness(b < 2 ? 0 : b);
+  }
+
+  else if (pattern == "rhythmic_pulse") {
+    // Even, BPM-like pulses for remix/stem drops.
+    fill_solid(leds, NUM_LEDS, color);
+    unsigned long elapsed = millis() - g_notifyStart;
+    float t = (float)elapsed / (float)g_notifyDuration;
+    if (t > 1.0f) t = 1.0f;
+
+    const float beatWindowMs = 500.0f;
+    float beatPhase = fmodf((float)elapsed, beatWindowMs) / beatWindowMs;
+    float val = 0.0f;
+    if (beatPhase < 0.18f) {
+      val = beatPhase / 0.18f;
+    } else if (beatPhase < 0.48f) {
+      val = 1.0f - (beatPhase - 0.18f) / 0.30f;
+    }
+    if (t > 0.90f) {
+      val *= (1.0f - (t - 0.90f) / 0.10f);
+    }
+    if (val < 0) val = 0;
+
+    uint8_t b = (uint8_t)(val * bright);
+    fill_solid(leds, NUM_LEDS, color);
+    FastLED.setBrightness(b < 2 ? 0 : b);
+  }
+
   // ── NEW BASE PATTERNS ──────────────────────────────────
 
   else if (pattern == "rainbow") {
@@ -378,7 +505,8 @@ void ledTick() {
     uint8_t baseHue = (ms / 20) & 0xFF;  // ~5 sec full cycle
 
     CRGB gradEnd = getGradientEnd();
-    bool genreMode = (color.r | color.g | color.b) != 0
+    bool genreMode = !ledModeUsesFullSpectrum(g_ledMode)
+                  && (color.r | color.g | color.b) != 0
                   && (gradEnd.r | gradEnd.g | gradEnd.b) != 0
                   && (color != gradEnd);
 
@@ -472,7 +600,62 @@ void ledTick() {
     }
   }
 
-  // dual_comet + meteor removed — reclaim flash
+  else if (pattern == "dual_comet") {
+    // Dual Comet: two comets chasing each other in opposite directions
+    fill_solid(leds, NUM_LEDS, CRGB::Black);
+    FastLED.setBrightness(bright);
+    unsigned long ms = millis();
+    float phase = (ms % 2000) / 2000.0f;
+
+    int head1 = (int)(phase * NUM_LEDS) % NUM_LEDS;
+    int head2 = (int)(((phase + 0.5f) * NUM_LEDS)) % NUM_LEDS;
+
+    for (int t = 0; t <= 4; t++) {
+      int idx = (head1 - t + NUM_LEDS) % NUM_LEDS;
+      float fade = (t == 0) ? 1.0f : powf(0.4f, (float)t);
+      CRGB c = color;
+      c.nscale8((uint8_t)(fade * 255));
+      leds[idx] |= c;
+    }
+
+    CRGB color2 = color;
+    CHSV hsv = rgb2hsv_approximate(color2);
+    hsv.hue += 85;
+    color2 = hsv;
+    for (int t = 0; t <= 4; t++) {
+      int idx = (head2 + t) % NUM_LEDS;
+      float fade = (t == 0) ? 1.0f : powf(0.4f, (float)t);
+      CRGB c = color2;
+      c.nscale8((uint8_t)(fade * 255));
+      leds[idx] |= c;
+    }
+  }
+
+  else if (pattern == "meteor") {
+    // Meteor Rain: a fading head streaks down the strip
+    FastLED.setBrightness(bright);
+    for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i].nscale8(180);
+    }
+    static uint8_t meteorPos = 0;
+    static unsigned long lastMeteorMs = 0;
+
+    unsigned long ms = millis();
+    if (ms - lastMeteorMs > 40) {
+      lastMeteorMs = ms;
+      meteorPos += 1;
+      if (meteorPos >= NUM_LEDS + 5) {
+        meteorPos = 0;
+      }
+      int pos = meteorPos;
+      if (pos < NUM_LEDS) {
+        leds[pos] = color;
+        CRGB spark = CRGB::White;
+        spark.nscale8(160);
+        leds[pos] += spark;
+      }
+    }
+  }
 
   else if (pattern == "theater") {
     // Theater Chase: every 3rd LED lit, shifts each frame — marquee style
@@ -590,7 +773,7 @@ void ledTick() {
 
   else if (pattern == "audio_vu" || pattern == "vu_classic") {
     // Classic VU: center-out, user gradient color (start → end)
-    if (!g_audioFeatures.active) { vuIdleFallback(color, bright); }
+    if (!g_audioFeatures.active) { vuIdleFallback(color, getGradientEnd(), bright); }
     else {
       fill_solid(leds, NUM_LEDS, CRGB::Black);
       FastLED.setBrightness(bright);
@@ -608,8 +791,115 @@ void ledTick() {
     }
   }
 
-  // vu_fill, vu_peak, vu_split, vu_bass, vu_energy removed — reclaim flash
-  // Only vu_classic remains as the single playback VU pattern
+  else if (pattern == "vu_fill") {
+    // Fill VU: left-to-right level meter
+    if (!g_audioFeatures.active) { vuIdleFallback(color, getGradientEnd(), bright); }
+    else {
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.setBrightness(bright);
+      CRGB gradEnd = getGradientEnd();
+      float level = g_audioFeatures.rms * 3.0f;
+      if (level > 1.0f) level = 1.0f;
+      int litCount = (int)(level * NUM_LEDS);
+      for (int i = 0; i < litCount && i < NUM_LEDS; i++) {
+        float ratio = (float)i / (float)(NUM_LEDS - 1);
+        leds[i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+      }
+    }
+  }
+
+  else if (pattern == "vu_peak") {
+    // Peak Hold VU: fill plus a retained peak indicator
+    static float peakHold = 0.0f;
+    static unsigned long peakTime = 0;
+    if (!g_audioFeatures.active) { vuIdleFallback(color, getGradientEnd(), bright); peakHold = 0; }
+    else {
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.setBrightness(bright);
+      CRGB gradEnd = getGradientEnd();
+      float level = g_audioFeatures.rms * 3.0f;
+      if (level > 1.0f) level = 1.0f;
+      if (level >= peakHold) { peakHold = level; peakTime = millis(); }
+      else if (millis() - peakTime > 400) { peakHold *= 0.96f; }
+      int litCount = (int)(level * NUM_LEDS);
+      for (int i = 0; i < litCount && i < NUM_LEDS; i++) {
+        float ratio = (float)i / (float)(NUM_LEDS - 1);
+        leds[i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+      }
+      int peakIdx = (int)(peakHold * (NUM_LEDS - 1));
+      if (peakIdx >= NUM_LEDS) peakIdx = NUM_LEDS - 1;
+      if (peakIdx >= litCount) {
+        leds[peakIdx] = CRGB::White;
+        leds[peakIdx].nscale8(200);
+      }
+    }
+  }
+
+  else if (pattern == "vu_split") {
+    // Split Stereo VU: independent left/right response
+    if (!g_audioFeatures.active) { vuIdleFallback(color, getGradientEnd(), bright); }
+    else {
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.setBrightness(bright);
+      CRGB gradEnd = getGradientEnd();
+      int half = NUM_LEDS / 2;
+      float levelL = g_audioFeatures.peakL * 2.5f;
+      float levelR = g_audioFeatures.peakR * 2.5f;
+      if (levelL > 1.0f) levelL = 1.0f;
+      if (levelR > 1.0f) levelR = 1.0f;
+      int litL = (int)(levelL * half);
+      for (int i = 0; i < litL && i < half; i++) {
+        float ratio = half > 1 ? (float)i / (float)(half - 1) : 0.0f;
+        leds[half - 1 - i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+      }
+      int litR = (int)(levelR * (NUM_LEDS - half));
+      for (int i = 0; i < litR && (half + i) < NUM_LEDS; i++) {
+        float ratio = (NUM_LEDS - half) > 1 ? (float)i / (float)(NUM_LEDS - half - 1) : 0.0f;
+        leds[half + i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+      }
+    }
+  }
+
+  else if (pattern == "vu_bass") {
+    // Bass VU: low-frequency energy expands from the center
+    static float bassDecayVU = 0.0f;
+    if (!g_audioFeatures.active) { vuIdleFallback(color, getGradientEnd(), bright); bassDecayVU = 0; }
+    else {
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.setBrightness(bright);
+      CRGB gradEnd = getGradientEnd();
+      float bass = g_audioFeatures.bassEnergy * 4.0f;
+      if (bass > 1.0f) bass = 1.0f;
+      if (bass > bassDecayVU) bassDecayVU = bass;
+      else bassDecayVU *= 0.88f;
+      int litCount = (int)(bassDecayVU * NUM_LEDS);
+      int center = NUM_LEDS / 2;
+      int litHalf = litCount / 2;
+      for (int i = 0; i <= litHalf && i < center + 1; i++) {
+        float ratio = center > 0 ? (float)i / (float)center : 0.0f;
+        CRGB c = blend(color, gradEnd, (uint8_t)(ratio * 255));
+        if (bass > 0.7f) c = blend(c, CRGB::White, 60);
+        if (center + i < NUM_LEDS) leds[center + i] = c;
+        if (center - i >= 0) leds[center - i] = c;
+      }
+    }
+  }
+
+  else if (pattern == "vu_energy") {
+    // Energy VU: whole-strip glow intensity tracks the envelope
+    if (!g_audioFeatures.active) { vuIdleFallback(color, getGradientEnd(), bright); }
+    else {
+      CRGB gradEnd = getGradientEnd();
+      float env = g_audioFeatures.envelope;
+      float level = 0.15f + env * 0.85f;
+      uint8_t b = (uint8_t)(level * bright);
+      for (int i = 0; i < NUM_LEDS; i++) {
+        float ratio = (float)i / (float)(NUM_LEDS - 1);
+        leds[i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+      }
+      FastLED.setBrightness(b < 4 ? 4 : b);
+    }
+  }
 
   else if (pattern == "audio_comet") {
     // Existing comet with speed modulated by RMS
@@ -695,6 +985,9 @@ void ledSaveToNVS() {
   prefs.putString("play_p", g_ledPlayPat);
   prefs.putString("chrg_c", g_ledCharge);
   prefs.putString("chrg_p", g_ledChargePat);
+  prefs.putBool("idle_fs", g_ledIdleFullSpectrum);
+  prefs.putBool("play_fs", g_ledPlayFullSpectrum);
+  prefs.putBool("chrg_fs", g_ledChargeFullSpectrum);
   prefs.putInt("bright", g_brightness);
   prefs.putInt("volume", g_volume);
   prefs.putString("grad_e", g_ledGradEnd);
@@ -717,6 +1010,9 @@ void ledLoadFromNVS() {
   g_ledPlayPat  = prefs.getString("play_p", g_ledPlayPat);
   g_ledCharge   = prefs.getString("chrg_c", g_ledCharge);
   g_ledChargePat= prefs.getString("chrg_p", g_ledChargePat);
+  g_ledIdleFullSpectrum = prefs.getBool("idle_fs", g_ledIdleFullSpectrum);
+  g_ledPlayFullSpectrum = prefs.getBool("play_fs", g_ledPlayFullSpectrum);
+  g_ledChargeFullSpectrum = prefs.getBool("chrg_fs", g_ledChargeFullSpectrum);
   g_brightness  = prefs.getInt("bright", g_brightness);
   g_volume      = prefs.getInt("volume", g_volume);
   g_ledGradEnd  = prefs.getString("grad_e", g_ledGradEnd);

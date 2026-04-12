@@ -187,14 +187,14 @@ export class UserAdminComponent {
     const x = d3.scaleTime().domain(d3.extent(data, (d: any) => new Date(d.date)) as [Date, Date]).range([0, width]);
     const y = d3.scaleLinear().domain([0, d3.max(data, (d: any) => d.amount) as number * 1.1]).range([height, 0]);
 
-    const area = d3.area<any>().x(d => x(new Date(d.date))).y0(height).y1(d => y(d.amount)).curve(d3.curveMonotoneX);
-    const line = d3.line<any>().x(d => x(new Date(d.date))).y(d => y(d.amount)).curve(d3.curveMonotoneX);
+    const area = d3.area<any>().x((d: any) => x(new Date(d.date))).y0(height).y1((d: any) => y(d.amount)).curve(d3.curveMonotoneX);
+    const line = d3.line<any>().x((d: any) => x(new Date(d.date))).y((d: any) => y(d.amount)).curve(d3.curveMonotoneX);
 
     svg.append("path").datum(data).attr("d", area).style("fill", "url(#area-gradient)");
     svg.append("path").datum(data).attr("d", line).style("fill", "none").style("stroke", "#14b8a6").style("stroke-width", 2);
 
     svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x).ticks(5).tickSize(0).tickPadding(10)).select(".domain").remove();
-    svg.append("g").call(d3.axisLeft(y).ticks(5).tickSize(0).tickPadding(10).tickFormat(d => `$${(d as number)/1000}k`)).select(".domain").remove();
+    svg.append("g").call(d3.axisLeft(y).ticks(5).tickSize(0).tickPadding(10).tickFormat((d: any) => `$${(d as number)/1000}k`)).select(".domain").remove();
     svg.selectAll("g.y-axis g.tick").append("line").attr("x1", 0).attr("x2", width).style("stroke", "#1e293b").style("stroke-dasharray", "4").style("stroke-opacity", 0.5);
   }
 
@@ -217,17 +217,17 @@ export class UserAdminComponent {
       .padding(0.4);
 
     const x = d3.scaleLinear()
-      .domain([0, d3.max(data, d => d.revenue) as number])
+      .domain([0, d3.max(data, (d: any) => d.revenue) as number])
       .range([0, innerWidth]);
 
     svg.selectAll('.bar')
       .data(data)
       .enter().append('rect')
       .attr('class', 'bar')
-      .attr('y', d => y(d.regionName)!)
+      .attr('y', (d: any) => y(d.regionName)!)
       .attr('height', y.bandwidth())
       .attr('x', 0)
-      .attr('width', d => x(d.revenue))
+      .attr('width', (d: any) => x(d.revenue))
       .attr('fill', '#14b8a6') // teal-500
       .attr('rx', 2);
 
@@ -244,9 +244,9 @@ export class UserAdminComponent {
     svg.selectAll('.label')
       .data(data)
       .enter().append('text')
-      .attr('y', d => y(d.regionName)! + y.bandwidth() / 2 + 4)
-      .attr('x', d => x(d.revenue) + 8)
-      .text(d => '$' + d3.format(",.0f")(d.revenue))
+      .attr('y', (d: any) => y(d.regionName)! + y.bandwidth() / 2 + 4)
+      .attr('x', (d: any) => x(d.revenue) + 8)
+      .text((d: any) => '$' + d3.format(",.0f")(d.revenue))
       .attr('fill', '#f8fafc') // slate-50
       .attr('font-size', '11px');
   }

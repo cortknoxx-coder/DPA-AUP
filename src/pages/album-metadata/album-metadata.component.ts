@@ -332,8 +332,17 @@ export class AlbumMetadataComponent {
     this.saveStatus.set('saving');
     this.saveMessage.set('Saving metadata...');
 
-    // Save locally
-    this.dataService.updateAlbumMetadata(a.albumId, this.form.value);
+    // Save locally with nulls normalized out of the reactive-form payload.
+    this.dataService.updateAlbumMetadata(a.albumId, {
+      title: this.form.value.title ?? undefined,
+      artistName: this.form.value.artistName ?? undefined,
+      recordLabel: this.form.value.recordLabel ?? undefined,
+      genre: this.form.value.genre ?? undefined,
+      releaseDate: this.form.value.releaseDate ?? undefined,
+      copyright: this.form.value.copyright ?? undefined,
+      upcCode: this.form.value.upcCode ?? undefined,
+      parentalAdvisory: this.form.value.parentalAdvisory ?? undefined,
+    });
 
     // Push artist + album to device if connected (sets SSID + NVS)
     if (this.connectionService.connectionStatus() === 'wifi') {
@@ -855,9 +864,13 @@ export class AlbumBookletComponent {
       const videos: BookletVideo[] = (val.bookletVideos as any[]).map(v => ({ id: v.id, title: v.title, url: v.url, poster: v.poster || 'https://picsum.photos/seed/poster/800/450' }));
       const gallery: string[] = (val.bookletGallery as string[]);
       const metadata = {
-        description: val.description,
-        lyrics: val.lyrics,
-        booklet: { credits: val.bookletCredits, gallery: gallery, videos: videos }
+        description: val.description ?? undefined,
+        lyrics: val.lyrics ?? undefined,
+        booklet: {
+          credits: val.bookletCredits ?? undefined,
+          gallery,
+          videos,
+        }
       };
       this.dataService.updateAlbumMetadata(a.albumId, metadata);
       const finish = (message: string) => {

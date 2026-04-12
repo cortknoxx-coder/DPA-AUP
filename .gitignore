@@ -28,3 +28,4 @@ DPA-AUP.zip
 *.njsproj
 *.sln
 *.sw?
+.vercel

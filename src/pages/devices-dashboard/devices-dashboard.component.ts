@@ -110,8 +110,8 @@ export class DevicesDashboardComponent {
 
     // Line
     const line = d3.line<any>()
-      .x(d => x(new Date(d.date)))
-      .y(d => y(d.priceUsd))
+      .x((d: any) => x(new Date(d.date)))
+      .y((d: any) => y(d.priceUsd))
       .curve(d3.curveMonotoneX);
 
     // Gradient
@@ -125,9 +125,9 @@ export class DevicesDashboardComponent {
 
     // Area
     const area = d3.area<any>()
-      .x(d => x(new Date(d.date)))
+      .x((d: any) => x(new Date(d.date)))
       .y0(height)
-      .y1(d => y(d.priceUsd))
+      .y1((d: any) => y(d.priceUsd))
       .curve(d3.curveMonotoneX);
 
     svg.append("path")
@@ -151,7 +151,7 @@ export class DevicesDashboardComponent {
       .select(".domain").remove();
 
     svg.append("g")
-      .call(d3.axisLeft(y).ticks(5).tickSize(0).tickPadding(10).tickFormat(d => `$${d}`))
+      .call(d3.axisLeft(y).ticks(5).tickSize(0).tickPadding(10).tickFormat((d: any) => `$${d}`))
       .attr("color", "#64748b")
       .select(".domain").remove();
       

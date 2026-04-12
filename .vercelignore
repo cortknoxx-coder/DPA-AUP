@@ -1,0 +1,8 @@
+# Static Angular deploy — omit paths Vercel does not need (smaller CLI uploads).
+firmware
+backups
+test-results
+.internal-ingest-data-ota-smoke
+internal-ingest-api
+.pio
+.angular

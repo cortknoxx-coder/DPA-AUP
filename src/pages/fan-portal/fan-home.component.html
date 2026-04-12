@@ -68,7 +68,7 @@
              @for (album of lib.albums; track album.id) {
                 <a [routerLink]="['/fan/app/album', album.id]" class="group">
                   <div class="aspect-square rounded-md bg-slate-800 mb-3 overflow-hidden relative shadow-lg group-hover:shadow-indigo-500/20 transition-all">
-                    <img [src]="album.artworkUrl || defaultCover" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                    <img [src]="album.artworkUrl || defaultCover" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" (error)="handleAlbumArtworkError($event, album.artworkUrl)">
                     <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <div class="h-12 w-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-xl transform scale-0 group-hover:scale-100 transition-transform duration-300 delay-75">
                           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>

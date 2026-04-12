@@ -18,6 +18,11 @@ import {
   normalizeDeviceBookletPayload,
   normalizeDeviceCapsuleRecord,
 } from './device-content.utils';
+import {
+  isHostedHttps,
+  readDeviceTunnelOverride,
+  readDeviceUploadTunnelOverride,
+} from '../dpa-device-http';
 
 const DEFAULT_DEVICE_IP = '192.168.4.1';
 const DEVICE_IP_KEY = 'dpa_device_ip';
@@ -39,7 +44,7 @@ export interface WifiNetwork {
 
 export interface WifiStatus {
   ap: { ssid: string; ip: string; clients: number };
-  sta: { connected: boolean; ssid: string; ip: string; rssi: number };
+  sta: { connected: boolean; ssid: string; ip: string; rssi: number; joinPending?: boolean };
 }
 
 export type LedPreviewMode = 'idle' | 'playback' | 'charging';
@@ -66,21 +71,39 @@ export class DeviceWifiService {
   deviceIp = signal(DEFAULT_DEVICE_IP);
   staConnected = signal(false);
   staIp = signal('');
+  contentRevision = signal(0);
+  private artRevision = signal(0);
 
   constructor() {
-    // Restore last known device IP from localStorage
     const savedIp = localStorage.getItem(DEVICE_IP_KEY);
     if (savedIp) {
       this.deviceIp.set(savedIp);
-      if (!IS_DEV_PROXY) this.baseUrl = `http://${savedIp}`;
     }
+    this.baseUrl = this.computeDeviceHttpRoot(savedIp || undefined);
+  }
+
+  private computeDeviceHttpRoot(ipOverride?: string): string {
+    if (IS_DEV_PROXY) return DEV_API_BASE;
+    if (isHostedHttps()) return '/dpa-api';
+    const tunnel = readDeviceTunnelOverride();
+    if (tunnel) return tunnel.replace(/\/$/, '');
+    const ip = ipOverride ?? this.deviceIp();
+    return `http://${ip}`;
+  }
+
+  private sanitizeDevicePath(path: string): string {
+    let out = path.startsWith('/') ? path : `/${path}`;
+    out = out.replace(/ /g, '_');
+    out = out.replace(/[()']/g, '');
+    out = out.replace(/[&#]/g, '_');
+    return out;
   }
 
   async probe(ip?: string): Promise<boolean> {
     if (ip) {
       this.deviceIp.set(ip);
-      if (!IS_DEV_PROXY) this.baseUrl = `http://${ip}`;
       localStorage.setItem(DEVICE_IP_KEY, ip);
+      this.baseUrl = this.computeDeviceHttpRoot(ip);
     }
 
     const status = await this.fetchStatusJson(3500, { forceRefresh: true, maxAgeMs: 0 });
@@ -166,14 +189,34 @@ export class DeviceWifiService {
 
   /** Public URL for device-hosted artwork (cache-busted). */
   coverArtUrl(path: string = '/art/cover.jpg'): string {
-    return `${this.baseUrl}/api/art?path=${encodeURIComponent(path)}&t=${Date.now()}`;
+    return `${this.baseUrl}/api/art?path=${encodeURIComponent(path)}&rev=${this.assetCacheKey(path)}`;
+  }
+
+  coverArtCandidateUrls(paths: string[] = ['/art/cover.jpg', '/art/cover.png']): string[] {
+    return paths.map((path) => this.coverArtUrl(path));
+  }
+
+  async resolveAvailableCoverArtPath(paths: string[] = ['/art/cover.jpg', '/art/cover.png']): Promise<string | null> {
+    for (const path of paths) {
+      if (await this.verifyCoverArt(path)) return path;
+    }
+    return null;
   }
 
   /** Per-track artwork URL from device SD: /art/{stem}.jpg */
   trackArtUrl(trackFilename: string): string {
     const base = trackFilename.split('/').pop() || trackFilename;
     const stem = base.replace(/\.(wav|dpa|WAV|DPA)$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'track';
-    return `${this.baseUrl}/api/art?path=${encodeURIComponent(`/art/${stem}.jpg`)}`;
+    const path = `/art/${stem}.jpg`;
+    return `${this.baseUrl}/api/art?path=${encodeURIComponent(path)}&rev=${this.assetCacheKey(path)}`;
+  }
+
+  trackArtCandidateUrls(trackFilename: string): string[] {
+    const base = trackFilename.split('/').pop() || trackFilename;
+    const stem = base.replace(/\.(wav|dpa|WAV|DPA)$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'track';
+    return ['jpg', 'png', 'webp'].map((ext) =>
+      `${this.baseUrl}/api/art?path=${encodeURIComponent(`/art/${stem}.${ext}`)}&rev=${this.assetCacheKey(`/art/${stem}.${ext}`)}`
+    );
   }
 
   async getFanData(): Promise<any> {
@@ -264,7 +307,11 @@ export class DeviceWifiService {
       if ((theme as any).artist) payload.artist = (theme as any).artist;
       if ((theme as any).album)  payload.album  = (theme as any).album;
 
-      return await this.postWithTimeout(`${this.baseUrl}/api/theme`, payload, 8000);
+      const ok = await this.postWithTimeout(`${this.baseUrl}/api/theme`, payload, 8000);
+      if (ok) {
+        this.invalidateAfterMutation('/api/theme', { content: false, artwork: false });
+      }
+      return ok;
     } catch {
       return false;
     }
@@ -293,7 +340,11 @@ export class DeviceWifiService {
       if (!response.ok) return { ok: false, reason: 'http' };
       const result = await response.json().catch(() => null);
       if (!result) return { ok: false, reason: 'firmware' };
-      return result.ok === true ? { ok: true } : { ok: false, reason: 'firmware' };
+      if (result.ok === true) {
+        this.invalidateAfterMutation('/api/theme', { content: true, artwork: false });
+        return { ok: true };
+      }
+      return { ok: false, reason: 'firmware' };
     } catch (e: any) {
       clearTimeout(timer);
       if (e?.name === 'AbortError') return { ok: false, reason: 'timeout' };
@@ -361,7 +412,11 @@ export class DeviceWifiService {
         body: JSON.stringify(flat),
       });
       const result = await response.json();
-      return result.ok === true;
+      if (result.ok === true) {
+        this.invalidateAfterMutation(`/capsules/${capsuleId}`, { content: true, artwork: false });
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
@@ -377,7 +432,10 @@ export class DeviceWifiService {
 
   async getStorageInfo(): Promise<StorageStatus | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/storage`);
+      const response = await fetch(`${this.baseUrl}/api/storage`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      });
       return (await response.json()) as StorageStatus;
     } catch { return null; }
   }
@@ -385,7 +443,10 @@ export class DeviceWifiService {
   async getDeviceTracks(): Promise<DeviceTrack[]> {
     try {
       // Prefer neutral track endpoint for DPA/WAV mixed libraries.
-      const response = await fetch(`${this.baseUrl}/api/audio/tracks`);
+      const response = await fetch(`${this.baseUrl}/api/audio/tracks`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      });
       if (response.ok) {
         const data = await response.json();
         const tracks = data.tracks ?? [];
@@ -394,7 +455,10 @@ export class DeviceWifiService {
     } catch { return []; }
     try {
       // Legacy firmware fallback: WAV-only endpoint.
-      const response = await fetch(`${this.baseUrl}/api/audio/wavs`);
+      const response = await fetch(`${this.baseUrl}/api/audio/wavs`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      });
       const data = await response.json();
       const wavs = data.wavs ?? [];
       return wavs.map((w: any, i: number) => this.mapTrackResponse({ ...w, format: 'wav', codec: 'wav' }, i));
@@ -429,7 +493,10 @@ export class DeviceWifiService {
 
   async getCapsules(): Promise<DeviceCapsuleRecord[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/capsules`);
+      const response = await fetch(`${this.baseUrl}/api/capsules`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      });
       const data = await response.json();
       return (data.capsules ?? []).map((capsule: any) => normalizeDeviceCapsuleRecord(capsule));
     } catch {
@@ -449,7 +516,10 @@ export class DeviceWifiService {
     }[]
   > {
     try {
-      const response = await fetch(`${this.baseUrl}/api/analytics`);
+      const response = await fetch(`${this.baseUrl}/api/analytics`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      });
       const data = await response.json();
       return data.tracks ?? [];
     } catch {
@@ -459,7 +529,10 @@ export class DeviceWifiService {
 
   async getFavorites(): Promise<string[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/favorites`);
+      const response = await fetch(`${this.baseUrl}/api/favorites`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      });
       const data = await response.json();
       return data.favorites ?? [];
     } catch {
@@ -473,7 +546,11 @@ export class DeviceWifiService {
         `${this.baseUrl}/api/favorites/set?file=${encodeURIComponent(path)}&state=${state ? 'true' : 'false'}`
       );
       const data = await response.json();
-      return data.ok === true;
+      if (data.ok === true) {
+        this.clearTransientCaches({ content: false, artwork: false });
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
@@ -488,7 +565,11 @@ export class DeviceWifiService {
         method: 'DELETE',
       });
       const result = await response.json();
-      return result.ok === true;
+      if (result.ok === true) {
+        this.invalidateAfterMutation(path, { content: true, artwork: path.startsWith('/art/') });
+        return true;
+      }
+      return false;
     } catch { return false; }
   }
 
@@ -505,20 +586,27 @@ export class DeviceWifiService {
       if (!writable) {
         return false;
       }
+      const devicePath = this.sanitizeDevicePath(path);
+      const deviceFilename = devicePath.split('/').pop() || file.name;
       const maxAttempts = file.size > 8 * 1024 * 1024 ? 3 : 2;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const transferred = await this.runUploadAttempt(file, path, onProgress);
+        const transferred = await this.runUploadAttempt(file, devicePath, onProgress);
         if (transferred) {
           await this.waitForUploadStateToSettle();
-          const verified = await this.verifyUploadPath(path, file.name);
+          const verified = await this.verifyUploadPath(devicePath, deviceFilename);
           if (verified) {
+            this.invalidateAfterMutation(devicePath, {
+              bytes: file.size,
+              content: true,
+              artwork: devicePath.startsWith('/art/'),
+            });
             onProgress?.(100);
             return true;
           }
-          console.warn(`[Upload] Verification failed for ${path} on attempt ${attempt}`);
+          console.warn(`[Upload] Verification failed for ${devicePath} on attempt ${attempt}`);
         } else {
-          console.warn(`[Upload] Transfer failed for ${path} on attempt ${attempt}`);
+          console.warn(`[Upload] Transfer failed for ${devicePath} on attempt ${attempt}`);
         }
 
         if (attempt < maxAttempts) {
@@ -613,9 +701,26 @@ export class DeviceWifiService {
       await this.ensureAdminUnlocked();
       const url = `${this.baseUrl}/api/wifi/connect?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(password)}`;
       const response = await fetch(url, {
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(8000),
       });
       const data = await response.json();
+      if (data.pending) {
+        const deadline = Date.now() + 25000;
+        while (Date.now() < deadline) {
+          await new Promise<void>((r) => setTimeout(r, 500));
+          const st = await this.getWifiStatus();
+          if (!st?.sta) continue;
+          if (st.sta.joinPending) continue;
+          if (st.sta.connected && st.sta.ip) {
+            this.staConnected.set(true);
+            this.staIp.set(st.sta.ip);
+            localStorage.setItem(DEVICE_IP_KEY, st.sta.ip);
+            return { ok: true, ip: st.sta.ip };
+          }
+          return { ok: false, ip: '' };
+        }
+        return { ok: false, ip: '' };
+      }
       if (data.ok && data.ip) {
         this.staConnected.set(true);
         this.staIp.set(data.ip);
@@ -639,6 +744,56 @@ export class DeviceWifiService {
     } catch { return false; }
   }
 
+  async configurePrivateIngest(baseUrl: string, deviceToken: string): Promise<boolean> {
+    try {
+      await this.ensureAdminUnlocked();
+      const url = `${this.baseUrl}/api/ingest/config?base=${encodeURIComponent(baseUrl)}&token=${encodeURIComponent(deviceToken)}`;
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(8000),
+      });
+      const payload = await response.json();
+      return payload.ok === true;
+    } catch {
+      return false;
+    }
+  }
+
+  async clearPrivateIngestConfiguration(): Promise<boolean> {
+    try {
+      await this.ensureAdminUnlocked();
+      const response = await fetch(`${this.baseUrl}/api/ingest/clear`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      const payload = await response.json();
+      return payload.ok === true;
+    } catch {
+      return false;
+    }
+  }
+
+  async pushFileToPrivateIngest(
+    path: string,
+    albumId: string,
+    kind = 'support'
+  ): Promise<{ ok: boolean; state?: string; lastError?: string; lastSessionId?: string }> {
+    try {
+      await this.ensureAdminUnlocked();
+      const url = `${this.baseUrl}/api/ingest/push?path=${encodeURIComponent(path)}&albumId=${encodeURIComponent(albumId)}&kind=${encodeURIComponent(kind)}`;
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(120000),
+      });
+      const payload = await response.json();
+      return {
+        ok: payload.ok === true,
+        state: payload.state,
+        lastError: payload.lastError,
+        lastSessionId: payload.lastSessionId,
+      };
+    } catch {
+      return { ok: false, lastError: 'request_failed' };
+    }
+  }
+
   disconnect(): void {
     this.isConnected.set(false);
     this.lastStatus.set(null);
@@ -649,6 +804,18 @@ export class DeviceWifiService {
     this.statusRequest = null;
     this.preferredStatusPlane = 'main';
     this.uploadStatusFallbackUntil = 0;
+  }
+
+  clearTransientCaches(options?: { content?: boolean; artwork?: boolean }) {
+    this.lastStatusAt = 0;
+    this.statusRequest = null;
+    this.uploadStatusFallbackUntil = 0;
+    if (options?.content) {
+      this.contentRevision.update((value) => value + 1);
+    }
+    if (options?.artwork || options?.content) {
+      this.artRevision.update((value) => value + 1);
+    }
   }
 
   private syncStatusSignals(status: FirmwareStatus) {
@@ -666,15 +833,72 @@ export class DeviceWifiService {
     }
   }
 
+  private assetCacheKey(path: string): string {
+    const revision = this.artRevision();
+    const status = this.lastStatus();
+    const coverBytes = status?.coverBytes ?? 0;
+    const lastUploadPath = status?.lastUploadPath ?? '';
+    const lastUploadBytes = status?.lastUploadBytes ?? 0;
+    const uploadToken = lastUploadPath === path ? lastUploadBytes : 0;
+    return `${revision}-${coverBytes}-${uploadToken}`;
+  }
+
+  private noteOptimisticMutation(path: string, bytes?: number) {
+    const current = this.lastStatus();
+    if (!current) return;
+    this.lastStatus.set({
+      ...current,
+      lastUploadPath: path,
+      lastUploadBytes: typeof bytes === 'number' ? bytes : current.lastUploadBytes,
+    });
+  }
+
+  private invalidateAfterMutation(
+    path: string,
+    options?: { bytes?: number; content?: boolean; artwork?: boolean; refreshStatus?: boolean }
+  ) {
+    this.noteOptimisticMutation(path, options?.bytes);
+    this.clearTransientCaches({
+      content: options?.content ?? true,
+      artwork: options?.artwork ?? path.startsWith('/art/'),
+    });
+    if (options?.refreshStatus === false) return;
+    void this.fetchStatusJson(4000, { forceRefresh: true, maxAgeMs: 0 }).catch(() => null);
+  }
+
   private uploadBaseUrl(): string {
     if (IS_DEV_PROXY) return DEV_UPLOAD_BASE;
+    const uploadTunnel = readDeviceUploadTunnelOverride();
+    // Hosted HTTPS can use a direct HTTPS upload tunnel to bypass
+    // Vercel request-body limits for large device transfers.
+    if (uploadTunnel) return uploadTunnel.replace(/\/$/, '');
+    if (isHostedHttps()) return '/dpa-upload';
+    const mainTunnel = readDeviceTunnelOverride();
+    if (mainTunnel && isHostedHttps()) {
+      try {
+        const u = new URL(mainTunnel);
+        u.port = '81';
+        return u.origin;
+      } catch {
+        /* fall through */
+      }
+    }
     const host = this.baseUrl.replace(/^https?:\/\//, '').replace(/[:/].*$/, '');
     return `http://${host}:81`;
   }
 
+  private isCrossOriginRequest(url: string): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+      return new URL(url, window.location.href).origin !== window.location.origin;
+    } catch {
+      return false;
+    }
+  }
+
   private async fetchStatusJson(
     timeoutMs: number,
-    options?: { forceRefresh?: boolean; maxAgeMs?: number }
+    options?: { forceRefresh?: boolean; maxAgeMs?: number; preferUploadPlane?: boolean }
   ): Promise<FirmwareStatus | null> {
     const maxAgeMs = options?.maxAgeMs ?? 0;
     const cached = this.lastStatus();
@@ -685,7 +909,7 @@ export class DeviceWifiService {
       return this.statusRequest;
     }
 
-    const request = this.fetchStatusJsonUncached(timeoutMs).finally(() => {
+    const request = this.fetchStatusJsonUncached(timeoutMs, options?.preferUploadPlane).finally(() => {
       if (this.statusRequest === request) {
         this.statusRequest = null;
       }
@@ -694,17 +918,20 @@ export class DeviceWifiService {
     return request;
   }
 
-  private async fetchStatusJsonUncached(timeoutMs: number): Promise<FirmwareStatus | null> {
-    for (const { plane, url } of this.statusUrlsInPriorityOrder()) {
+  private async fetchStatusJsonUncached(timeoutMs: number, preferUploadPlane = false): Promise<FirmwareStatus | null> {
+    for (const { plane, url } of this.statusUrlsInPriorityOrder(preferUploadPlane)) {
       try {
-        const response = await fetch(url, {
+        const init: RequestInit = {
           signal: AbortSignal.timeout(timeoutMs),
           cache: 'no-store',
-          headers: {
+        };
+        if (!this.isCrossOriginRequest(url)) {
+          init.headers = {
             'Cache-Control': 'no-cache',
             Pragma: 'no-cache',
-          },
-        });
+          };
+        }
+        const response = await fetch(url, init);
         if (!response.ok) continue;
         const status = (await response.json()) as FirmwareStatus;
         this.preferredStatusPlane = plane;
@@ -722,8 +949,9 @@ export class DeviceWifiService {
     return null;
   }
 
-  private statusUrlsInPriorityOrder(): Array<{ plane: 'main' | 'upload'; url: string }> {
+  private statusUrlsInPriorityOrder(preferUploadPlane = false): Array<{ plane: 'main' | 'upload'; url: string }> {
     const uploadPreferred =
+      preferUploadPlane ||
       this.preferredStatusPlane === 'upload' ||
       Date.now() < this.uploadStatusFallbackUntil ||
       this.shouldPreferUploadStatus(this.lastStatus());
@@ -756,14 +984,45 @@ export class DeviceWifiService {
   }
 
   private async runUploadAttempt(file: File, path: string, onProgress?: (percent: number) => void): Promise<boolean> {
+    const uploadUrl = `${this.uploadBaseUrl()}/api/sd/upload?path=${encodeURIComponent(path)}`;
+    if (this.isCrossOriginRequest(uploadUrl)) {
+      let stopProgressMonitor: (() => void) | null = null;
+      try {
+        // Cross-origin upload responses can be blocked by the browser even when
+        // the device accepted the payload. Send the transfer as no-cors and
+        // rely on the existing post-upload verification path to confirm success.
+        this.preferredStatusPlane = 'upload';
+        this.uploadStatusFallbackUntil = Date.now() + STATUS_UPLOAD_FALLBACK_MS;
+        const formData = new FormData();
+        formData.append('file', file, file.name);
+        stopProgressMonitor = onProgress
+          ? this.startCrossOriginUploadProgressMonitor(path, file.size, onProgress)
+          : null;
+        await fetch(uploadUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          cache: 'no-store',
+          body: formData,
+        });
+        return true;
+      } catch (error) {
+        console.error('[Upload] no-cors upload failed', error);
+        return false;
+      } finally {
+        stopProgressMonitor?.();
+      }
+    }
+
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable && onProgress) {
-          onProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      });
-      xhr.addEventListener('load', () => resolve(xhr.status === 200));
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            onProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        });
+      }
+      xhr.addEventListener('load', () => resolve(xhr.status >= 200 && xhr.status < 300));
       xhr.addEventListener('error', () => {
         console.error('[Upload] XHR error event');
         resolve(false);
@@ -776,7 +1035,7 @@ export class DeviceWifiService {
 
       const formData = new FormData();
       formData.append('file', file, file.name);
-      xhr.open('POST', `${this.uploadBaseUrl()}/api/sd/upload?path=${encodeURIComponent(path)}`);
+      xhr.open('POST', uploadUrl);
       xhr.send(formData);
     });
   }
@@ -784,7 +1043,7 @@ export class DeviceWifiService {
   private async waitForUploadStateToSettle(maxWaitMs = 12000): Promise<void> {
     const deadline = Date.now() + maxWaitMs;
     while (Date.now() < deadline) {
-      const status = await this.fetchStatusJson(3000);
+      const status = await this.fetchStatusJson(3000, { forceRefresh: true, maxAgeMs: 0, preferUploadPlane: true });
       if (!status) {
         await this.sleep(300);
         continue;
@@ -796,6 +1055,52 @@ export class DeviceWifiService {
       }
       await this.sleep(400);
     }
+  }
+
+  private startCrossOriginUploadProgressMonitor(
+    path: string,
+    totalBytes: number,
+    onProgress: (percent: number) => void
+  ): () => void {
+    let stopped = false;
+    let lastPercent = 1;
+    onProgress(lastPercent);
+
+    void (async () => {
+      while (!stopped) {
+        try {
+          const status = await this.fetchStatusJson(2500, { forceRefresh: true, maxAgeMs: 0, preferUploadPlane: true });
+          const percent = this.estimateCrossOriginUploadProgress(path, totalBytes, status);
+          if (percent > lastPercent) {
+            lastPercent = percent;
+            onProgress(percent);
+          }
+        } catch {
+          // Best-effort progress only.
+        }
+        if (!stopped) {
+          await this.sleep(900);
+        }
+      }
+    })();
+
+    return () => {
+      stopped = true;
+    };
+  }
+
+  private estimateCrossOriginUploadProgress(path: string, totalBytes: number, status: FirmwareStatus | null): number {
+    const uploadState = status?.uploadState ?? 'idle';
+    const lastUploadPath = status?.lastUploadPath ?? '';
+    const lastUploadBytes = Number(status?.lastUploadBytes ?? 0);
+    if (lastUploadPath === path && totalBytes > 0 && lastUploadBytes > 0) {
+      return Math.max(1, Math.min(95, Math.round((lastUploadBytes / totalBytes) * 100)));
+    }
+    if (uploadState === 'preparing') return 3;
+    if (uploadState === 'receiving') return 10;
+    if (uploadState === 'verifying') return 95;
+    if (uploadState === 'finalizing') return 97;
+    return 1;
   }
 
   private async waitForWritableWindow(maxWaitMs = 10000): Promise<boolean> {
@@ -837,11 +1142,17 @@ export class DeviceWifiService {
     }
 
     if (lower.startsWith('/tracks/')) {
-      const tracks = await this.getDeviceTracks();
-      return tracks.some((track) => {
-        const trackName = track.filename.split('/').pop() || track.filename;
-        return track.filename === normalizedPath || trackName === filename;
-      });
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const tracks = await this.getDeviceTracks();
+        const trackIndexed = tracks.some((track) => {
+          const trackName = track.filename.split('/').pop() || track.filename;
+          return track.filename === normalizedPath || trackName === filename;
+        });
+        if (trackIndexed) return true;
+        if (await this.fileExistsOnDevice(normalizedPath)) return true;
+        await this.sleep(700 * (attempt + 1));
+      }
+      return false;
     }
 
     return this.fileExistsOnDevice(normalizedPath);
@@ -896,6 +1207,8 @@ export class DeviceWifiService {
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
         signal: AbortSignal.timeout(4000),
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
       });
       if (!response.ok) return null;
       return normalize(await response.json());

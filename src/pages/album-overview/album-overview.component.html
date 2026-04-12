@@ -29,16 +29,32 @@
       </div>
       <p class="mt-2 text-xs text-slate-500 leading-relaxed">
         @if (a.status === 'ready') {
-          Encryption keys generated. License template active. Ready for manufacturing.
+          Release state was last pushed and verified against a connected DPA.
         } @else if (a.status === 'needs-rebuild') {
-          <span class="text-amber-400">Metadata changed.</span> Rebuild required to update DPAC.
+          <span class="text-amber-400">Creator-side edits changed.</span> Run a rebuild to push the latest release state to the DPA and verify it.
+        } @else if (a.status === 'error') {
+          The last rebuild or verification attempt did not fully land on the device.
         } @else {
-          Processing masters and generating crypto assets.
+          Compiling release state and syncing it to the connected DPA.
         }
       </p>
+      @if (a.lastBuildMessage) {
+        <p class="mt-3 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-300">
+          {{ a.lastBuildMessage }}
+        </p>
+      }
+      @if (a.lastVerifiedAt) {
+        <div class="mt-2 text-[11px] text-slate-500">
+          Last verified: {{ a.lastVerifiedAt | date:'medium' }}
+        </div>
+      }
       @if (a.status === 'needs-rebuild' || a.status === 'ready' || a.status === 'error') {
-        <button (click)="rebuild()" class="mt-4 w-full rounded border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium hover:bg-slate-700 transition-colors">
-          {{ a.status === 'building' ? 'Building...' : 'Force Rebuild DPAC' }}
+        <button
+          (click)="rebuild()"
+          [disabled]="rebuildState() === 'running'"
+          class="mt-4 w-full rounded border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 hover:bg-slate-700"
+        >
+          {{ rebuildState() === 'running' ? 'Rebuilding and Pushing...' : 'Rebuild and Push to DPA' }}
         </button>
       }
     </div>
@@ -79,6 +95,54 @@
       </div>
     </div>
 
+    <div class="md:col-span-2 lg:col-span-3">
+      <app-compiled-album-view
+        [album]="a"
+        [tracks]="compiledTracks()"
+        [totalDuration]="compiledTrackTotalDuration()"
+        [coverUrl]="a.artworkUrl || ''"
+        sourceLabel="Creator Portal Compiled Preview"
+        [policyHash]="a.status === 'ready' ? 'sha256:demo-policy-hash' : ''"
+        [buildVersion]="a.dpacVersion">
+      </app-compiled-album-view>
+    </div>
+
+    @if (ingestSummary(); as ingest) {
+      <div class="md:col-span-2 lg:col-span-3 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Private Ingest Status</div>
+            <p class="mt-2 text-sm text-slate-300">
+              Safe operator-side upload summary only. Raw files remain hidden from the creator portal.
+            </p>
+          </div>
+          <div class="rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-xs text-slate-400">
+            {{ ingest.totalFiles }} file(s)
+          </div>
+        </div>
+        <div class="mt-4 grid gap-3 md:grid-cols-4">
+          <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3">
+            <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Verified</div>
+            <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.verifiedFiles }}</div>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3">
+            <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Staged</div>
+            <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.stagedFiles }}</div>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3">
+            <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Active Sessions</div>
+            <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.activeSessions }}</div>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3">
+            <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Last Upload</div>
+            <div class="mt-2 text-sm font-semibold text-slate-100">
+              {{ ingest.lastUploadedAt ? (ingest.lastUploadedAt | date:'medium') : 'None yet' }}
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
     <!-- Device Info (when connected) -->
     @if (deviceStatus(); as ds) {
       <div class="md:col-span-2 lg:col-span-3 rounded-xl border border-teal-500/20 bg-teal-900/5 p-5">
@@ -104,6 +168,52 @@
             <div class="text-sm text-slate-200">{{ deviceTrackCount() }}</div>
           </div>
         </div>
+      </div>
+    }
+
+    @if (rebuildSummary() || rebuildSteps().length > 0) {
+      <div class="md:col-span-2 lg:col-span-3 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Release Push Report</div>
+            <p class="mt-2 text-sm text-slate-200">{{ rebuildSummary() }}</p>
+          </div>
+          <span
+            class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
+            [class.bg-emerald-500/10]="rebuildState() === 'success'"
+            [class.text-emerald-300]="rebuildState() === 'success'"
+            [class.bg-amber-500/10]="rebuildState() === 'running'"
+            [class.text-amber-300]="rebuildState() === 'running'"
+            [class.bg-rose-500/10]="rebuildState() === 'error'"
+            [class.text-rose-300]="rebuildState() === 'error'"
+          >
+            {{ rebuildState() === 'success' ? 'Verified' : rebuildState() === 'running' ? 'Running' : 'Needs Attention' }}
+          </span>
+        </div>
+
+        @if (rebuildSteps().length > 0) {
+          <div class="mt-4 space-y-2">
+            @for (step of rebuildSteps(); track step.label) {
+              <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-sm font-medium text-slate-100">{{ step.label }}</div>
+                  <span
+                    class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                    [class.bg-emerald-500/10]="step.status === 'success'"
+                    [class.text-emerald-300]="step.status === 'success'"
+                    [class.bg-amber-500/10]="step.status === 'warning' || step.status === 'skipped'"
+                    [class.text-amber-300]="step.status === 'warning' || step.status === 'skipped'"
+                    [class.bg-rose-500/10]="step.status === 'error'"
+                    [class.text-rose-300]="step.status === 'error'"
+                  >
+                    {{ step.status }}
+                  </span>
+                </div>
+                <p class="mt-2 text-xs leading-relaxed text-slate-400">{{ step.detail }}</p>
+              </div>
+            }
+          </div>
+        }
       </div>
     }
 

@@ -16,7 +16,13 @@ export class DeviceBridgeService {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return true;
     
     try {
-      this.ws = new WebSocket(DPA_CONFIG.bridgeWsUrl);
+      const bridgeUrl = DPA_CONFIG.bridgeWsUrl;
+      if (!bridgeUrl) {
+        this.lastError.set('Desktop bridge is disabled on hosted HTTPS until a secure WSS bridge URL is configured.');
+        this.isConnected.set(false);
+        return false;
+      }
+      this.ws = new WebSocket(bridgeUrl);
       
       await new Promise<void>((resolve, reject) => {
         const ws = this.ws!;
