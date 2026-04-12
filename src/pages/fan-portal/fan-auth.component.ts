@@ -80,7 +80,7 @@ export class FanAuthComponent {
     try {
       const success = await this.deviceService.connectViaWifi();
       if (!success) {
-        this.wifiError.set('Could not reach device. Make sure you are connected to the DPA WiFi network.');
+        this.wifiError.set('Could not reach the DPA. Join the DPA SSID or keep the phone and device on the same home WiFi, then retry in Chrome.');
       }
     } finally {
       this.connectingVia.set(null);

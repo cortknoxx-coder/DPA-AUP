@@ -12,6 +12,13 @@ import { normalizeDeviceAlbumMetaPayload, normalizeDeviceBookletPayload } from '
 export type ConnectionStatus = 'disconnected' | 'usb' | 'bluetooth' | 'wifi';
 export type RegistrationStatus = 'unregistered' | 'analyzing' | 'registered' | 'lost';
 export type ConnectionAction = ConnectionStatus | 'nfc' | 'detect';
+export type DeviceAccessMode =
+  | 'remote_locked'
+  | 'dpa_ssid'
+  | 'same_wifi'
+  | 'usb_bridge'
+  | 'bluetooth'
+  | 'simulator';
 
 export interface ConnectionDiagnosticEvent {
   kind: 'connect_attempt' | 'connect_success' | 'connect_failure' | 'disconnect' | 'reconnect_success';
@@ -103,25 +110,78 @@ export class DeviceConnectionService {
       && runtime.sdState !== 'error'
       && runtime.uploadState === 'idle';
   });
+  private resolveDeviceAccessMode(): DeviceAccessMode {
+    if (this.isSimulationMode()) return 'simulator';
+    switch (this.connectionStatus()) {
+      case 'usb':
+        return 'usb_bridge';
+      case 'bluetooth':
+        return 'bluetooth';
+      case 'wifi': {
+        const status = this.wifi.lastStatus();
+        return status?.sta?.connected && !!status.sta.ip ? 'same_wifi' : 'dpa_ssid';
+      }
+      default:
+        return 'remote_locked';
+    }
+  }
 
   // --- Derived State for UI ---
   isSnippetMode = computed(() => this.registrationStatus() !== 'registered');
   registeredDeviceId = computed(() => this.deviceInfo()?.serial ?? null);
+  deviceAccessMode = computed<DeviceAccessMode>(() => this.resolveDeviceAccessMode());
   connectionTransportLabel = computed(() => {
     if (this.isSimulationMode()) return 'Simulator';
     if (this.connectionStatus() === 'wifi' && this.wifiRecoveryActive()) return 'WiFi Reconnecting';
-    switch (this.connectionStatus()) {
-      case 'wifi': return 'WiFi Direct';
-      case 'usb': return 'USB-C Bridge';
+    switch (this.resolveDeviceAccessMode()) {
+      case 'dpa_ssid': return 'DPA SSID';
+      case 'same_wifi': return 'Same WiFi LAN';
+      case 'usb_bridge': return 'USB-C Bridge';
       case 'bluetooth': return 'Bluetooth LE';
       default: return 'Disconnected';
+    }
+  });
+  deviceAccessHeadline = computed(() => {
+    switch (this.deviceAccessMode()) {
+      case 'dpa_ssid':
+        return 'Connected through the DPA SSID';
+      case 'same_wifi':
+        return 'Connected on the same WiFi network';
+      case 'usb_bridge':
+        return 'Connected through USB-C Bridge';
+      case 'bluetooth':
+        return 'Connected through Bluetooth';
+      case 'simulator':
+        return 'Simulator active';
+      default:
+        return 'Authenticate and connect to reveal the portal';
+    }
+  });
+  deviceAccessDetail = computed(() => {
+    const status = this.wifi.lastStatus();
+    switch (this.deviceAccessMode()) {
+      case 'dpa_ssid':
+        return `Join ${status?.apSsid || 'the DPA WiFi network'} and pull the fan or creator session directly from the device.`;
+      case 'same_wifi':
+        return `The DPA is on ${status?.sta?.ssid || 'your LAN'} with IP ${status?.sta?.ip || 'unknown'}. Chrome is recommended for shared-LAN discovery and control.`;
+      case 'usb_bridge':
+        return 'The desktop bridge is carrying the live device session, so creator and fan surfaces can stay in sync.';
+      case 'bluetooth':
+        return 'Bluetooth authenticated the device session. Use WiFi when you need the full live library and transfer surface.';
+      case 'simulator':
+        return 'Simulator mode bypasses the device gate for local testing only.';
+      default:
+        return 'The dashboard stays hidden until a live DPA answers over its SSID, the same WiFi network, USB-C bridge, or another confirmed transport.';
     }
   });
   connectionSummary = computed(() => {
     if (this.isSimulationMode()) return 'Simulator active';
     if (this.connectionStatus() === 'wifi') {
       const status = this.wifi.lastStatus();
-      const base = status?.duid || status?.album || this.deviceInfo()?.serial || 'DPA connected over WiFi';
+      const route = this.deviceAccessMode() === 'same_wifi'
+        ? `same WiFi${status?.sta?.ssid ? ` • ${status.sta.ssid}` : ''}`
+        : status?.apSsid || 'DPA SSID';
+      const base = `${status?.duid || status?.album || this.deviceInfo()?.serial || 'DPA connected'} • ${route}`;
       return this.wifiRecoveryActive() ? `${base} • reconnecting` : base;
     }
     if (this.connectionStatus() === 'usb') {

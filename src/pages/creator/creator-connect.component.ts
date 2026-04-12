@@ -26,6 +26,11 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
             The creator dashboard stays locked until WiFi, USB-C, NFC, or another confirmed device transport is active.
           </p>
         }
+        <div class="mt-4 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-left">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-teal-300">Portal Rule</div>
+          <div class="mt-2 text-sm font-semibold text-slate-100">{{ deviceService.deviceAccessHeadline() }}</div>
+          <p class="mt-1 text-xs leading-5 text-slate-400">{{ deviceService.deviceAccessDetail() }}</p>
+        </div>
       </div>
 
       <div class="w-full max-w-sm space-y-4 mt-12 z-10" [class.opacity-50]="autoProbing()" [class.pointer-events-none]="autoProbing()">
@@ -52,8 +57,8 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
             }
           </div>
           <div class="text-left flex-1">
-            <h3 class="font-semibold text-white">WiFi Direct</h3>
-            <p class="text-xs text-slate-400">Join the DPA SSID first, then confirm the creator portal can reach the device.</p>
+            <h3 class="font-semibold text-white">WiFi / Same LAN</h3>
+            <p class="text-xs text-slate-400">Use the DPA SSID or keep the DPA on the same home WiFi, then let the creator portal confirm the live device before revealing the dashboard.</p>
           </div>
         </button>
 
@@ -81,6 +86,27 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
           {{ deviceService.connectionError() }}
         </div>
       }
+
+      <div class="mt-8 grid w-full max-w-4xl gap-4 md:grid-cols-3 z-10">
+        <div class="rounded-xl border border-emerald-500/20 bg-emerald-900/10 p-4 text-left">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300">On DPA SSID</div>
+          <p class="mt-2 text-xs leading-5 text-slate-300">
+            Use the branded DPA WiFi network for first-time setup, transfer validation, and direct creator push flows.
+          </p>
+        </div>
+        <div class="rounded-xl border border-sky-500/20 bg-sky-900/10 p-4 text-left">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-300">On Same Home WiFi</div>
+          <p class="mt-2 text-xs leading-5 text-slate-300">
+            If the DPA has already joined the same LAN, the creator portal can reuse that live device path. Chrome is recommended for shared-LAN workflows.
+          </p>
+        </div>
+        <div class="rounded-xl border border-amber-500/20 bg-amber-900/10 p-4 text-left">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-300">Remote Only</div>
+          <p class="mt-2 text-xs leading-5 text-slate-300">
+            The creator dashboard stays hidden until a real DPA is reachable. Remote metadata alone does not unlock transfer and push operations.
+          </p>
+        </div>
+      </div>
     </div>
   `,
 })
