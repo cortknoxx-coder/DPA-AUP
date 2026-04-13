@@ -29,3 +29,5 @@ DPA-AUP.zip
 *.sln
 *.sw?
 .vercel
+test-results/
+*.wav
