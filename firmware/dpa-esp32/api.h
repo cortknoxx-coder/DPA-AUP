@@ -212,46 +212,67 @@ void capsulesSave() {
   Serial.printf("[CAPSULE] Saved %d capsules to SD\n", g_runtimeCapsuleCount);
 }
 
-// Load capsules from SD JSON
+// Stream-parse capsules from SD JSON one object at a time to avoid
+// loading the entire file into a single String (which spikes heap 5-15KB).
 void capsulesLoad() {
   if (!SD.exists(CAPSULES_PATH)) return;
   File f = SD.open(CAPSULES_PATH, FILE_READ);
   if (!f) return;
-  String raw = f.readString();
-  f.close();
   g_runtimeCapsuleCount = 0;
-  int pos = 0;
-  while (g_runtimeCapsuleCount < 24) {
-    int start = raw.indexOf("{", pos);
-    if (start < 0) break;
-    int end = raw.indexOf("}", start);
-    if (end < 0) break;
-    String obj = raw.substring(start, end + 1);
-    RuntimeCapsule c;
-    c.id = jsonVal(obj, "id");
-    c.type = jsonVal(obj, "type");
-    c.title = jsonVal(obj, "title");
-    c.desc = jsonVal(obj, "desc");
-    c.date = jsonVal(obj, "date");
-    c.delivered = jsonBool(obj, "delivered", false);
-    String versionStr = jsonScalarVal(obj, "version");
-    c.version = versionStr.length() > 0 ? (int)versionStr.toInt() : 1;
-    if (c.version < 1) c.version = 1;
-    c.seen = jsonBool(obj, "seen", false);
-    String priceStr = jsonScalarVal(obj, "price");
-    c.price = priceStr.length() > 0 ? priceStr.toFloat() : 0;
-    c.ctaLabel = jsonVal(obj, "ctaLabel");
-    c.ctaUrl = jsonVal(obj, "ctaUrl");
-    c.hasImage = jsonBool(obj, "hasImage", false);
-    c.localPath = jsonVal(obj, "localPath");
-    c.deliveryId = jsonVal(obj, "deliveryId");
-    c.source = jsonVal(obj, "source");
-    if (c.source.length() == 0) c.source = "wifi";
-    if (c.id.length() > 0) {
-      g_runtimeCapsules[g_runtimeCapsuleCount++] = c;
+
+  static String obj;
+  obj = "";
+  obj.reserve(512);
+  int depth = 0;
+  bool inString = false;
+  bool escaped = false;
+
+  while (f.available() && g_runtimeCapsuleCount < 24) {
+    char ch = (char)f.read();
+    if (escaped) { escaped = false; if (depth > 0) obj += ch; continue; }
+    if (ch == '\\' && inString) { escaped = true; if (depth > 0) obj += ch; continue; }
+    if (ch == '"') inString = !inString;
+    if (!inString) {
+      if (ch == '{') {
+        if (depth == 0) obj = "";
+        depth++;
+      }
+      if (depth > 0) obj += ch;
+      if (ch == '}') {
+        depth--;
+        if (depth == 0 && obj.length() > 2) {
+          RuntimeCapsule c;
+          c.id = jsonVal(obj, "id");
+          c.type = jsonVal(obj, "type");
+          c.title = jsonVal(obj, "title");
+          c.desc = jsonVal(obj, "desc");
+          c.date = jsonVal(obj, "date");
+          c.delivered = jsonBool(obj, "delivered", false);
+          String versionStr = jsonScalarVal(obj, "version");
+          c.version = versionStr.length() > 0 ? (int)versionStr.toInt() : 1;
+          if (c.version < 1) c.version = 1;
+          c.seen = jsonBool(obj, "seen", false);
+          String priceStr = jsonScalarVal(obj, "price");
+          c.price = priceStr.length() > 0 ? priceStr.toFloat() : 0;
+          c.ctaLabel = jsonVal(obj, "ctaLabel");
+          c.ctaUrl = jsonVal(obj, "ctaUrl");
+          c.hasImage = jsonBool(obj, "hasImage", false);
+          c.localPath = jsonVal(obj, "localPath");
+          c.deliveryId = jsonVal(obj, "deliveryId");
+          c.source = jsonVal(obj, "source");
+          if (c.source.length() == 0) c.source = "wifi";
+          if (c.id.length() > 0) {
+            g_runtimeCapsules[g_runtimeCapsuleCount++] = c;
+          }
+          obj = "";
+        }
+      }
+    } else {
+      if (depth > 0) obj += ch;
     }
-    pos = end + 1;
   }
+  f.close();
+  obj = "";
   Serial.printf("[CAPSULE] Loaded %d capsules from SD\n", g_runtimeCapsuleCount);
 }
 
@@ -684,9 +705,10 @@ String audioGetRelativePlayablePath(int delta) {
 }
 
 // ── Build Status JSON ────────────────────────────────────────
+static String g_statusJsonBuf;
+
 String buildStatusJson() {
   unsigned long uptime = (millis() - g_bootTime) / 1000;
-  // Use g_wavPaths[] from .ino instead of scanning SD every refresh
   String currentPath = (g_trackIndex >= 0 && g_trackIndex < g_wavCount) ? g_wavPaths[g_trackIndex] : g_audioNowPlaying;
   if (currentPath.length() == 0 && g_wavCount > 0) currentPath = g_wavPaths[0];
 
@@ -700,7 +722,6 @@ String buildStatusJson() {
     currentTitle.replace("_", " ");
   }
 
-  // Build favorites array from in-memory list
   String favItems = "[";
   for (int i = 0; i < g_favCount; i++) {
     if (i > 0) favItems += ",";
@@ -708,8 +729,11 @@ String buildStatusJson() {
   }
   favItems += "]";
 
-  String j;
-  j.reserve(3000);
+  // Reuse static buffer to avoid heap alloc/dealloc churn on every poll.
+  // reserve() is a no-op once the internal buffer is already >= 4500.
+  String& j = g_statusJsonBuf;
+  j = "";
+  j.reserve(4500);
   j += "{\"name\":\"" + escJson(g_duid) + "\",\"ver\":\"" + g_fwVersion + "\",";
   j += "\"env\":\"dev\",\"duid\":\"" + g_duid + "\",";
   j += "\"admin\":" + String(g_adminMode ? "true" : "false") + ",";
@@ -2086,6 +2110,88 @@ void registerApiRoutes(AsyncWebServer& server) {
       req->send(200, "application/json", "{\"ok\":true}");
     }
   );
+
+  // ── GET /api/playlist/order — return current track order ────
+  server.on("/api/playlist/order", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (apiRejectHeavyRequest(req, "playlist_order")) return;
+    notePortalHttpActivity();
+    String json = "[";
+    for (int i = 0; i < g_wavCount; i++) {
+      if (i > 0) json += ",";
+      json += "\"" + escJson(g_wavPaths[i]) + "\"";
+    }
+    json += "]";
+    req->send(200, "application/json", "{\"order\":" + json + "}");
+  });
+
+  // ── POST /api/playlist/order — set track order from portal ──
+  server.on("/api/playlist/order", HTTP_POST,
+    [](AsyncWebServerRequest* req) {},
+    NULL,
+    [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+      if (!g_adminMode) {
+        req->send(403, "application/json", "{\"error\":\"admin mode required\"}");
+        return;
+      }
+      String body = "";
+      for (size_t i = 0; i < len; i++) body += (char)data[i];
+
+      // Parse JSON array from {"order": [...]}
+      int arrStart = body.indexOf('[');
+      int arrEnd = body.lastIndexOf(']');
+      if (arrStart < 0 || arrEnd < 0 || arrEnd <= arrStart) {
+        req->send(400, "application/json", "{\"error\":\"invalid order array\"}");
+        return;
+      }
+
+      static String ordered[MAX_TRACKS];
+      int orderedCount = 0;
+      String arr = body.substring(arrStart + 1, arrEnd);
+      int pos = 0;
+      while (pos < (int)arr.length() && orderedCount < MAX_TRACKS) {
+        int qs = arr.indexOf('"', pos);
+        if (qs < 0) break;
+        int qe = arr.indexOf('"', qs + 1);
+        if (qe < 0) break;
+        ordered[orderedCount++] = arr.substring(qs + 1, qe);
+        pos = qe + 1;
+      }
+
+      static String reordered[MAX_TRACKS];
+      static bool used[MAX_TRACKS];
+      for (int i = 0; i < g_wavCount; i++) used[i] = false;
+      int newCount = 0;
+
+      for (int o = 0; o < orderedCount; o++) {
+        for (int w = 0; w < g_wavCount; w++) {
+          if (!used[w] && g_wavPaths[w] == ordered[o]) {
+            reordered[newCount++] = g_wavPaths[w];
+            used[w] = true;
+            break;
+          }
+        }
+      }
+      for (int w = 0; w < g_wavCount; w++) {
+        if (!used[w]) reordered[newCount++] = g_wavPaths[w];
+      }
+      for (int i = 0; i < newCount; i++) g_wavPaths[i] = reordered[i];
+      g_wavCount = newCount;
+      audioInvalidateTracksJsonCache();
+      savePlaylistOrder();
+
+      String json = "[";
+      for (int i = 0; i < g_wavCount; i++) {
+        if (i > 0) json += ",";
+        json += "\"" + escJson(g_wavPaths[i]) + "\"";
+      }
+      json += "]";
+      req->send(200, "application/json", "{\"ok\":true,\"order\":" + json + "}");
+    }
+  );
+
+  server.on("/api/playlist/order", HTTP_OPTIONS, [](AsyncWebServerRequest* req) {
+    req->send(204, "", "");
+  });
 }
 
 #endif // DPA_API_H

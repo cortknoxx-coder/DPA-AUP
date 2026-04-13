@@ -196,7 +196,7 @@ export class DeviceWifiService {
   async verifyCoverArt(path: string = '/art/cover.jpg'): Promise<boolean> {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
     if (
-      this.mainControlPlaneDown() &&
+      (this.mainControlPlaneDown() || this.isBrowserHostileReadUrl(`${this.baseUrl}/api/art-exists`)) &&
       (normalizedPath === '/art/cover.jpg' || normalizedPath === '/art/cover.png')
     ) {
       return (this.lastStatus()?.coverBytes ?? 0) > 0;
@@ -368,6 +368,52 @@ export class DeviceWifiService {
     return { active: false, peers: 0, peerList: [] };
   }
 
+  // --- Playlist order ---
+
+  async getPlaylistOrder(): Promise<string[]> {
+    for (const root of this.commandRootsInPriorityOrder()) {
+      try {
+        const url = `${root}/api/playlist/order`;
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) continue;
+        const data = await response.json();
+        if (root === this.baseUrl) this.mainControlPlaneUnavailableUntil = 0;
+        return Array.isArray(data?.order) ? data.order : [];
+      } catch {
+        if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
+      }
+    }
+    return [];
+  }
+
+  async setPlaylistOrder(filenames: string[]): Promise<boolean> {
+    await this.ensureAdminUnlocked();
+    const payload = JSON.stringify({ order: filenames });
+    for (const root of this.commandRootsInPriorityOrder()) {
+      const url = `${root}/api/playlist/order`;
+      const crossOrigin = this.isCrossOriginRequest(url);
+      try {
+        const init: RequestInit = {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: payload,
+          ...(crossOrigin ? { mode: 'no-cors' as RequestMode, cache: 'no-store' as RequestCache } : {}),
+        };
+        const response = await fetch(url, init);
+        if (crossOrigin) {
+          return true;
+        }
+        if (!response.ok) { if (root === this.baseUrl) this.noteMainControlPlaneUnavailable(); continue; }
+        const result = await response.json().catch(() => null);
+        if (root === this.baseUrl) this.mainControlPlaneUnavailableUntil = 0;
+        return !!result?.ok;
+      } catch {
+        if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
+      }
+    }
+    return false;
+  }
+
   // --- POST endpoints (new firmware additions) ---
 
   private lastPushedThemeJson = '';
@@ -423,43 +469,82 @@ export class DeviceWifiService {
   async pushMetadata(artist: string, album: string, timeoutMs = 8000):
     Promise<{ ok: boolean; reason?: 'timeout' | 'network' | 'http' | 'firmware' | 'empty' }> {
     if (!artist && !album) return { ok: false, reason: 'empty' };
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const response = await fetch(`${this.baseUrl}/api/theme`, {
-        method: 'POST',
-        // text/plain avoids a CORS preflight (application/json triggers OPTIONS,
-        // which the firmware's sync handler doesn't answer). Firmware parses the
-        // body with a raw jsonVal() helper, so the content-type header is irrelevant.
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ artist, album }),
-        signal: ctrl.signal,
-      });
-      clearTimeout(timer);
-      if (!response.ok) return { ok: false, reason: 'http' };
-      const result = await response.json().catch(() => null);
-      if (!result) return { ok: false, reason: 'firmware' };
-      if (result.ok === true) {
-        this.invalidateAfterMutation('/api/theme', { content: true, artwork: false });
-        return { ok: true };
+    const payload = JSON.stringify({ artist, album });
+
+    for (const root of this.commandRootsInPriorityOrder()) {
+      const url = `${root}/api/theme`;
+      const crossOrigin = this.isCrossOriginRequest(url);
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        const init: RequestInit = {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: payload,
+          signal: ctrl.signal,
+          ...(crossOrigin ? { mode: 'no-cors' as RequestMode, cache: 'no-store' as RequestCache } : {}),
+        };
+        const response = await fetch(url, init);
+        clearTimeout(timer);
+
+        if (crossOrigin) {
+          await this.sleep(800);
+          const status = await this.fetchStatusJson(3000, { forceRefresh: true, maxAgeMs: 0 });
+          const deviceArtist = (status as any)?.artist ?? '';
+          const deviceAlbum = (status as any)?.album ?? '';
+          if ((artist && deviceArtist === artist) || (album && deviceAlbum === album)) {
+            this.invalidateAfterMutation('/api/theme', { content: false, artwork: false });
+            return { ok: true };
+          }
+          continue;
+        }
+
+        if (!response.ok) { if (root === this.baseUrl) this.noteMainControlPlaneUnavailable(); continue; }
+        const result = await response.json().catch(() => null);
+        if (result?.ok === true) {
+          if (root === this.baseUrl) this.mainControlPlaneUnavailableUntil = 0;
+          this.invalidateAfterMutation('/api/theme', { content: false, artwork: false });
+          return { ok: true };
+        }
+        continue;
+      } catch (e: any) {
+        clearTimeout(timer);
+        if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
+        continue;
       }
-      return { ok: false, reason: 'firmware' };
-    } catch (e: any) {
-      clearTimeout(timer);
-      if (e?.name === 'AbortError') return { ok: false, reason: 'timeout' };
-      return { ok: false, reason: 'network' };
     }
+    return { ok: false, reason: 'network' };
   }
 
   private async postWithTimeout(url: string, payload: any, timeoutMs: number): Promise<boolean> {
+    const jsonBody = JSON.stringify(payload);
+    const crossOrigin = this.isCrossOriginRequest(url);
+    if (crossOrigin) {
+      for (const root of this.commandRootsInPriorityOrder()) {
+        const targetUrl = `${root}/api/theme`;
+        try {
+          await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: jsonBody,
+            mode: 'no-cors',
+            cache: 'no-store',
+          });
+          await this.sleep(600);
+          return true;
+        } catch {
+          if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
+        }
+      }
+      return false;
+    }
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const response = await fetch(url, {
         method: 'POST',
-        // text/plain = simple request, no CORS preflight. Firmware parses body as raw text.
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload),
+        body: jsonBody,
         signal: ctrl.signal,
       });
       clearTimeout(timer);
@@ -949,7 +1034,7 @@ export class DeviceWifiService {
     if (options?.content) {
       this.contentRevision.update((value) => value + 1);
     }
-    if (options?.artwork || options?.content) {
+    if (options?.artwork) {
       this.artRevision.update((value) => value + 1);
       this.coverPathCache = null;
     }

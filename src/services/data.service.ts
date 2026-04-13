@@ -536,6 +536,22 @@ export class DataService {
     }));
   }
 
+  reorderTracks(albumId: string, orderedTrackIds: string[]) {
+    this.albumsSignal.update(list => list.map(a => {
+      if (a.albumId !== albumId) return a;
+      const byId = new Map(a.tracks.map(t => [t.trackId, t]));
+      const reordered: typeof a.tracks = [];
+      for (const id of orderedTrackIds) {
+        const t = byId.get(id);
+        if (t) reordered.push(t);
+      }
+      for (const t of a.tracks) {
+        if (!orderedTrackIds.includes(t.trackId)) reordered.push(t);
+      }
+      return { ...a, tracks: reordered.map((t, idx) => ({ ...t, trackIndex: idx })) };
+    }));
+  }
+
   createDcnpEvent(albumId: string, event: Partial<DcnpEvent>) {
     this.albumsSignal.update(list => list.map(a => {
       if (a.albumId === albumId) {

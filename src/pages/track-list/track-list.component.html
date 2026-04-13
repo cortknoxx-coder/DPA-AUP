@@ -100,6 +100,7 @@
       <table class="min-w-full text-sm">
         <thead class="bg-slate-900 border-b border-slate-800">
           <tr>
+            <th class="px-1 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider w-8"></th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider w-12">#</th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider w-10"></th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider w-12" title="Per-track artwork (1400x1400 JPG/PNG recommended)">Art</th>
@@ -111,9 +112,28 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-800/50">
-          @for (track of displayTracks(); track track.id) {
-            <tr class="hover:bg-slate-800/30 transition-colors group">
-              <td class="px-4 py-3 text-slate-500 font-mono text-xs">{{ track.index + 1 }}</td>
+          @for (track of displayTracks(); track track.id; let i = $index) {
+            <tr class="transition-colors group"
+                [class.hover:bg-slate-800/30]="dragOverIndex() !== i"
+                [class.bg-teal-500/10]="dragOverIndex() === i"
+                [class.border-t-2]="dragOverIndex() === i"
+                [class.border-teal-400]="dragOverIndex() === i"
+                [draggable]="track.isDevice"
+                (dragstart)="onTrackDragStart($event, i)"
+                (dragover)="onTrackDragOver($event, i)"
+                (dragleave)="onTrackDragLeave($event)"
+                (drop)="onTrackDrop($event, i)"
+                (dragend)="onTrackDragEnd()">
+              <td class="px-1 py-3 text-center">
+                @if (track.isDevice) {
+                  <span class="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300 transition-colors select-none" title="Drag to reorder">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mx-auto" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+                    </svg>
+                  </span>
+                }
+              </td>
+              <td class="px-4 py-3 text-slate-500 font-mono text-xs">{{ i + 1 }}</td>
               <td class="px-4 py-3">
                 @if (track.isDevice) {
                   <div class="flex items-center gap-1">
@@ -169,7 +189,7 @@
           }
           @empty {
             <tr>
-              <td colspan="8" class="px-4 py-12 text-center text-slate-500 text-xs">
+              <td colspan="9" class="px-4 py-12 text-center text-slate-500 text-xs">
                 No tracks yet. Drag audio files above or add manually below.
               </td>
             </tr>

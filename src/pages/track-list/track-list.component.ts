@@ -42,6 +42,10 @@ export class TrackListComponent {
 
   private uploadActiveOrSettling = false;
 
+  // Drag-to-reorder state
+  dragIndex = signal<number | null>(null);
+  dragOverIndex = signal<number | null>(null);
+
   // Device tracks (live from firmware when connected)
   deviceTracks = signal<DeviceTrack[]>([]);
   trackPlayCounts = signal<Record<string, number>>({});
@@ -315,6 +319,64 @@ export class TrackListComponent {
     const input = event.target as HTMLInputElement;
     if (input.files) {
       this.handleFiles(input.files);
+    }
+  }
+
+  // --- Track reorder drag-and-drop ---
+
+  onTrackDragStart(event: DragEvent, index: number) {
+    this.dragIndex.set(index);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', String(index));
+    }
+  }
+
+  onTrackDragOver(event: DragEvent, index: number) {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (this.dragIndex() !== null && this.dragIndex() !== index) {
+      this.dragOverIndex.set(index);
+    }
+  }
+
+  onTrackDragLeave(_event: DragEvent) {
+    this.dragOverIndex.set(null);
+  }
+
+  onTrackDrop(event: DragEvent, dropIndex: number) {
+    event.preventDefault();
+    event.stopPropagation();
+    const fromIndex = this.dragIndex();
+    this.dragIndex.set(null);
+    this.dragOverIndex.set(null);
+    if (fromIndex === null || fromIndex === dropIndex) return;
+
+    const tracks = [...this.deviceTracks()];
+    if (tracks.length === 0) return;
+
+    const [moved] = tracks.splice(fromIndex, 1);
+    tracks.splice(dropIndex, 0, moved);
+    this.deviceTracks.set(tracks);
+
+    const orderedFilenames = tracks.map(t => t.filename);
+    void this.syncPlaylistOrderToDevice(orderedFilenames);
+  }
+
+  onTrackDragEnd() {
+    this.dragIndex.set(null);
+    this.dragOverIndex.set(null);
+  }
+
+  private async syncPlaylistOrderToDevice(orderedFilenames: string[]) {
+    const ok = await this.connectionService.wifi.setPlaylistOrder(orderedFilenames);
+    if (!ok) {
+      console.warn('[TrackList] Playlist order sync to device failed');
+    }
+    const a = this.album();
+    if (a) {
+      const orderedTrackIds = orderedFilenames.map(fn => `device://${fn.startsWith('/') ? fn.slice(1) : fn}`);
+      this.dataService.reorderTracks(a.albumId, orderedTrackIds);
     }
   }
 

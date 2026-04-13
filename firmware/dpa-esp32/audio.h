@@ -500,17 +500,20 @@ static bool audioInitI2S(uint32_t sampleRate) {
   i2s_cfg.tx_desc_auto_clear = true;
   i2s_cfg.fixed_mclk = 0;
   i2s_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
+  // DMA sizing tuned for heap headroom: g_audioInBuf (32KB BSS) absorbs SD
+  // latency; DMA only needs to cover I2S write-call jitter (~40-85ms).
   if (sampleRate >= 88200) {
-    i2s_cfg.dma_desc_num  = 12;    // 12 DMA descriptors
-    i2s_cfg.dma_frame_num = 768;   // 768 frames each
-    // = 12 × 768 × 8 = 73,728 bytes ≈ 96ms at 96kHz
-  } else if (sampleRate >= 44100) {
-    i2s_cfg.dma_desc_num  = 12;    // 12 descriptors for 44.1/48kHz
-    i2s_cfg.dma_frame_num = 512;   // 512 frames each
-    // = 12 × 512 × 8 = 49,152 bytes ≈ 139ms at 44.1kHz
-  } else {
     i2s_cfg.dma_desc_num  = 8;
-    i2s_cfg.dma_frame_num = 480;
+    i2s_cfg.dma_frame_num = 512;
+    // = 8 × 512 × 8 = 32,768 bytes ≈ 42ms at 96kHz
+  } else if (sampleRate >= 44100) {
+    i2s_cfg.dma_desc_num  = 8;
+    i2s_cfg.dma_frame_num = 384;
+    // = 8 × 384 × 8 = 24,576 bytes ≈ 70ms at 44.1kHz
+  } else {
+    i2s_cfg.dma_desc_num  = 6;
+    i2s_cfg.dma_frame_num = 320;
+    // = 6 × 320 × 8 = 15,360 bytes
   }
   if (i2s_driver_install(I2S_NUM_0, &i2s_cfg, 0, NULL) != ESP_OK) {
     Serial.println("[AUDIO] Failed to install legacy I2S driver");
@@ -747,6 +750,13 @@ String audioListTracksJson() {
 
 static void audioRunPlaybackPath(const String& path) {
   Serial.printf("[AUDIO] Playback task start: %s\n", path.c_str());
+
+  // Free track JSON cache before DMA allocation claims heap
+  if (g_audioTracksJsonCache.length() > 0) {
+    g_audioTracksJsonCache = "";
+    g_audioTracksJsonDirty = true;
+    Serial.printf("[AUDIO] Freed tracks JSON cache for playback heap\n");
+  }
 
   File f = SD.open(path, FILE_READ);
   if (!f) {

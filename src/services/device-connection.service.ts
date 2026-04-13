@@ -822,7 +822,7 @@ export class DeviceConnectionService {
     if (!status) return '';
     const coverBytes = Number(status.coverBytes ?? 0);
     if (coverBytes <= 0) return '';
-    return `${status.duid || 'DPA'}|${status.artist || ''}|${status.album || ''}|${coverBytes}`;
+    return `${status.duid || 'DPA'}|${coverBytes}`;
   }
 
   /** Extract 2 dominant vibrant colors from a data URL via canvas sampling. */
@@ -1012,6 +1012,7 @@ export class DeviceConnectionService {
     const status = this.wifi.lastStatus();
     if (status?.player?.playing) return 15000;
     if (this.isUploadBusy(status)) return 1500;
+    if (status?.mcu?.lowMemory) return 8000;
     return 3000;
   }
 

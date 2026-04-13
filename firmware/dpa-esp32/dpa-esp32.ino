@@ -392,7 +392,71 @@ void scanWavList() {
   }
   dir.close();
   Serial.printf("[SCAN] Found %d valid playable files\n", g_wavCount);
+  loadPlaylistOrder();
   if (g_wavCount > 0) g_firstPlayableWav = g_wavPaths[0];
+}
+
+// ── Playlist Order: Load/Save to SD /data/playlist.txt ───────
+#define PLAYLIST_ORDER_PATH "/data/playlist.txt"
+
+void loadPlaylistOrder() {
+  if (g_wavCount <= 1) return;
+  if (!SD.exists(PLAYLIST_ORDER_PATH)) return;
+
+  File f = SD.open(PLAYLIST_ORDER_PATH, FILE_READ);
+  if (!f) return;
+
+  static String ordered[MAX_TRACKS];
+  int orderedCount = 0;
+
+  while (f.available() && orderedCount < MAX_TRACKS) {
+    String line = f.readStringUntil('\n');
+    line.trim();
+    if (line.length() == 0) continue;
+    ordered[orderedCount++] = line;
+  }
+  f.close();
+
+  if (orderedCount == 0) return;
+
+  static String reordered[MAX_TRACKS];
+  static bool used[MAX_TRACKS];
+  for (int i = 0; i < g_wavCount; i++) used[i] = false;
+  int newCount = 0;
+
+  for (int o = 0; o < orderedCount; o++) {
+    for (int w = 0; w < g_wavCount; w++) {
+      if (!used[w] && g_wavPaths[w] == ordered[o]) {
+        reordered[newCount++] = g_wavPaths[w];
+        used[w] = true;
+        break;
+      }
+    }
+  }
+  for (int w = 0; w < g_wavCount; w++) {
+    if (!used[w]) {
+      reordered[newCount++] = g_wavPaths[w];
+    }
+  }
+
+  for (int i = 0; i < newCount; i++) g_wavPaths[i] = reordered[i];
+  g_wavCount = newCount;
+  audioInvalidateTracksJsonCache();
+  Serial.printf("[PLAYLIST] Reordered %d tracks from playlist.txt\n", newCount);
+}
+
+void savePlaylistOrder() {
+  if (!SD.exists("/data")) SD.mkdir("/data");
+  File f = SD.open(PLAYLIST_ORDER_PATH, FILE_WRITE);
+  if (!f) {
+    Serial.println("[PLAYLIST] Failed to write playlist.txt");
+    return;
+  }
+  for (int i = 0; i < g_wavCount; i++) {
+    f.println(g_wavPaths[i]);
+  }
+  f.close();
+  Serial.printf("[PLAYLIST] Saved %d track order to playlist.txt\n", g_wavCount);
 }
 
 // ── Favorites: Load/Save to SD /data/favorites.txt ───────────
@@ -984,6 +1048,70 @@ void handleSyncOptions() {
   uploadServer.send(204);
 }
 
+// ── Shared theme/metadata JSON body handler ──────────────────
+// Reusable by both async (port 80) and sync (port 81) servers.
+void applyThemeJson(const String& body) {
+  Serial.println("[THEME] Received: " + body);
+
+  bool changed = false;
+  String v;
+  v = jsonVal(body, "idle_color");     if (v.length() && v != g_ledIdle) { g_ledIdle = v; changed = true; }
+  v = jsonVal(body, "idle_pattern");   if (v.length() && v != g_ledIdlePat) { g_ledIdlePat = v; changed = true; }
+  v = jsonVal(body, "play_color");     if (v.length() && v != g_ledPlay) { g_ledPlay = v; changed = true; }
+  v = jsonVal(body, "play_pattern");   if (v.length() && v != g_ledPlayPat) { g_ledPlayPat = v; changed = true; }
+  v = jsonVal(body, "charge_color");   if (v.length() && v != g_ledCharge) { g_ledCharge = v; changed = true; }
+  v = jsonVal(body, "charge_pattern"); if (v.length() && v != g_ledChargePat) { g_ledChargePat = v; changed = true; }
+  v = jsonVal(body, "grad_end");       if (v.length() && v != g_ledGradEnd) { g_ledGradEnd = v; changed = true; }
+  if (!v.length()) {
+    v = jsonVal(body, "gradEnd");
+    if (v.length() && v != g_ledGradEnd) { g_ledGradEnd = v; changed = true; }
+  }
+
+  int bIdx = body.indexOf("\"brightness\"");
+  if (bIdx >= 0) {
+    int col = body.indexOf(':', bIdx);
+    if (col >= 0) {
+      String bStr = "";
+      for (int i = col + 1; i < (int)body.length(); i++) {
+        char c = body.charAt(i);
+        if (c >= '0' && c <= '9') bStr += c;
+        else if (bStr.length() > 0) break;
+      }
+      if (bStr.length() > 0) {
+        const int nextBrightness = constrain(bStr.toInt(), 0, 100);
+        if (nextBrightness != g_brightness) {
+          g_brightness = nextBrightness;
+          changed = true;
+        }
+      }
+    }
+  }
+
+  v = jsonVal(body, "dcnp_concert"); if (v.length() && v != g_dcnpConcert) { g_dcnpConcert = v; changed = true; }
+  v = jsonVal(body, "dcnp_video");   if (v.length() && v != g_dcnpVideo) { g_dcnpVideo = v; changed = true; }
+  v = jsonVal(body, "dcnp_merch");   if (v.length() && v != g_dcnpMerch) { g_dcnpMerch = v; changed = true; }
+  v = jsonVal(body, "dcnp_signing"); if (v.length() && v != g_dcnpSigning) { g_dcnpSigning = v; changed = true; }
+  v = jsonVal(body, "dcnp_remix");   if (v.length() && v != g_dcnpRemix) { g_dcnpRemix = v; changed = true; }
+  v = jsonVal(body, "dcnp_other");   if (v.length() && v != g_dcnpOther) { g_dcnpOther = v; changed = true; }
+
+  String artist = jsonVal(body, "artist");
+  String album  = jsonVal(body, "album");
+  if (artist.length() > 0 || album.length() > 0) {
+    wifiSetMetadata(artist, album);
+  }
+
+  if (changed) {
+    persistLedStateSafely("theme");
+    if (g_audioPlaying || g_uploadInProgress) {
+      Serial.println("[THEME] Applied in RAM; save deferred");
+    } else {
+      Serial.println("[THEME] Applied & saved");
+    }
+  } else {
+    Serial.println("[THEME] No effective change");
+  }
+}
+
 void setupSyncUploadServer() {
   uploadServer.on("/api/status", HTTP_GET, []() {
     notePortalHttpActivity();
@@ -1137,6 +1265,106 @@ void setupSyncUploadServer() {
     uploadServer.sendHeader("Access-Control-Allow-Headers", "Content-Type");
     uploadServer.send(204);
   });
+  // ── GET /api/playlist/order (mirror for cross-origin reads) ──
+  uploadServer.on("/api/playlist/order", HTTP_GET, []() {
+    notePortalHttpActivity();
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Cache-Control", "no-store");
+    uploadServer.sendHeader("Connection", "close");
+    String json = "[";
+    for (int i = 0; i < g_wavCount; i++) {
+      if (i > 0) json += ",";
+      json += "\"" + escJson(g_wavPaths[i]) + "\"";
+    }
+    json += "]";
+    uploadServer.send(200, "application/json", "{\"order\":" + json + "}");
+  });
+
+  // ── POST /api/playlist/order (mirror for cross-origin pushes) ──
+  uploadServer.on("/api/playlist/order", HTTP_POST, []() {
+    notePortalHttpActivity();
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Cache-Control", "no-store");
+    uploadServer.sendHeader("Connection", "close");
+    if (!g_adminMode) {
+      uploadServer.send(403, "application/json", "{\"error\":\"admin mode required\"}");
+      return;
+    }
+    String body = uploadServer.arg("plain");
+    int arrStart = body.indexOf('[');
+    int arrEnd = body.lastIndexOf(']');
+    if (arrStart < 0 || arrEnd < 0 || arrEnd <= arrStart) {
+      uploadServer.send(400, "application/json", "{\"error\":\"invalid order array\"}");
+      return;
+    }
+    static String ordered[MAX_TRACKS];
+    int orderedCount = 0;
+    String arr = body.substring(arrStart + 1, arrEnd);
+    int pos = 0;
+    while (pos < (int)arr.length() && orderedCount < MAX_TRACKS) {
+      int qs = arr.indexOf('"', pos);
+      if (qs < 0) break;
+      int qe = arr.indexOf('"', qs + 1);
+      if (qe < 0) break;
+      ordered[orderedCount++] = arr.substring(qs + 1, qe);
+      pos = qe + 1;
+    }
+    static String reordered[MAX_TRACKS];
+    static bool used[MAX_TRACKS];
+    for (int i = 0; i < g_wavCount; i++) used[i] = false;
+    int newCount = 0;
+    for (int o = 0; o < orderedCount; o++) {
+      for (int w = 0; w < g_wavCount; w++) {
+        if (!used[w] && g_wavPaths[w] == ordered[o]) {
+          reordered[newCount++] = g_wavPaths[w];
+          used[w] = true;
+          break;
+        }
+      }
+    }
+    for (int w = 0; w < g_wavCount; w++) {
+      if (!used[w]) reordered[newCount++] = g_wavPaths[w];
+    }
+    for (int i = 0; i < newCount; i++) g_wavPaths[i] = reordered[i];
+    g_wavCount = newCount;
+    audioInvalidateTracksJsonCache();
+    savePlaylistOrder();
+    String json = "[";
+    for (int i = 0; i < g_wavCount; i++) {
+      if (i > 0) json += ",";
+      json += "\"" + escJson(g_wavPaths[i]) + "\"";
+    }
+    json += "]";
+    uploadServer.send(200, "application/json", "{\"ok\":true,\"order\":" + json + "}");
+  });
+  uploadServer.on("/api/playlist/order", HTTP_OPTIONS, []() {
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    uploadServer.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+    uploadServer.send(204);
+  });
+
+  // ── POST /api/theme (mirror for cross-origin portal pushes) ──
+  uploadServer.on("/api/theme", HTTP_POST, []() {
+    notePortalHttpActivity();
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Cache-Control", "no-store");
+    uploadServer.sendHeader("Connection", "close");
+    String body = uploadServer.arg("plain");
+    if (body.length() == 0) {
+      uploadServer.send(400, "application/json", "{\"error\":\"empty body\"}");
+      return;
+    }
+    applyThemeJson(body);
+    uploadServer.send(200, "application/json", "{\"ok\":true}");
+  });
+  uploadServer.on("/api/theme", HTTP_OPTIONS, []() {
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
+    uploadServer.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+    uploadServer.send(204);
+  });
+
   const char* headerKeys[] = { "Content-Length" };
   uploadServer.collectHeaders(headerKeys, 1);
   uploadServer.begin();

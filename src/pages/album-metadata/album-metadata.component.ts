@@ -267,17 +267,23 @@ export class AlbumMetadataComponent {
 
   /** Pull live artist/album + cover-existence from the device.
    *  When cover art exists, also extract dominant colors and push
-   *  them as the playback LED theme so lights always match the album. */
-  private async syncFromDevice() {
-    const [meta, coverOk] = await Promise.all([
-      this.connectionService.wifi.pullMetadata(),
-      this.connectionService.wifi.verifyCoverArt(),
-    ]);
+   *  them as the playback LED theme so lights always match the album.
+   *  @param skipCoverVerify When true, only refreshes text metadata without
+   *  re-verifying cover art. Used after metadata-only saves so the cover
+   *  preview stays stable (avoids mixed-content failures from HTTPS). */
+  private async syncFromDevice(skipCoverVerify = false) {
+    const metaPromise = this.connectionService.wifi.pullMetadata();
+    const coverPromise = skipCoverVerify
+      ? Promise.resolve(this.coverArtOnDevice())
+      : this.connectionService.wifi.verifyCoverArt();
+    const [meta, coverOk] = await Promise.all([metaPromise, coverPromise]);
     if (meta.ok) {
       this.deviceArtist.set(meta.artist);
       this.deviceAlbum.set(meta.album);
     }
-    this.coverArtOnDevice.set(coverOk);
+    if (!skipCoverVerify) {
+      this.coverArtOnDevice.set(coverOk);
+    }
 
     // Auto-extract LED colors from existing cover art on device
     if (coverOk) {
@@ -370,8 +376,9 @@ export class AlbumMetadataComponent {
             ? '✓ Metadata saved + pushed to device.'
             : 'Metadata saved locally and SSID updated, but extended album metadata did not reach the device.'
         );
-        // Read back so the "device says" state matches what we just wrote
-        await this.syncFromDevice();
+        // Read back so the "device says" state matches what we just wrote.
+        // Skip cover re-verification — we only changed text metadata.
+        await this.syncFromDevice(true);
       } else {
         // Device push failed — surface the REAL reason so user knows what to fix
         this.saveStatus.set('error');
