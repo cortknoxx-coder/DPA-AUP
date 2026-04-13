@@ -197,7 +197,7 @@ export class AlbumMetadataComponent {
   coverArtPreview = computed(() => {
     // DEVICE IS SOURCE OF TRUTH when connected + verified — survives browser
     // refresh and keeps the portal visually in sync with what's actually on SD.
-    if (this.connectionService.connectionStatus() === 'wifi' && this.coverArtOnDevice()) {
+    if (this.connectionService.deviceHttpAvailable() && this.coverArtOnDevice()) {
       // Touch the bust signal so Angular re-computes when it changes.
       const bust = this.coverArtBust();
       return this.connectionService.wifi.coverArtUrl('/art/cover.jpg') + '&b=' + bust;
@@ -233,7 +233,7 @@ export class AlbumMetadataComponent {
     // On wifi-connect, pull live state from the device so the portal never
     // silently diverges from what's actually on NVS / SD.
     effect(() => {
-      if (this.connectionService.connectionStatus() === 'wifi') {
+      if (this.connectionService.deviceHttpAvailable()) {
         this.syncFromDevice();
       } else {
         this.coverArtOnDevice.set(false);
@@ -345,7 +345,7 @@ export class AlbumMetadataComponent {
     });
 
     // Push artist + album to device if connected (sets SSID + NVS)
-    if (this.connectionService.connectionStatus() === 'wifi') {
+    if (this.connectionService.deviceHttpAvailable()) {
       const artist = (this.form.value.artistName || '').toString().trim();
       const title  = (this.form.value.title || '').toString().trim();
       const albumMetaPayload = {
@@ -409,7 +409,7 @@ export class AlbumMetadataComponent {
       this.form.markAsDirty();
       this.form.updateValueAndValidity();
 
-      if (this.connectionService.connectionStatus() === 'wifi') {
+      if (this.connectionService.deviceHttpAvailable()) {
         this.coverArtUploading.set(true);
         this.coverArtProgress.set(0);
         this.coverArtPushStatus.set('');
@@ -806,7 +806,7 @@ export class AlbumBookletComponent {
   previewCover = computed(() => {
     const a = this.album();
     if (a?.artworkUrl) return a.artworkUrl;
-    if (this.connectionService.connectionStatus() === 'wifi') {
+    if (this.connectionService.deviceHttpAvailable()) {
       const deviceUrl = this.connectionService.wifi.coverArtUrl('/art/cover.jpg');
       if (deviceUrl) return deviceUrl;
     }
@@ -877,7 +877,7 @@ export class AlbumBookletComponent {
         alert(message);
         this.form.markAsPristine();
       };
-      if (this.connectionService.connectionStatus() === 'wifi') {
+      if (this.connectionService.deviceHttpAvailable()) {
         this.connectionService.wifi.pushBookletData({
           description: val.description || '',
           lyrics: val.lyrics || '',

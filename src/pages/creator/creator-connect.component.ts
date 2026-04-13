@@ -3,6 +3,7 @@ import { Component, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { BrandMarkComponent } from '../../components/brand-mark/brand-mark.component';
 import { DeviceConnectionService } from '../../services/device-connection.service';
+import { isHostedHttps } from '../../dpa-device-http';
 
 @Component({
   selector: 'app-creator-connect',
@@ -40,8 +41,8 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
           </div>
           <div class="text-left flex-1">
-            <h3 class="font-semibold text-white">USB-C Bridge</h3>
-            <p class="text-xs text-slate-400">Best for creator uploads, transfer verification, and desktop workflows.</p>
+            <h3 class="font-semibold text-white">{{ isHostedPortal ? 'Cloud Relay' : 'USB-C Bridge' }}</h3>
+            <p class="text-xs text-slate-400">{{ isHostedPortal ? 'Best when the DPA has an authenticated cloud session through Vercel.' : 'Best for creator uploads, transfer verification, and desktop workflows.' }}</p>
           </div>
         </button>
 
@@ -113,6 +114,7 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
 export class CreatorConnectComponent {
   deviceService = inject(DeviceConnectionService);
   private router = inject(Router);
+  isHostedPortal = isHostedHttps();
 
   connectingVia = signal<'wifi' | 'usb' | 'nfc' | null>(null);
   autoProbing = signal(true);
@@ -135,6 +137,8 @@ export class CreatorConnectComponent {
   private async autoProbeDevice() {
     this.autoProbing.set(true);
     try {
+      const bridgeOk = await this.deviceService.connectToBridge({ silent: true });
+      if (bridgeOk) return;
       const ok = await this.deviceService.detectConnectedDevice({ silent: true, preferCurrent: false });
       if (ok) return;
     } catch {

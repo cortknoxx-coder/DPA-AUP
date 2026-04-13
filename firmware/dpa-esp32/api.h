@@ -400,6 +400,24 @@ static void sendArtFromSd(AsyncWebServerRequest* req, const String& path) {
   req->send(response);
 }
 
+static void sendArtExistsJson(AsyncWebServerRequest* req, const String& path) {
+  if (!g_sdMounted) {
+    AsyncWebServerResponse* response = req->beginResponse(503, "application/json", "{\"error\":\"sd not mounted\"}");
+    response->addHeader("Cache-Control", "no-store");
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    req->send(response);
+    return;
+  }
+  const bool exists = SD.exists(path);
+  String body = "{\"ok\":true,\"path\":\"" + escJson(path) + "\",\"exists\":";
+  body += exists ? "true" : "false";
+  body += "}";
+  AsyncWebServerResponse* response = req->beginResponse(200, "application/json", body);
+  response->addHeader("Cache-Control", "no-store");
+  response->addHeader("Access-Control-Allow-Origin", "*");
+  req->send(response);
+}
+
 static void sendJsonFromSd(AsyncWebServerRequest* req, const char* path) {
   if (!g_sdMounted) {
     req->send(503, "application/json", "{\"error\":\"sd not mounted\"}");
@@ -413,7 +431,7 @@ static void sendJsonFromSd(AsyncWebServerRequest* req, const char* path) {
   response->addHeader("Cache-Control", "no-store");
   response->addHeader("Access-Control-Allow-Origin", "*");
   response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+  response->addHeader("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma");
   req->send(response);
 }
 
@@ -481,6 +499,15 @@ static bool apiRejectHeavyRequest(AsyncWebServerRequest* req, const char* scope)
   response->addHeader("Retry-After", "2");
   req->send(response);
   return true;
+}
+
+static void persistLedStateSafely(const char* reason) {
+  if (g_audioPlaying || g_uploadInProgress) {
+    ledMarkDirty();
+    Serial.printf("[LED] Deferred NVS save (%s) until idle\n", reason);
+    return;
+  }
+  ledSaveToNVS();
 }
 
 static void attachChurnGuards(
@@ -1005,7 +1032,7 @@ void registerApiRoutes(AsyncWebServer& server) {
     response->addHeader("Connection", "close");
     req->send(response);
   });
-  attachChurnGuards(statusHandler, 8, 4);
+  attachChurnGuards(statusHandler, 16, 4);
 
   // ── GET /api/admin/unlock?key=<DUID> ──────────────────────
   server.on("/api/admin/unlock", HTTP_GET, [](AsyncWebServerRequest* req) {
@@ -1064,10 +1091,13 @@ void registerApiRoutes(AsyncWebServer& server) {
   // ── GET /api/volume?level=N ────────────────────────────────
   server.on("/api/volume", HTTP_GET, [](AsyncWebServerRequest* req) {
     if (req->hasParam("level")) {
-      g_volume = constrain(req->getParam("level")->value().toInt(), 0, 100);
-      Serial.printf("[API] Volume -> %d\n", g_volume);
-      // Persist to NVS so volume survives reboot
-      ledSaveToNVS();
+      const int nextVolume = constrain(req->getParam("level")->value().toInt(), 0, 100);
+      if (nextVolume != g_volume) {
+        g_volume = nextVolume;
+        Serial.printf("[API] Volume -> %d\n", g_volume);
+        // Persist to NVS so volume survives reboot, but keep flash writes off the hot path.
+        persistLedStateSafely("volume");
+      }
     }
     req->send(200, "application/json", "{\"ok\":true,\"volume\":" + String(g_volume) + "}");
   });
@@ -1329,7 +1359,26 @@ void registerApiRoutes(AsyncWebServer& server) {
     AsyncWebServerResponse* response = req->beginResponse(204);
     response->addHeader("Access-Control-Allow-Origin", "*");
     response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma");
+    req->send(response);
+  });
+  server.on("/api/art-exists", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (!req->hasParam("path")) {
+      req->send(400, "application/json", "{\"error\":\"path required\"}");
+      return;
+    }
+    String resolved;
+    if (!resolveArtRequestPath(req->getParam("path")->value(), resolved)) {
+      req->send(400, "application/json", "{\"error\":\"invalid path\"}");
+      return;
+    }
+    sendArtExistsJson(req, resolved);
+  });
+  server.on("/api/art-exists", HTTP_OPTIONS, [](AsyncWebServerRequest* req) {
+    AsyncWebServerResponse* response = req->beginResponse(204);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma");
     req->send(response);
   });
 
@@ -1342,7 +1391,7 @@ void registerApiRoutes(AsyncWebServer& server) {
     AsyncWebServerResponse* response = req->beginResponse(204);
     response->addHeader("Access-Control-Allow-Origin", "*");
     response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma");
     req->send(response);
   });
 
@@ -1355,7 +1404,7 @@ void registerApiRoutes(AsyncWebServer& server) {
     AsyncWebServerResponse* response = req->beginResponse(204);
     response->addHeader("Access-Control-Allow-Origin", "*");
     response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma");
     req->send(response);
   });
 
@@ -1674,6 +1723,13 @@ void registerApiRoutes(AsyncWebServer& server) {
     req->send(200, "application/json", j);
   });
   attachChurnGuards(capsulesHandler, 3, 4);
+  server.on("/api/capsules", HTTP_OPTIONS, [](AsyncWebServerRequest* req) {
+    AsyncWebServerResponse* response = req->beginResponse(204);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma");
+    req->send(response);
+  });
 
   server.on("/api/capsule/seen", HTTP_GET, [](AsyncWebServerRequest* req) {
     if (!req->hasParam("id")) {
@@ -1948,17 +2004,18 @@ void registerApiRoutes(AsyncWebServer& server) {
 
       Serial.println("[THEME] Received: " + body);
 
+      bool changed = false;
       String v;
-      v = jsonVal(body, "idle_color");     if (v.length()) g_ledIdle = v;
-      v = jsonVal(body, "idle_pattern");   if (v.length()) g_ledIdlePat = v;
-      v = jsonVal(body, "play_color");     if (v.length()) g_ledPlay = v;
-      v = jsonVal(body, "play_pattern");   if (v.length()) g_ledPlayPat = v;
-      v = jsonVal(body, "charge_color");   if (v.length()) g_ledCharge = v;
-      v = jsonVal(body, "charge_pattern"); if (v.length()) g_ledChargePat = v;
-      v = jsonVal(body, "grad_end");       if (v.length()) g_ledGradEnd = v;
+      v = jsonVal(body, "idle_color");     if (v.length() && v != g_ledIdle) { g_ledIdle = v; changed = true; }
+      v = jsonVal(body, "idle_pattern");   if (v.length() && v != g_ledIdlePat) { g_ledIdlePat = v; changed = true; }
+      v = jsonVal(body, "play_color");     if (v.length() && v != g_ledPlay) { g_ledPlay = v; changed = true; }
+      v = jsonVal(body, "play_pattern");   if (v.length() && v != g_ledPlayPat) { g_ledPlayPat = v; changed = true; }
+      v = jsonVal(body, "charge_color");   if (v.length() && v != g_ledCharge) { g_ledCharge = v; changed = true; }
+      v = jsonVal(body, "charge_pattern"); if (v.length() && v != g_ledChargePat) { g_ledChargePat = v; changed = true; }
+      v = jsonVal(body, "grad_end");       if (v.length() && v != g_ledGradEnd) { g_ledGradEnd = v; changed = true; }
       if (!v.length()) {
         v = jsonVal(body, "gradEnd");
-        if (v.length()) g_ledGradEnd = v;
+        if (v.length() && v != g_ledGradEnd) { g_ledGradEnd = v; changed = true; }
       }
 
       int bIdx = body.indexOf("\"brightness\"");
@@ -1972,17 +2029,21 @@ void registerApiRoutes(AsyncWebServer& server) {
             else if (bStr.length() > 0) break;
           }
           if (bStr.length() > 0) {
-            g_brightness = constrain(bStr.toInt(), 0, 100);
+            const int nextBrightness = constrain(bStr.toInt(), 0, 100);
+            if (nextBrightness != g_brightness) {
+              g_brightness = nextBrightness;
+              changed = true;
+            }
           }
         }
       }
 
-      v = jsonVal(body, "dcnp_concert"); if (v.length()) g_dcnpConcert = v;
-      v = jsonVal(body, "dcnp_video");   if (v.length()) g_dcnpVideo = v;
-      v = jsonVal(body, "dcnp_merch");   if (v.length()) g_dcnpMerch = v;
-      v = jsonVal(body, "dcnp_signing"); if (v.length()) g_dcnpSigning = v;
-      v = jsonVal(body, "dcnp_remix");   if (v.length()) g_dcnpRemix = v;
-      v = jsonVal(body, "dcnp_other");   if (v.length()) g_dcnpOther = v;
+      v = jsonVal(body, "dcnp_concert"); if (v.length() && v != g_dcnpConcert) { g_dcnpConcert = v; changed = true; }
+      v = jsonVal(body, "dcnp_video");   if (v.length() && v != g_dcnpVideo) { g_dcnpVideo = v; changed = true; }
+      v = jsonVal(body, "dcnp_merch");   if (v.length() && v != g_dcnpMerch) { g_dcnpMerch = v; changed = true; }
+      v = jsonVal(body, "dcnp_signing"); if (v.length() && v != g_dcnpSigning) { g_dcnpSigning = v; changed = true; }
+      v = jsonVal(body, "dcnp_remix");   if (v.length() && v != g_dcnpRemix) { g_dcnpRemix = v; changed = true; }
+      v = jsonVal(body, "dcnp_other");   if (v.length() && v != g_dcnpOther) { g_dcnpOther = v; changed = true; }
 
       // Update SSID metadata if artist/album provided
       String artist = jsonVal(body, "artist");
@@ -1991,8 +2052,16 @@ void registerApiRoutes(AsyncWebServer& server) {
         wifiSetMetadata(artist, album);
       }
 
-      ledSaveToNVS();
-      Serial.println("[THEME] Applied & saved");
+      if (changed) {
+        persistLedStateSafely("theme");
+        if (g_audioPlaying || g_uploadInProgress) {
+          Serial.println("[THEME] Applied in RAM; save deferred");
+        } else {
+          Serial.println("[THEME] Applied & saved");
+        }
+      } else {
+        Serial.println("[THEME] No effective change");
+      }
 
       req->send(200, "application/json", "{\"ok\":true}");
     }

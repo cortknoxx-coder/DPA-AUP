@@ -1,7 +1,9 @@
 import http from 'node:http';
+import https from 'node:https';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { Transform } from 'node:stream';
+import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 
@@ -12,10 +14,15 @@ const DATA_ROOT = process.env.DPA_INTERNAL_INGEST_DIR
 const FILE_ROOT = path.join(DATA_ROOT, 'files');
 const DB_PATH = path.join(DATA_ROOT, 'state.json');
 const INTERNAL_API_PREFIX = '/internal-api';
+const BRIDGE_PREFIX = '/bridge';
+const DEVICE_API_PREFIX = '/device-api';
+const DEVICE_UPLOAD_PREFIX = '/device-upload';
 const OPERATOR_COOKIE = 'dpa_internal_session';
 const OPERATOR_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const UPLOAD_SESSION_TTL_MS = 15 * 60 * 1000;
 const OPERATOR_KEY = process.env.DPA_INTERNAL_OPERATOR_KEY || 'dpa-operator-preview';
+const DEVICE_HTTP_ORIGIN = process.env.DPA_DEVICE_HTTP_ORIGIN || 'http://192.168.4.1';
+const DEVICE_UPLOAD_ORIGIN = process.env.DPA_DEVICE_UPLOAD_ORIGIN || 'http://192.168.4.1:81';
 const DELIVERY_STATUS_ACTIVE = new Set(['pending', 'announced', 'downloading', 'downloaded', 'verifying']);
 const DELIVERY_STATUS_ALL = new Set(['pending', 'announced', 'downloading', 'downloaded', 'verifying', 'installed', 'seen', 'failed', 'expired']);
 const DELIVERY_FAILURE_ERRORS = new Set([
@@ -58,6 +65,39 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+    if (pathname === `${BRIDGE_PREFIX}/health` && method === 'GET') {
+      return sendJson(res, 200, {
+        ok: true,
+        service: 'dpa-local-helper',
+        deviceApiOrigin: DEVICE_HTTP_ORIGIN,
+        deviceUploadOrigin: DEVICE_UPLOAD_ORIGIN,
+      });
+    }
+
+    if (pathname === `${BRIDGE_PREFIX}/device-info` && method === 'GET') {
+      const info = await buildBridgeDeviceInfo();
+      return sendJson(res, 200, { ok: true, device: info });
+    }
+
+    if (pathname === `${BRIDGE_PREFIX}/library` && method === 'GET') {
+      const library = await buildBridgeLibrary();
+      return sendJson(res, 200, { ok: true, library });
+    }
+
+    if (pathname === `${BRIDGE_PREFIX}/manifest` && method === 'GET') {
+      const albumId = String(requestUrl.searchParams.get('albumId') || '').trim();
+      const manifest = await buildBridgeManifest(albumId);
+      return sendJson(res, 200, { ok: true, manifest });
+    }
+
+    if (pathname === DEVICE_API_PREFIX || pathname.startsWith(`${DEVICE_API_PREFIX}/`)) {
+      return proxyToDevice(req, res, DEVICE_HTTP_ORIGIN, DEVICE_API_PREFIX);
+    }
+
+    if (pathname === DEVICE_UPLOAD_PREFIX || pathname.startsWith(`${DEVICE_UPLOAD_PREFIX}/`)) {
+      return proxyToDevice(req, res, DEVICE_UPLOAD_ORIGIN, DEVICE_UPLOAD_PREFIX);
+    }
+
     if (pathname === `${INTERNAL_API_PREFIX}/health` && method === 'GET') {
       return sendJson(res, 200, {
         ok: true,
@@ -665,7 +705,7 @@ function cleanupState() {
 
 function setCors(res, origin) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-DPA-Device-Token, X-DPA-Upload-Token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-DPA-Device-Token, X-DPA-Upload-Token, Range, Cache-Control, Pragma, Accept, Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Origin', origin || '*');
 }
@@ -1394,4 +1434,175 @@ function randomId(prefix) {
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+async function buildBridgeDeviceInfo() {
+  const status = await fetchDeviceStatus();
+  return {
+    serial: status.duid || 'DPA',
+    model: status.name || 'DPA Device',
+    firmwareVersion: status.ver || 'unknown',
+    capabilities: ['USB', 'WIFI', 'LOCAL_HELPER'],
+    pubkeyB64: '',
+  };
+}
+
+async function buildBridgeLibrary() {
+  const status = await fetchDeviceStatus();
+  const tracks = (await fetchDeviceTracks().catch(() => []))
+    .map((track, index) => normalizeBridgeTrack(track, index));
+  const albumId = String(status.duid || status.album || 'device-album');
+  return {
+    albums: [{
+      id: albumId,
+      title: status.album || 'DPA Device',
+      artworkUrl: `${DEVICE_HTTP_ORIGIN}/api/art?path=${encodeURIComponent('/art/cover.jpg')}`,
+    }],
+    tracks: tracks.map((track, index) => ({
+      id: `fw-${track.index ?? index}`,
+      albumId,
+      title: track.title,
+      durationSec: Math.max(0, Math.round(Number(track.durationMs || 0) / 1000)),
+      trackNo: index + 1,
+      codec: track.codec || track.format || 'audio/wav',
+      blobId: track.filename,
+    })),
+  };
+}
+
+async function buildBridgeManifest(albumId) {
+  const status = await fetchDeviceStatus();
+  const tracks = (await fetchDeviceTracks().catch(() => []))
+    .map((track, index) => normalizeBridgeTrack(track, index));
+  const resolvedAlbumId = albumId || String(status.duid || status.album || 'device-album');
+  return {
+    version: 1,
+    albumId: resolvedAlbumId,
+    policyHash: 'sha256:local-helper',
+    blobs: tracks.map((track) => ({
+      blobId: track.filename,
+      sha256: '',
+      size: Math.max(0, Math.trunc(Number(track.sizeBytes || 0))),
+      mime: 'audio/wav',
+      kind: 'audio',
+    })),
+    tracks: tracks.map((track, index) => ({
+      trackId: `fw-${track.index ?? index}`,
+      blobId: track.filename,
+      codec: track.codec || track.format || 'audio/wav',
+      title: track.title,
+      trackNo: index + 1,
+      durationSec: Math.max(0, Math.round(Number(track.durationMs || 0) / 1000)),
+    })),
+    signatures: {
+      manifestSigEd25519B64: '',
+      publisherPubkeyEd25519B64: '',
+    },
+  };
+}
+
+function normalizeBridgeTrack(track, index) {
+  const filename = String(track?.filename || track?.path || track?.file || '').trim();
+  const fallbackLeaf = filename.split('/').pop() || '';
+  const title = String(track?.title || '').trim()
+    || fallbackLeaf.replace(/\.(wav|dpa)$/i, '').replace(/_/g, ' ')
+    || `Track ${index + 1}`;
+  return {
+    ...track,
+    index: Number(track?.index ?? track?.idx ?? index),
+    filename,
+    title,
+    codec: track?.codec || track?.format || 'audio/wav',
+    sizeBytes: Number(track?.size || track?.sizeBytes || 0),
+  };
+}
+
+async function fetchDeviceStatus() {
+  const candidates = [
+    `${DEVICE_HTTP_ORIGIN}/api/status`,
+    `${DEVICE_UPLOAD_ORIGIN}/api/status`,
+  ];
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(4000),
+        cache: 'no-store',
+      });
+      if (!response.ok) continue;
+      return response.json();
+    } catch {
+      // Try the next status plane.
+    }
+  }
+  throw new Error('device status failed');
+}
+
+async function fetchDeviceTracks() {
+  const candidates = [
+    `${DEVICE_HTTP_ORIGIN}/api/audio/tracks`,
+    `${DEVICE_HTTP_ORIGIN}/api/audio/wavs`,
+  ];
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(4000),
+        cache: 'no-store',
+      });
+      if (!response.ok) continue;
+      const payload = await response.json();
+      const tracks = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.tracks)
+          ? payload.tracks
+          : Array.isArray(payload?.wavs)
+            ? payload.wavs
+            : [];
+      if (tracks.length > 0) return tracks;
+    } catch {
+      // Try the next track endpoint.
+    }
+  }
+  throw new Error('device tracks failed');
+}
+
+function proxyToDevice(req, res, targetOrigin, prefix) {
+  return new Promise((resolve) => {
+    const origin = req.headers.origin || '*';
+    const upstream = new URL(targetOrigin);
+    const transport = upstream.protocol === 'https:' ? https : http;
+    const trimmedPath = (req.url || '/').replace(prefix, '') || '/';
+    const target = new URL(trimmedPath.startsWith('/') ? trimmedPath : `/${trimmedPath}`, upstream);
+    const headers = { ...req.headers, host: upstream.host };
+
+    const proxyReq = transport.request(target, {
+      method: req.method,
+      headers,
+    }, (proxyRes) => {
+      const responseHeaders = {
+        ...proxyRes.headers,
+        'access-control-allow-origin': origin,
+        'access-control-allow-credentials': 'true',
+        'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'access-control-allow-headers': 'Content-Type, X-DPA-Device-Token, X-DPA-Upload-Token, Range, Cache-Control, Pragma, Accept, Origin',
+      };
+      res.writeHead(proxyRes.statusCode || 502, responseHeaders);
+      proxyRes.pipe(res);
+      proxyRes.on('end', resolve);
+    });
+
+    proxyReq.on('error', (error) => {
+      sendJson(res, 502, {
+        ok: false,
+        error: 'device proxy failed',
+        detail: error instanceof Error ? error.message : String(error),
+        target: target.toString(),
+      });
+      resolve();
+    });
+
+    req.on('error', () => proxyReq.destroy());
+    req.pipe(proxyReq);
+  });
 }

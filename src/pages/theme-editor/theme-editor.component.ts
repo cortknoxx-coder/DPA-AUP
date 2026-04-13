@@ -75,9 +75,9 @@ export class ThemeEditorComponent implements OnDestroy {
     });
 
     effect(() => {
-      const conn = this.connectionService.connectionStatus();
+      const conn = this.connectionService.deviceHttpAvailable();
       const a = this.album();
-      if (conn !== 'wifi') {
+      if (!conn) {
         this.dcnpDevicePullKey = '';
         this.stopDcnpDevicePolling();
         return;
@@ -89,7 +89,7 @@ export class ThemeEditorComponent implements OnDestroy {
       }
       this.dcnpDevicePullKey = a.albumId;
       queueMicrotask(() => {
-        if (this.connectionService.connectionStatus() === 'wifi' && this.album()?.albumId === a.albumId) {
+        if (this.connectionService.deviceHttpAvailable() && this.album()?.albumId === a.albumId) {
           void this.pullDcnpFromDevice(false);
         }
       });
@@ -104,7 +104,7 @@ export class ThemeEditorComponent implements OnDestroy {
   private startDcnpDevicePolling(albumId: string) {
     this.stopDcnpDevicePolling();
     this.dcnpSyncPollTimer = setInterval(() => {
-      if (this.connectionService.connectionStatus() !== 'wifi' || this.album()?.albumId !== albumId) {
+      if (!this.connectionService.deviceHttpAvailable() || this.album()?.albumId !== albumId) {
         this.stopDcnpDevicePolling();
         return;
       }
@@ -137,7 +137,7 @@ export class ThemeEditorComponent implements OnDestroy {
    */
   async pullDcnpFromDevice(showBanner: boolean) {
     const a = this.album();
-    if (!a || this.connectionService.connectionStatus() !== 'wifi') return;
+    if (!a || !this.connectionService.deviceHttpAvailable()) return;
 
     if (showBanner) {
       this.deviceLedSyncStatus.set('syncing');
@@ -229,7 +229,7 @@ export class ThemeEditorComponent implements OnDestroy {
         ...(this.form.getRawValue() as Partial<Theme>),
       };
       this.dataService.updateAlbumTheme(a.albumId, theme);
-      if (this.connectionService.connectionStatus() === 'wifi') {
+      if (this.connectionService.deviceHttpAvailable()) {
         this.pushStatus.set('pushing');
         const ok = await this.connectionService.wifi.pushTheme(
           theme,
@@ -246,7 +246,7 @@ export class ThemeEditorComponent implements OnDestroy {
   async pushThemeToDevice() {
     const a = this.album();
     if (!a || !this.form.valid) return;
-    if (this.connectionService.connectionStatus() !== 'wifi') {
+    if (!this.connectionService.deviceHttpAvailable()) {
       this.pushStatus.set('error');
       return;
     }

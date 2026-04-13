@@ -3,6 +3,7 @@ import { Component, inject, effect, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { DeviceConnectionService } from '../../services/device-connection.service';
+import { isHostedHttps } from '../../dpa-device-http';
 
 @Component({
   selector: 'app-fan-auth',
@@ -21,6 +22,7 @@ export class FanAuthComponent {
   // Feature detection
   hasBle = this.deviceService.ble.isSupported;
   hasNfc = this.deviceService.nfc.isSupported;
+  isHostedPortal = isHostedHttps();
 
   constructor() {
     // If already connected when reaching this page, redirect immediately.

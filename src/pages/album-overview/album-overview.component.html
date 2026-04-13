@@ -100,8 +100,8 @@
         [album]="a"
         [tracks]="compiledTracks()"
         [totalDuration]="compiledTrackTotalDuration()"
-        [coverUrl]="a.artworkUrl || ''"
-        sourceLabel="Creator Portal Compiled Preview"
+        [coverUrl]="compiledCoverUrl()"
+        [sourceLabel]="compiledSourceLabel()"
         [policyHash]="a.status === 'ready' ? 'sha256:demo-policy-hash' : ''"
         [buildVersion]="a.dpacVersion">
       </app-compiled-album-view>

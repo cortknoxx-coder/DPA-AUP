@@ -83,6 +83,8 @@ bool capsuleOtaAckSeen(const String& capsuleId);
 void capsuleOtaLoadIndex();
 void capsuleOtaCleanupStaleParts();
 static void capsuleOtaProcessPendingDelivery();
+String buildStatusJson();
+String audioListTracksJson();
 
 static String ingestTrimmedBaseUrl() {
   String base = g_ingestBaseUrl;
@@ -400,6 +402,13 @@ static String ingestExtractFirstArrayObject(const String& body, const String& ke
   return "";
 }
 
+static String capsuleOtaArtworkPath() {
+  if (!g_sdMounted) return "";
+  if (SD.exists("/art/cover.jpg")) return "/art/cover.jpg";
+  if (SD.exists("/art/cover.png")) return "/art/cover.png";
+  return "";
+}
+
 static String capsuleOtaCheckInBody() {
   String body = "{\"deviceId\":\"" + ingestEscJson(g_duid) + "\",";
   body += "\"firmwareVersion\":\"" + ingestEscJson(g_fwVersion) + "\",";
@@ -407,7 +416,14 @@ static String capsuleOtaCheckInBody() {
   body += "\"installedCapsules\":" + capsuleOtaInstalledCapsulesJson() + ",";
   body += "\"freeStorageMb\":" + String((int)(g_sdMounted ? g_sdFreeMB : 0)) + ",";
   body += "\"batteryPercent\":" + String(g_battPercent) + ",";
-  body += "\"wifiRssi\":" + String(g_staRSSI) + "}";
+  body += "\"wifiRssi\":" + String(g_staRSSI) + ",";
+  body += "\"status\":" + buildStatusJson() + ",";
+  body += "\"tracks\":" + audioListTracksJson();
+  String artworkPath = capsuleOtaArtworkPath();
+  if (artworkPath.length() > 0) {
+    body += ",\"artworkUrl\":\"" + ingestEscJson(artworkPath) + "\"";
+  }
+  body += "}";
   return body;
 }
 

@@ -12,6 +12,14 @@ function trimSlash(s) {
   return (s || '').trim().replace(/\/+$/, '');
 }
 
+function isTemporaryTunnel(base) {
+  try {
+    return new URL(base).hostname.toLowerCase().includes('pinggy');
+  } catch {
+    return false;
+  }
+}
+
 function upstreamBase(prefix, envMain, envUpload) {
   if (prefix === '/dpa-upload') {
     const u = trimSlash(envUpload || envMain);
@@ -38,13 +46,13 @@ export default async function middleware(request) {
   }
 
   const base = upstreamBase(prefix, envMain, envUpload);
-  if (!base) {
+  if (!base || isTemporaryTunnel(base)) {
     return new Response(
       JSON.stringify({
-        error: 'dpa_tunnel_unconfigured',
-        detail: 'Set DPA_DEVICE_API_TUNNEL on Vercel to an HTTPS tunnel that forwards to the DPA (e.g. http://192.168.4.1).',
+        error: 'dpa_cloud_or_local_direct_required',
+        detail: 'This hosted path is only for an explicitly configured device gateway. Use the Vercel cloud-control path for relay access, or connect directly to the DPA on the same network.',
       }),
-      { status: 503, headers: { 'content-type': 'application/json; charset=utf-8' } },
+      { status: 503, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } },
     );
   }
 

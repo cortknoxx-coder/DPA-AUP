@@ -237,7 +237,7 @@ export class FanAlbumDetailComponent {
       codec: 'audio/wav',
       title: t.title,
       trackNo: i + 1,
-      durationSec: Math.max(1, Math.round(t.durationMs / 1000)),
+      durationSec: Math.max(0, Math.round(t.durationMs / 1000)),
     }));
     this.firmwarePathByTrackId.set(
       trackRefs.reduce((acc, t) => {
@@ -297,7 +297,6 @@ export class FanAlbumDetailComponent {
           this.playerService.isPlaying.set(true);
           this.playerService.currentTime.set(0);
           this.playerService.progress.set(0);
-          this.playerService.startWifiPolling();
         }
       });
       return;

@@ -40,6 +40,10 @@ export class PlayerService {
   private wifiPollTimer: any;
   private readonly SNIPPET_LIMIT = 30; // seconds
 
+  private canUseDeviceHttpControls(connection = this.deviceService.connectionStatus()): boolean {
+    return connection === 'wifi' || (connection === 'usb' && this.bridge.usesLocalHelperHttp());
+  }
+
   effectiveDuration = computed(() => {
     const track = this.currentTrack();
     if (!track) return 0;
@@ -66,7 +70,7 @@ export class PlayerService {
     // Sync player state from WiFi status
     effect(() => {
       const status = this.deviceService.wifi.lastStatus();
-      if (!status || this.deviceService.connectionStatus() !== 'wifi') return;
+      if (!status || !this.canUseDeviceHttpControls()) return;
 
       this.isPlaying.set(status.player.playing);
       this.currentTime.set(Math.floor(status.player.posMs / 1000));
@@ -112,7 +116,7 @@ export class PlayerService {
       return;
     }
 
-    if (conn === 'wifi') {
+    if (this.canUseDeviceHttpControls(conn)) {
       if (track) {
         this.currentTrack.set(track);
         this.progress.set(0);
@@ -193,7 +197,7 @@ export class PlayerService {
     const conn = this.deviceService.connectionStatus();
     if (conn === 'bluetooth') {
       this.deviceService.ble.sendCommand(BLE_CMD.PAUSE);
-    } else if (conn === 'wifi') {
+    } else if (this.canUseDeviceHttpControls(conn)) {
       this.deviceService.wifi.sendCommand(BLE_CMD.PAUSE);
     }
 
@@ -204,8 +208,8 @@ export class PlayerService {
 
   stop() {
     const conn = this.deviceService.connectionStatus();
-    if (conn === 'wifi') {
-      this.deviceService.wifi.sendCommand(0x05);
+    if (this.canUseDeviceHttpControls(conn)) {
+      void this.deviceService.wifi.stopPlayback();
     }
 
     this.isPlaying.set(false);
@@ -226,7 +230,7 @@ export class PlayerService {
     const conn = this.deviceService.connectionStatus();
     if (conn === 'bluetooth') {
       this.deviceService.ble.sendCommand(BLE_CMD.NEXT);
-    } else if (conn === 'wifi') {
+    } else if (this.canUseDeviceHttpControls(conn)) {
       this.deviceService.wifi.sendCommand(BLE_CMD.NEXT);
     }
 
@@ -243,7 +247,7 @@ export class PlayerService {
     const conn = this.deviceService.connectionStatus();
     if (conn === 'bluetooth') {
       this.deviceService.ble.sendCommand(BLE_CMD.PREV);
-    } else if (conn === 'wifi') {
+    } else if (this.canUseDeviceHttpControls(conn)) {
       this.deviceService.wifi.sendCommand(BLE_CMD.PREV);
     }
 
@@ -263,7 +267,7 @@ export class PlayerService {
     const newVol = Math.min(100, this.volume() + 5);
     this.volume.set(newVol);
     const conn = this.deviceService.connectionStatus();
-    if (conn === 'wifi') {
+    if (this.canUseDeviceHttpControls(conn)) {
       await this.deviceService.wifi.setVolume(newVol);
     } else if (conn === 'bluetooth') {
       await this.deviceService.ble.sendCommand(BLE_CMD.VOLUME_UP);
@@ -274,7 +278,7 @@ export class PlayerService {
     const newVol = Math.max(0, this.volume() - 5);
     this.volume.set(newVol);
     const conn = this.deviceService.connectionStatus();
-    if (conn === 'wifi') {
+    if (this.canUseDeviceHttpControls(conn)) {
       await this.deviceService.wifi.setVolume(newVol);
     } else if (conn === 'bluetooth') {
       await this.deviceService.ble.sendCommand(BLE_CMD.VOLUME_DOWN);
@@ -284,7 +288,7 @@ export class PlayerService {
   async setVolume(vol: number) {
     this.volume.set(vol);
     const conn = this.deviceService.connectionStatus();
-    if (conn === 'wifi') {
+    if (this.canUseDeviceHttpControls(conn)) {
       await this.deviceService.wifi.setVolume(vol);
     }
   }
@@ -292,14 +296,16 @@ export class PlayerService {
   startWifiPolling() {
     this.stopWifiPolling();
     this.wifiPollTimer = setInterval(async () => {
-      if (this.deviceService.connectionStatus() !== 'wifi') {
+      if (!this.canUseDeviceHttpControls()) {
         this.stopWifiPolling();
         return;
       }
       try {
-        // Reuse the shared WiFi status stream whenever it is fresh so the
-        // player does not create a second high-frequency poll loop.
-        const status = await this.deviceService.wifi.getStatus({ maxAgeMs: 5000, timeoutMs: 2500 });
+        const playing = this.isPlaying();
+        const status = await this.deviceService.wifi.getStatus({
+          maxAgeMs: playing ? 12000 : 5000,
+          timeoutMs: 2500,
+        });
         if (!status?.player) return;
 
         this.isPlaying.set(status.player.playing);

@@ -490,7 +490,8 @@ export interface TrackRef {
   title: string; 
   durationSec: number; 
   trackNo: number; 
-  codec: string; 
+  codec: string;
+  blobId: string;
 }
 
 export interface LibraryIndex {
@@ -508,6 +509,20 @@ export interface Manifest {
     manifestSigEd25519B64: string;
     publisherPubkeyEd25519B64: string;
   };
+}
+
+export type DeviceTransportKind = 'local_direct' | 'cloud_relay';
+export type DeviceReachability = 'online' | 'stale' | 'offline' | 'unknown';
+
+export interface DeviceSession {
+  deviceId: string;
+  transport: DeviceTransportKind;
+  reachability: DeviceReachability;
+  connection: 'wifi' | 'usb' | 'bluetooth' | 'cloud' | 'simulator' | 'unknown';
+  albumId?: string;
+  artworkUrl?: string;
+  trackCount: number;
+  checkedInAt?: string;
 }
 
 // --- .dpa Media Container Format (v1) ---

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { DataService } from '../../services/data.service';
 import { DeviceConnectionService } from '../../services/device-connection.service';
-import { FirmwareStatus } from '../../types';
+import { DeviceTrack, FirmwareStatus } from '../../types';
 import { ReleaseBuildService, ReleaseBuildStep } from '../../services/release-build.service';
 import { CompiledAlbumViewComponent } from '../../components/compiled-album-view/compiled-album-view.component';
 import { PrivateIngestSummary } from '../../services/private-ingest.service';
@@ -22,18 +22,37 @@ export class AlbumOverviewComponent {
   private privateIngest = inject(PrivateIngestPublicService);
   connectionService = inject(DeviceConnectionService);
 
+  private refreshToken = 0;
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
-  compiledTracks = computed(() =>
-    (this.album()?.tracks ?? []).map(track => ({
+  liveDeviceTracks = signal<DeviceTrack[]>([]);
+  compiledTracks = computed(() => {
+    const liveTracks = this.liveDeviceTracks();
+    if (liveTracks.length > 0) {
+      return liveTracks.map((track, index) => ({
+        trackId: track.filename,
+        title: track.title,
+        trackNo: index + 1,
+        durationSec: Math.max(0, Math.round(track.durationMs / 1000)),
+        route: track.filename,
+      }));
+    }
+    return (this.album()?.tracks ?? []).map(track => ({
       trackId: track.trackId,
       title: track.title,
       trackNo: track.trackIndex + 1,
       durationSec: track.durationSec,
-    }))
-  );
+      route: this.normalizeTrackRoute(track.trackId),
+    }));
+  });
   compiledTrackTotalDuration = computed(() =>
-    this.album()?.tracks.reduce((sum, track) => sum + track.durationSec, 0) ?? 0
+    this.compiledTracks().reduce((sum, track) => sum + track.durationSec, 0)
+  );
+  compiledCoverUrl = computed(() =>
+    this.connectionService.deviceLibrary()?.albums?.[0]?.artworkUrl || this.album()?.artworkUrl || ''
+  );
+  compiledSourceLabel = computed(() =>
+    this.liveDeviceTracks().length > 0 ? 'Creator Portal Live Device Preview' : 'Creator Portal Compiled Preview'
   );
 
   deviceStatus = signal<FirmwareStatus | null>(null);
@@ -54,22 +73,38 @@ export class AlbumOverviewComponent {
     }, { allowSignalWrites: true });
 
     effect(() => {
-      if (this.connectionService.connectionStatus() === 'wifi') {
-        this.refreshDeviceStatus();
+      const httpAvailable = this.connectionService.deviceHttpAvailable();
+      const contentRevision = this.connectionService.wifi.contentRevision();
+      const libraryTrackCount = this.connectionService.deviceLibrary()?.tracks?.length ?? 0;
+      void contentRevision;
+      void libraryTrackCount;
+      if (httpAvailable) {
+        void this.refreshDeviceStatus();
       } else {
         this.deviceStatus.set(null);
         this.deviceTrackCount.set(0);
+        this.liveDeviceTracks.set([]);
       }
     }, { allowSignalWrites: true });
   }
 
   private async refreshDeviceStatus() {
+    const refreshToken = ++this.refreshToken;
     try {
       const status = await this.connectionService.wifi.getStatus();
+      if (refreshToken !== this.refreshToken) return;
       this.deviceStatus.set(status);
       const tracks = await this.connectionService.wifi.getDeviceTracks();
+      if (refreshToken !== this.refreshToken) return;
+      this.liveDeviceTracks.set(tracks);
       this.deviceTrackCount.set(tracks.length);
     } catch {}
+  }
+
+  private normalizeTrackRoute(trackId: string): string | undefined {
+    if (!trackId?.startsWith('device://')) return undefined;
+    const raw = trackId.replace(/^device:\/\//, '');
+    return raw.startsWith('/') ? raw : `/${raw}`;
   }
 
   private async loadIngestSummary(albumId: string) {

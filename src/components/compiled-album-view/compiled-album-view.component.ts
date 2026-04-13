@@ -8,6 +8,7 @@ export interface CompiledAlbumTrack {
   title: string;
   trackNo: number;
   durationSec: number;
+  route?: string;
 }
 
 @Component({
@@ -103,7 +104,10 @@ export interface CompiledAlbumTrack {
             <div *ngFor="let track of tracks" class="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
               <div class="min-w-0 flex items-center gap-3">
                 <div class="w-8 text-center font-mono text-sm text-slate-500">{{ track.trackNo }}</div>
-                <div class="truncate text-sm font-medium text-slate-100">{{ track.title }}</div>
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-medium text-slate-100">{{ track.title }}</div>
+                  <div *ngIf="track.route" class="mt-1 truncate font-mono text-[11px] text-teal-400/80">{{ track.route }}</div>
+                </div>
               </div>
               <div class="shrink-0 font-mono text-xs text-slate-400">{{ formatTime(track.durationSec) }}</div>
             </div>

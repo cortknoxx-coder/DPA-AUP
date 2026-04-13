@@ -89,11 +89,11 @@
 
   <!-- Track List Table -->
   <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-    @if (isConnected() && deviceTracks().length > 0) {
+    @if (hasLiveTrackSource()) {
       <div class="px-4 py-2 bg-teal-500/5 border-b border-teal-500/20 flex items-center gap-2">
         <span class="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse"></span>
         <span class="text-xs text-teal-300 font-semibold">Live from device storage</span>
-        <span class="text-xs text-teal-500 ml-auto font-mono">{{ deviceTracks().length }} track(s)</span>
+        <span class="text-xs text-teal-500 ml-auto font-mono">{{ displayTracks().length }} track(s)</span>
       </div>
     }
     <div class="overflow-x-auto">
@@ -104,7 +104,7 @@
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider w-10"></th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider w-12" title="Per-track artwork (1400x1400 JPG/PNG recommended)">Art</th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Title</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Format</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Source / Path</th>
             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Plays</th>
             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Duration</th>
             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
@@ -144,7 +144,9 @@
               </td>
               <td class="px-4 py-3 text-slate-100 font-medium">{{ track.title }}</td>
               <td class="px-4 py-3 text-slate-500 font-mono text-xs">
-                @if (track.isDevice && track.sampleRate) {
+                @if (track.route) {
+                  <div class="truncate text-teal-400/80" [title]="track.route">{{ track.route }}</div>
+                } @else if (track.isDevice && track.sampleRate) {
                   {{ track.bitsPerSample }}-bit / {{ (track.sampleRate! / 1000).toFixed(1) }}kHz
                 } @else {
                   {{ track.format }}

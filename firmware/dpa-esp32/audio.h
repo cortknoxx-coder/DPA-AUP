@@ -43,6 +43,9 @@ extern String g_eq;
 static constexpr uint32_t kAudioPlaybackTaskStackBytes = 12 * 1024;
 static constexpr uint32_t kAudioRestartSettleMs = 100;
 static constexpr size_t kAudioPendingPathMaxLen = 192;
+static constexpr UBaseType_t kAudioTaskPriority = configMAX_PRIORITIES - 2;
+static String g_audioTracksJsonCache = "";
+static bool g_audioTracksJsonDirty = true;
 
 // ── Software EQ (3-band biquad) ─────────────────────────────
 // Each band is a second-order IIR biquad filter applied per-channel.
@@ -493,20 +496,20 @@ static bool audioInitI2S(uint32_t sampleRate) {
   i2s_cfg.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
   i2s_cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
   i2s_cfg.intr_alloc_flags = 0;
-  i2s_cfg.use_apll = false;
+  i2s_cfg.use_apll = true;
   i2s_cfg.tx_desc_auto_clear = true;
   i2s_cfg.fixed_mclk = 0;
   i2s_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
   if (sampleRate >= 88200) {
-    i2s_cfg.dma_desc_num  = 8;     // 8 DMA descriptors
+    i2s_cfg.dma_desc_num  = 12;    // 12 DMA descriptors
     i2s_cfg.dma_frame_num = 768;   // 768 frames each
-    // = 8 × 768 × 8 = 49,152 bytes ≈ 64ms at 96kHz — fits in heap
+    // = 12 × 768 × 8 = 73,728 bytes ≈ 96ms at 96kHz
   } else if (sampleRate >= 44100) {
-    i2s_cfg.dma_desc_num  = 8;     // 8 descriptors for 44.1/48kHz
+    i2s_cfg.dma_desc_num  = 12;    // 12 descriptors for 44.1/48kHz
     i2s_cfg.dma_frame_num = 512;   // 512 frames each
-    // = 8 × 512 × 8 = 32KB ≈ 93ms at 44.1kHz
+    // = 12 × 512 × 8 = 49,152 bytes ≈ 139ms at 44.1kHz
   } else {
-    i2s_cfg.dma_desc_num  = 6;
+    i2s_cfg.dma_desc_num  = 8;
     i2s_cfg.dma_frame_num = 480;
   }
   if (i2s_driver_install(I2S_NUM_0, &i2s_cfg, 0, NULL) != ESP_OK) {
@@ -540,7 +543,12 @@ static bool audioInitI2S(uint32_t sampleRate) {
   g_i2sInstalled = true;
   audioRestoreRuntimeAllocThreshold();
 
-  Serial.printf("[AUDIO] Legacy I2S started: %lu Hz, 32-bit stereo\n", (unsigned long)sampleRate);
+  Serial.printf("[AUDIO] Legacy I2S started: %lu Hz, 32-bit stereo, APLL=%s, DMA=%dx%d (%lu bytes)\n",
+    (unsigned long)sampleRate,
+    i2s_cfg.use_apll ? "on" : "off",
+    (int)i2s_cfg.dma_desc_num,
+    (int)i2s_cfg.dma_frame_num,
+    (unsigned long)(i2s_cfg.dma_desc_num * i2s_cfg.dma_frame_num * 8));
   return true;
 }
 
@@ -691,8 +699,16 @@ String audioFindFirstPlayable() {
 }
 
 // ── List All Valid Playable Tracks in /tracks ───────────────
+void audioInvalidateTracksJsonCache() {
+  g_audioTracksJsonDirty = true;
+  g_audioTracksJsonCache = "";
+}
+
 String audioListTracksJson() {
   if (g_wavCount == 0) return "[]";
+  if (!g_audioTracksJsonDirty && g_audioTracksJsonCache.length() > 0) {
+    return g_audioTracksJsonCache;
+  }
 
   String json = "[";
 
@@ -724,7 +740,9 @@ String audioListTracksJson() {
     }
     json += "\"durationMs\":" + String(durationMs) + "}";
   }
-  return json + "]";
+  g_audioTracksJsonCache = json + "]";
+  g_audioTracksJsonDirty = false;
+  return g_audioTracksJsonCache;
 }
 
 static void audioRunPlaybackPath(const String& path) {
@@ -784,6 +802,9 @@ static void audioRunPlaybackPath(const String& path) {
   // Apply EQ preset at the file's native sample rate
   eqSetPreset(g_eq, info.sampleRate);
 
+  unsigned long playbackHealthLogAt = millis();
+  uint32_t loopCount = 0;
+
   while (!g_audioStopRequested && f.available()) {
     // Handle seek request from API/UI
     if (g_audioSeekRequested) {
@@ -801,7 +822,13 @@ static void audioRunPlaybackPath(const String& path) {
       continue;
     }
 
-    size_t n = f.read(g_audioInBuf + g_audioCarryLen, sizeof(g_audioInBuf) - g_audioCarryLen);
+    const size_t maxOutFrames = (sizeof(g_audioOutBuf) / sizeof(g_audioOutBuf[0])) / 2;
+    size_t maxReadBytes = sizeof(g_audioInBuf) - g_audioCarryLen;
+    size_t safeInBytes = maxOutFrames * info.blockAlign;
+    if (safeInBytes > g_audioCarryLen) safeInBytes -= g_audioCarryLen;
+    if (maxReadBytes > safeInBytes) maxReadBytes = safeInBytes;
+
+    size_t n = f.read(g_audioInBuf + g_audioCarryLen, maxReadBytes);
     if (n == 0) break;
 
     n += g_audioCarryLen;
@@ -832,6 +859,19 @@ static void audioRunPlaybackPath(const String& path) {
     audioReactiveCompute();
 
     g_wavBytesRead += aligned;
+    loopCount++;
+
+    if (millis() - playbackHealthLogAt >= 5000) {
+      uint32_t posMs = (g_wavSampleRate > 0 && g_wavBlockAlign > 0)
+        ? (uint32_t)((uint64_t)(g_wavBytesRead / g_wavBlockAlign) * 1000 / g_wavSampleRate)
+        : 0;
+      Serial.printf("[AUDIO] Health: pos=%lums heap=%lu loops=%u\n",
+        (unsigned long)posMs,
+        (unsigned long)esp_get_free_heap_size(),
+        (unsigned)loopCount);
+      playbackHealthLogAt = millis();
+      loopCount = 0;
+    }
 
     if (leftover > 0) {
       memcpy(g_audioInBuf, g_audioCarryBuf, leftover);
@@ -872,7 +912,7 @@ static bool audioEnsurePlaybackWorker() {
     "audioPlay",
     kAudioPlaybackTaskStackBytes,
     nullptr,
-    5,
+    kAudioTaskPriority,
     &g_playbackTaskHandle,
     1
   );

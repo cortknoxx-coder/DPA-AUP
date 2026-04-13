@@ -19,7 +19,6 @@ import {
   normalizeDeviceCapsuleRecord,
 } from './device-content.utils';
 import {
-  isHostedHttps,
   readDeviceTunnelOverride,
   readDeviceUploadTunnelOverride,
 } from '../dpa-device-http';
@@ -33,8 +32,11 @@ const IS_DEV_PROXY = typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const DEV_API_BASE = '/dpa-api';       // proxied → http://192.168.4.1/api
 const DEV_UPLOAD_BASE = '/dpa-upload'; // proxied → http://192.168.4.1:81
-const STATUS_CACHE_WINDOW_MS = 1000;
+const STATUS_CACHE_WINDOW_MS = 2500;
+const STATUS_RATE_LIMIT_BACKOFF_MS = 5000;
+const STATUS_STALE_FALLBACK_MS = 12000;
 const STATUS_UPLOAD_FALLBACK_MS = 15000;
+const MAIN_CONTROL_PLANE_BACKOFF_MS = 15000;
 
 export interface WifiNetwork {
   ssid: string;
@@ -65,6 +67,10 @@ export class DeviceWifiService {
   private lastStatusAt = 0;
   private preferredStatusPlane: 'main' | 'upload' = 'main';
   private uploadStatusFallbackUntil = 0;
+  private statusRateLimitedUntil = 0;
+  private mainControlPlaneUnavailableUntil = 0;
+  private hostedHelperAvailability: { ok: boolean; checkedAt: number } | null = null;
+  private coverPathCache: { key: string; path: string | null; checkedAt: number } | null = null;
 
   isConnected = signal(false);
   lastStatus = signal<FirmwareStatus | null>(null);
@@ -82,13 +88,26 @@ export class DeviceWifiService {
     this.baseUrl = this.computeDeviceHttpRoot(savedIp || undefined);
   }
 
+  requiresHostedLocalHelper(): boolean {
+    return false;
+  }
+
+  hostedHelperUnavailableMessage(): string {
+    return 'Hosted mode now uses the Vercel control plane for cloud access. Use WiFi only for a real local-direct DPA connection on the same network.';
+  }
+
   private computeDeviceHttpRoot(ipOverride?: string): string {
     if (IS_DEV_PROXY) return DEV_API_BASE;
-    if (isHostedHttps()) return '/dpa-api';
     const tunnel = readDeviceTunnelOverride();
     if (tunnel) return tunnel.replace(/\/$/, '');
     const ip = ipOverride ?? this.deviceIp();
     return `http://${ip}`;
+  }
+
+  async hostedHelperReady(timeoutMs = 1200): Promise<boolean> {
+    void timeoutMs;
+    this.hostedHelperAvailability = { ok: false, checkedAt: Date.now() };
+    return false;
   }
 
   private sanitizeDevicePath(path: string): string {
@@ -103,8 +122,9 @@ export class DeviceWifiService {
     if (ip) {
       this.deviceIp.set(ip);
       localStorage.setItem(DEVICE_IP_KEY, ip);
-      this.baseUrl = this.computeDeviceHttpRoot(ip);
     }
+    const resolvedIp = ip ?? this.deviceIp();
+    this.baseUrl = this.computeDeviceHttpRoot(resolvedIp);
 
     const status = await this.fetchStatusJson(3500, { forceRefresh: true, maxAgeMs: 0 });
     if (status) {
@@ -174,15 +194,37 @@ export class DeviceWifiService {
    * status code. 200 = file exists on SD.
    */
   async verifyCoverArt(path: string = '/art/cover.jpg'): Promise<boolean> {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    if (
+      this.mainControlPlaneDown() &&
+      (normalizedPath === '/art/cover.jpg' || normalizedPath === '/art/cover.png')
+    ) {
+      return (this.lastStatus()?.coverBytes ?? 0) > 0;
+    }
     try {
-      const url = `${this.baseUrl}/api/art?path=${encodeURIComponent(path)}&t=${Date.now()}`;
-      const response = await fetch(url, {
+      const existsUrl = `${this.baseUrl}/api/art-exists?path=${encodeURIComponent(normalizedPath)}`;
+      const existsResponse = await fetch(existsUrl, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(2500),
+      });
+      if (existsResponse.ok) {
+        const payload = await existsResponse.json().catch(() => null);
+        if (payload && typeof payload.exists === 'boolean') {
+          return payload.exists;
+        }
+      }
+
+      // Older firmware fallback: a tiny range GET still answers existence,
+      // but the dedicated exists endpoint is preferred to avoid streaming work.
+      const artUrl = `${this.baseUrl}/api/art?path=${encodeURIComponent(normalizedPath)}&t=${Date.now()}`;
+      const response = await fetch(artUrl, {
         method: 'GET',
-        headers: { Range: 'bytes=0-0' },  // pull 1 byte, not the whole file
+        headers: { Range: 'bytes=0-0' },
         signal: AbortSignal.timeout(4000),
       });
       return response.ok || response.status === 206;
     } catch {
+      this.noteMainControlPlaneUnavailable();
       return false;
     }
   }
@@ -197,9 +239,25 @@ export class DeviceWifiService {
   }
 
   async resolveAvailableCoverArtPath(paths: string[] = ['/art/cover.jpg', '/art/cover.png']): Promise<string | null> {
-    for (const path of paths) {
-      if (await this.verifyCoverArt(path)) return path;
+    const cacheKey = this.coverPathCacheKey();
+    const status = this.lastStatus();
+    const ttlMs = status?.player?.playing ? 60000 : 10000;
+    if (this.coverPathCache && this.coverPathCache.key === cacheKey && (Date.now() - this.coverPathCache.checkedAt) < ttlMs) {
+      return this.coverPathCache.path;
     }
+
+    if ((status?.coverBytes ?? 0) <= 0 && paths.every((path) => path === '/art/cover.jpg' || path === '/art/cover.png')) {
+      this.coverPathCache = { key: cacheKey, path: null, checkedAt: Date.now() };
+      return null;
+    }
+
+    for (const path of paths) {
+      if (await this.verifyCoverArt(path)) {
+        this.coverPathCache = { key: cacheKey, path, checkedAt: Date.now() };
+        return path;
+      }
+    }
+    this.coverPathCache = { key: cacheKey, path: null, checkedAt: Date.now() };
     return null;
   }
 
@@ -230,6 +288,7 @@ export class DeviceWifiService {
   }
 
   async getBookletData(): Promise<DeviceBookletPayload | null> {
+    if (!this.canBrowserReadDevicePath('/api/booklet')) return null;
     return this.fetchJsonFile('/api/booklet', normalizeDeviceBookletPayload);
   }
 
@@ -238,6 +297,7 @@ export class DeviceWifiService {
   }
 
   async getAlbumMeta(): Promise<DeviceAlbumMetaPayload | null> {
+    if (!this.canBrowserReadDevicePath('/api/album/meta')) return null;
     return this.fetchJsonFile('/api/album/meta', normalizeDeviceAlbumMetaPayload);
   }
 
@@ -246,35 +306,61 @@ export class DeviceWifiService {
   }
 
   async sendCommand(opCode: number): Promise<boolean> {
-    try {
-      // Firmware parses "op" as hexadecimal string (base 16).
-      const opHex = opCode.toString(16).padStart(2, '0');
-      const response = await fetch(`${this.baseUrl}/api/cmd?op=${opHex}`);
-      const result = await response.json();
-      return result.ok === true;
-    } catch {
-      return false;
+    // Firmware parses "op" as hexadecimal string (base 16).
+    const opHex = opCode.toString(16).padStart(2, '0');
+    for (const root of this.commandRootsInPriorityOrder()) {
+      try {
+        const response = await fetch(`${root}/api/cmd?op=${opHex}`);
+        const result = await response.json();
+        if (root === this.baseUrl) this.mainControlPlaneUnavailableUntil = 0;
+        if (result.ok === true) return true;
+      } catch {
+        if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
+      }
     }
+    return false;
   }
 
   async selectTrack(index: number): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/track?i=${index}`);
-      const result = await response.json();
-      return result.ok === true;
-    } catch {
-      return false;
+    for (const root of this.commandRootsInPriorityOrder()) {
+      try {
+        const response = await fetch(`${root}/api/track?i=${index}`);
+        const result = await response.json();
+        if (root === this.baseUrl) this.mainControlPlaneUnavailableUntil = 0;
+        if (result.ok === true) return true;
+      } catch {
+        if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
+      }
     }
+    return false;
   }
 
   async playFile(path: string): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/audio/play?file=${encodeURIComponent(path)}`);
-      const result = await response.json();
-      return result.ok === true;
-    } catch {
-      return false;
+    for (const root of this.commandRootsInPriorityOrder()) {
+      try {
+        const response = await fetch(`${root}/api/audio/play?file=${encodeURIComponent(path)}`);
+        const result = await response.json();
+        if (root === this.baseUrl) this.mainControlPlaneUnavailableUntil = 0;
+        if (result.ok === true) return true;
+      } catch {
+        if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
+      }
     }
+    return false;
+  }
+
+  async stopPlayback(): Promise<boolean> {
+    for (const root of this.commandRootsInPriorityOrder()) {
+      try {
+        const response = await fetch(`${root}/api/audio/stop`);
+        const result = await response.json();
+        if (root === this.baseUrl) this.mainControlPlaneUnavailableUntil = 0;
+        if (result.ok === true) return true;
+      } catch {
+        if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
+      }
+    }
+    return false;
   }
 
   async getMeshPeers(): Promise<any> {
@@ -283,6 +369,8 @@ export class DeviceWifiService {
   }
 
   // --- POST endpoints (new firmware additions) ---
+
+  private lastPushedThemeJson = '';
 
   async pushTheme(theme: Theme, brightness?: number, gradEnd?: string): Promise<boolean> {
     try {
@@ -303,12 +391,23 @@ export class DeviceWifiService {
         payload.dcnp_remix   = theme.dcnp.remix;
         payload.dcnp_other   = theme.dcnp.other;
       }
-      // Pass-through artist/album when present (firmware updates SSID via /api/theme)
       if ((theme as any).artist) payload.artist = (theme as any).artist;
       if ((theme as any).album)  payload.album  = (theme as any).album;
 
+      const json = JSON.stringify(payload);
+      if (json === this.lastPushedThemeJson) {
+        return true;
+      }
+
+      const status = this.lastStatus();
+      if (status?.player?.playing) {
+        console.warn('[Wifi] pushTheme deferred — audio is playing');
+        return true;
+      }
+
       const ok = await this.postWithTimeout(`${this.baseUrl}/api/theme`, payload, 8000);
       if (ok) {
+        this.lastPushedThemeJson = json;
         this.invalidateAfterMutation('/api/theme', { content: false, artwork: false });
       }
       return ok;
@@ -441,28 +540,58 @@ export class DeviceWifiService {
   }
 
   async getDeviceTracks(): Promise<DeviceTrack[]> {
-    try {
-      // Prefer neutral track endpoint for DPA/WAV mixed libraries.
-      const response = await fetch(`${this.baseUrl}/api/audio/tracks`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const tracks = data.tracks ?? [];
-        return tracks.map((t: any, i: number) => this.mapTrackResponse(t, i));
+    const expectedTrackCount = Math.max(0, Number(this.lastStatus()?.storage?.trackCount || 0));
+    const uploadRoot = this.uploadBaseUrl();
+    const roots = Array.from(new Set(
+      this.mainControlPlaneDown()
+        ? [uploadRoot, this.baseUrl]
+        : [this.baseUrl, uploadRoot]
+    ));
+    for (const root of roots) {
+      try {
+        const tracksUrl = `${root}/api/audio/tracks`;
+        const init: RequestInit = {
+          cache: 'no-store',
+        };
+        if (!this.isCrossOriginRequest(tracksUrl)) {
+          init.headers = { 'Cache-Control': 'no-cache', Pragma: 'no-cache' };
+        }
+        const response = await fetch(tracksUrl, init);
+        if (response.ok) {
+          if (root === this.baseUrl) this.mainControlPlaneUnavailableUntil = 0;
+          const data = await response.json();
+          const tracks = data.tracks ?? [];
+          if (tracks.length > 0 && (expectedTrackCount <= 1 || tracks.length >= expectedTrackCount)) {
+            return tracks.map((t: any, i: number) => this.mapTrackResponse(t, i));
+          }
+        }
+      } catch {
+        if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
+        // Try the next authoritative track source.
       }
-    } catch { return []; }
-    try {
-      // Legacy firmware fallback: WAV-only endpoint.
-      const response = await fetch(`${this.baseUrl}/api/audio/wavs`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
-      });
-      const data = await response.json();
-      const wavs = data.wavs ?? [];
-      return wavs.map((w: any, i: number) => this.mapTrackResponse({ ...w, format: 'wav', codec: 'wav' }, i));
-    } catch { return []; }
+      try {
+        const wavsUrl = `${root}/api/audio/wavs`;
+        const init: RequestInit = {
+          cache: 'no-store',
+        };
+        if (!this.isCrossOriginRequest(wavsUrl)) {
+          init.headers = { 'Cache-Control': 'no-cache', Pragma: 'no-cache' };
+        }
+        const response = await fetch(wavsUrl, init);
+        if (response.ok) {
+          if (root === this.baseUrl) this.mainControlPlaneUnavailableUntil = 0;
+          const data = await response.json();
+          const wavs = data.wavs ?? [];
+          if (wavs.length > 0 && (expectedTrackCount <= 1 || wavs.length >= expectedTrackCount)) {
+            return wavs.map((w: any, i: number) => this.mapTrackResponse({ ...w, format: 'wav', codec: 'wav' }, i));
+          }
+        }
+      } catch {
+        if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
+        // Keep walking the candidate roots.
+      }
+    }
+    return [];
   }
 
   private mapTrackResponse(track: any, i: number): DeviceTrack {
@@ -492,11 +621,10 @@ export class DeviceWifiService {
   }
 
   async getCapsules(): Promise<DeviceCapsuleRecord[]> {
+    if (!this.canBrowserReadDevicePath('/api/capsules')) return [];
     try {
-      const response = await fetch(`${this.baseUrl}/api/capsules`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
-      });
+      const url = `${this.baseUrl}/api/capsules`;
+      const response = await fetch(url, this.jsonReadRequestInit(url, 4000));
       const data = await response.json();
       return (data.capsules ?? []).map((capsule: any) => normalizeDeviceCapsuleRecord(capsule));
     } catch {
@@ -515,14 +643,17 @@ export class DeviceWifiService {
       rating: number;
     }[]
   > {
+    if (this.mainControlPlaneDown()) return [];
     try {
-      const response = await fetch(`${this.baseUrl}/api/analytics`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
-      });
+      const url = `${this.baseUrl}/api/analytics`;
+      const response = await fetch(url, this.jsonReadRequestInit(url, 4000));
+      if (response.ok) {
+        this.mainControlPlaneUnavailableUntil = 0;
+      }
       const data = await response.json();
       return data.tracks ?? [];
     } catch {
+      this.noteMainControlPlaneUnavailable();
       return [];
     }
   }
@@ -815,6 +946,7 @@ export class DeviceWifiService {
     }
     if (options?.artwork || options?.content) {
       this.artRevision.update((value) => value + 1);
+      this.coverPathCache = null;
     }
   }
 
@@ -840,6 +972,16 @@ export class DeviceWifiService {
     const lastUploadPath = status?.lastUploadPath ?? '';
     const lastUploadBytes = status?.lastUploadBytes ?? 0;
     const uploadToken = lastUploadPath === path ? lastUploadBytes : 0;
+    return `${revision}-${coverBytes}-${uploadToken}`;
+  }
+
+  private coverPathCacheKey(): string {
+    const revision = this.artRevision();
+    const status = this.lastStatus();
+    const coverBytes = status?.coverBytes ?? 0;
+    const lastUploadPath = status?.lastUploadPath ?? '';
+    const lastUploadBytes = status?.lastUploadBytes ?? 0;
+    const uploadToken = (lastUploadPath === '/art/cover.jpg' || lastUploadPath === '/art/cover.png') ? lastUploadBytes : 0;
     return `${revision}-${coverBytes}-${uploadToken}`;
   }
 
@@ -872,9 +1014,8 @@ export class DeviceWifiService {
     // Hosted HTTPS can use a direct HTTPS upload tunnel to bypass
     // Vercel request-body limits for large device transfers.
     if (uploadTunnel) return uploadTunnel.replace(/\/$/, '');
-    if (isHostedHttps()) return '/dpa-upload';
     const mainTunnel = readDeviceTunnelOverride();
-    if (mainTunnel && isHostedHttps()) {
+    if (mainTunnel) {
       try {
         const u = new URL(mainTunnel);
         u.port = '81';
@@ -902,7 +1043,11 @@ export class DeviceWifiService {
   ): Promise<FirmwareStatus | null> {
     const maxAgeMs = options?.maxAgeMs ?? 0;
     const cached = this.lastStatus();
+    const cacheAgeMs = cached ? (Date.now() - this.lastStatusAt) : Number.POSITIVE_INFINITY;
     if (!options?.forceRefresh && cached && (Date.now() - this.lastStatusAt) <= maxAgeMs) {
+      return cached;
+    }
+    if (!options?.forceRefresh && cached && Date.now() < this.statusRateLimitedUntil && cacheAgeMs <= STATUS_STALE_FALLBACK_MS) {
       return cached;
     }
     if (!options?.forceRefresh && this.statusRequest) {
@@ -932,8 +1077,19 @@ export class DeviceWifiService {
           };
         }
         const response = await fetch(url, init);
+        if (response.status === 429) {
+          this.statusRateLimitedUntil = Date.now() + STATUS_RATE_LIMIT_BACKOFF_MS;
+          const cached = this.lastStatus();
+          const cacheAgeMs = cached ? (Date.now() - this.lastStatusAt) : Number.POSITIVE_INFINITY;
+          if (cached && cacheAgeMs <= STATUS_STALE_FALLBACK_MS) {
+            return cached;
+          }
+          continue;
+        }
         if (!response.ok) continue;
         const status = (await response.json()) as FirmwareStatus;
+        this.statusRateLimitedUntil = 0;
+        if (plane === 'main') this.mainControlPlaneUnavailableUntil = 0;
         this.preferredStatusPlane = plane;
         if (plane === 'upload' || this.shouldPreferUploadStatus(status)) {
           this.uploadStatusFallbackUntil = Date.now() + STATUS_UPLOAD_FALLBACK_MS;
@@ -943,6 +1099,7 @@ export class DeviceWifiService {
         this.syncStatusSignals(status);
         return status;
       } catch {
+        if (plane === 'main') this.noteMainControlPlaneUnavailable();
         // Try the next status plane.
       }
     }
@@ -1134,11 +1291,11 @@ export class DeviceWifiService {
     }
 
     if (lower === '/data/booklet.json') {
-      return (await this.getBookletData()) !== null;
+      return this.verifyJsonUpload(normalizedPath, '/api/booklet', () => this.getBookletData());
     }
 
     if (lower === '/data/album_meta.json') {
-      return (await this.getAlbumMeta()) !== null;
+      return this.verifyJsonUpload(normalizedPath, '/api/album/meta', () => this.getAlbumMeta());
     }
 
     if (lower.startsWith('/tracks/')) {
@@ -1205,16 +1362,77 @@ export class DeviceWifiService {
 
   private async fetchJsonFile<T>(path: string, normalize: (raw: any) => T | null): Promise<T | null> {
     try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
-        signal: AbortSignal.timeout(4000),
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
-      });
+      const url = `${this.baseUrl}${path}`;
+      const response = await fetch(url, this.jsonReadRequestInit(url, 4000));
       if (!response.ok) return null;
       return normalize(await response.json());
     } catch {
       return null;
     }
+  }
+
+  canBrowserReadDevicePath(path: string): boolean {
+    return !this.isBrowserHostileReadUrl(`${this.baseUrl}${path}`);
+  }
+
+  private jsonReadRequestInit(url: string, timeoutMs: number): RequestInit {
+    const init: RequestInit = {
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: 'no-store',
+    };
+    if (!this.isCrossOriginRequest(url)) {
+      init.headers = { 'Cache-Control': 'no-cache', Pragma: 'no-cache' };
+    }
+    return init;
+  }
+
+  private isBrowserHostileReadUrl(url: string): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+      const target = new URL(url, window.location.href);
+      return window.location.protocol === 'https:'
+        && target.protocol === 'http:'
+        && target.origin !== window.location.origin;
+    } catch {
+      return false;
+    }
+  }
+
+  private noteMainControlPlaneUnavailable() {
+    this.mainControlPlaneUnavailableUntil = Date.now() + MAIN_CONTROL_PLANE_BACKOFF_MS;
+  }
+
+  private mainControlPlaneDown(): boolean {
+    return Date.now() < this.mainControlPlaneUnavailableUntil;
+  }
+
+  private commandRootsInPriorityOrder(): string[] {
+    const uploadRoot = this.uploadBaseUrl();
+    return Array.from(new Set(
+      this.mainControlPlaneDown()
+        ? [uploadRoot, this.baseUrl]
+        : [this.baseUrl, uploadRoot]
+    ));
+  }
+
+  private recentUploadLooksSettled(path: string): boolean {
+    const status = this.lastStatus();
+    const uploadState = status?.uploadState ?? 'idle';
+    return (status?.lastUploadPath ?? '') === path
+      && Number(status?.lastUploadBytes ?? 0) > 0
+      && !['preparing', 'receiving', 'verifying', 'finalizing'].includes(uploadState);
+  }
+
+  private async verifyJsonUpload<T>(
+    uploadPath: string,
+    readPath: string,
+    readback: () => Promise<T | null>
+  ): Promise<boolean> {
+    if (await this.fileExistsOnDevice(uploadPath)) return true;
+    if (!this.canBrowserReadDevicePath(readPath)) {
+      return this.recentUploadLooksSettled(uploadPath);
+    }
+    return (await readback()) !== null;
   }
 
   private async persistJsonFile(path: string, filename: string, payload: unknown): Promise<boolean> {

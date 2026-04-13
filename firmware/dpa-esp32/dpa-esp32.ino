@@ -366,6 +366,7 @@ void loadOrGenerateDUID() {
 // Includes DPA1-wrapped WAV payloads first, then raw WAV legacy files.
 // g_wavPaths[] naming is kept for compatibility with existing analytics/favorites code.
 void scanWavList() {
+  audioInvalidateTracksJsonCache();
   g_wavCount = 0;
   File dir = SD.open("/tracks");
   if (!dir || !dir.isDirectory()) { if (dir) dir.close(); return; }
@@ -985,6 +986,115 @@ void setupSyncUploadServer() {
     uploadServer.send(200, "application/json", buildStatusJson());
   });
   uploadServer.on("/api/status", HTTP_OPTIONS, handleSyncOptions);
+  uploadServer.on("/api/cmd", HTTP_GET, []() {
+    notePortalHttpActivity();
+    if (uploadServer.hasArg("op")) {
+      String opStr = uploadServer.arg("op");
+      uint8_t op = (uint8_t)strtol(opStr.c_str(), NULL, 16);
+      handleCommand(op);
+    }
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    uploadServer.sendHeader("Pragma", "no-cache");
+    uploadServer.sendHeader("Connection", "close");
+    uploadServer.send(200, "application/json", "{\"ok\":true}");
+  });
+  uploadServer.on("/api/cmd", HTTP_OPTIONS, handleSyncOptions);
+  uploadServer.on("/api/track", HTTP_GET, []() {
+    notePortalHttpActivity();
+    bool ok = false;
+    String path = "";
+    if (uploadServer.hasArg("i")) {
+      int idx = uploadServer.arg("i").toInt();
+      path = audioGetWavPathByIndex(idx);
+      if (path.length() > 0) {
+        if (g_sdCurrentHz != SD_FAST_HZ) sdMountFast();
+        ok = audioPlayFile(path.c_str());
+        if (ok) {
+          g_trackIndex = idx;
+          g_playing = true;
+          g_playCount++;
+          ledSetMode(LED_PLAYBACK);
+          ledNotify("#00ff88", "comet", 700);
+        }
+      }
+    }
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    uploadServer.sendHeader("Pragma", "no-cache");
+    uploadServer.sendHeader("Connection", "close");
+    uploadServer.send(200, "application/json", String("{\"ok\":") + (ok ? "true" : "false") + ",\"file\":\"" + escJson(path) + "\"}");
+  });
+  uploadServer.on("/api/track", HTTP_OPTIONS, handleSyncOptions);
+  uploadServer.on("/api/audio/play", HTTP_GET, []() {
+    notePortalHttpActivity();
+    if (!g_audioReady) {
+      uploadServer.send(503, "application/json", "{\"error\":\"audio not ready\"}");
+      return;
+    }
+    if (!g_sdMounted) {
+      uploadServer.send(503, "application/json", "{\"error\":\"sd not mounted\"}");
+      return;
+    }
+    if (!uploadServer.hasArg("file")) {
+      uploadServer.send(400, "application/json", "{\"error\":\"file param required\"}");
+      return;
+    }
+    String path = uploadServer.arg("file");
+    if (g_sdCurrentHz != SD_FAST_HZ) {
+      sdMountFast();
+    }
+    for (int i = 0; i < g_wavCount; i++) {
+      if (g_wavPaths[i] == path) {
+        g_trackIndex = i;
+        break;
+      }
+    }
+    bool ok = audioPlayFile(path.c_str());
+    if (ok) {
+      g_playing = true;
+      g_playCount++;
+      ledSetMode(LED_PLAYBACK);
+      ledNotify("#00ff88", "comet", 700);
+    }
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    uploadServer.sendHeader("Pragma", "no-cache");
+    uploadServer.sendHeader("Connection", "close");
+    uploadServer.send(200, "application/json", "{\"ok\":" + String(ok ? "true" : "false") + ",\"file\":\"" + escJson(path) + "\"}");
+  });
+  uploadServer.on("/api/audio/play", HTTP_OPTIONS, handleSyncOptions);
+  uploadServer.on("/api/audio/stop", HTTP_GET, []() {
+    notePortalHttpActivity();
+    g_playing = false;
+    audioStop();
+    g_toneActive = false;
+    ledNotify("#ff6b35", "fade_out", 500);
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    uploadServer.sendHeader("Pragma", "no-cache");
+    uploadServer.sendHeader("Connection", "close");
+    uploadServer.send(200, "application/json", "{\"ok\":true}");
+  });
+  uploadServer.on("/api/audio/stop", HTTP_OPTIONS, handleSyncOptions);
+  uploadServer.on("/api/audio/tracks", HTTP_GET, []() {
+    notePortalHttpActivity();
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    uploadServer.sendHeader("Pragma", "no-cache");
+    uploadServer.sendHeader("Connection", "close");
+    uploadServer.send(200, "application/json", "{\"tracks\":" + audioListTracksJson() + "}");
+  });
+  uploadServer.on("/api/audio/tracks", HTTP_OPTIONS, handleSyncOptions);
+  uploadServer.on("/api/audio/wavs", HTTP_GET, []() {
+    notePortalHttpActivity();
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    uploadServer.sendHeader("Pragma", "no-cache");
+    uploadServer.sendHeader("Connection", "close");
+    uploadServer.send(200, "application/json", "{\"wavs\":" + audioListTracksJson() + "}");
+  });
+  uploadServer.on("/api/audio/wavs", HTTP_OPTIONS, handleSyncOptions);
   uploadServer.on("/api/sd/upload", HTTP_POST, handleSyncUploadDone, handleSyncFileUpload);
   uploadServer.on("/api/sd/upload", HTTP_OPTIONS, handleSyncOptions);
   uploadServer.begin();
@@ -1294,6 +1404,7 @@ void loop() {
   if (!g_audioPlaying && !g_uploadInProgress) {
     analyticsFlushIfDirty();
     favoritesFlushIfDirty();
+    ledFlushIfDirty();
   }
 
   // Skip all background SPI-touching tasks during upload (prevents SD bus contention)
@@ -1321,7 +1432,7 @@ void loop() {
       lastWifiCheck = millis();
     }
 
-    if (g_apRecoveryPending) {
+    if (g_apRecoveryPending && !g_audioPlaying) {
       int clients = wifiGetApStationCount();
       if (clients > 0) {
         g_apRecoveryPending = false;
@@ -1365,8 +1476,7 @@ void loop() {
     const bool enoughHeapForRecovery =
       internalFreeHeap >= kControlPlaneRecoveryInternalFreeMinBytes &&
       internalLargestHeapBlock >= kControlPlaneRecoveryInternalLargestBlockMinBytes;
-    const bool safeDuringPlayback =
-      !g_audioPlaying || internalLargestHeapBlock >= kControlPlanePlaybackSafeInternalLargestBlockMinBytes;
+    const bool safeDuringPlayback = !g_audioPlaying;
     if (lowControlPlaneHeap && !restartCoolingDown && enoughHeapForRecovery && safeDuringPlayback) {
       Serial.printf(
         "[HEAP] Control-plane heap low: total=%u/%u internal=%u/%u — restarting async server\n",
@@ -1426,7 +1536,7 @@ void loop() {
     const bool enoughHeapForRecovery =
       internalFreeHeap >= kControlPlaneRecoveryInternalFreeMinBytes &&
       internalLargestHeapBlock >= kControlPlaneRecoveryInternalLargestBlockMinBytes;
-    if (!g_uploadInProgress && activeClientSession && silentForMs > kPortalHttpSilenceRestartMs && enoughHeapForRecovery && !restartCoolingDown) {
+    if (!g_uploadInProgress && !g_audioPlaying && activeClientSession && silentForMs > kPortalHttpSilenceRestartMs && enoughHeapForRecovery && !restartCoolingDown) {
       g_httpRestartCount++;
       noteDisconnectBreadcrumb(
         "restart",
@@ -1452,6 +1562,7 @@ void loop() {
     }
   }
 
-  // Small yield to prevent WDT reset
-  delay(5);
+  // Yield to prevent WDT reset. Shorter during playback to keep the
+  // upload-server HTTP handler responsive without wasting CPU budget.
+  delay(g_audioPlaying ? 1 : 5);
 }

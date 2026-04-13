@@ -5,9 +5,10 @@ import { DeviceBleService } from './device-ble.service';
 import { DeviceWifiService } from './device-wifi.service';
 import { DeviceNfcService } from './device-nfc.service';
 import { ApiService } from './api.service';
-import { DpaDeviceInfo, LibraryIndex, Album, Track, FirmwareStatus, DeviceCapsuleRecord, DeviceRuntimeStatus } from '../types';
+import { DpaDeviceInfo, LibraryIndex, Album, Track, FirmwareStatus, DeviceCapsuleRecord, DeviceRuntimeStatus, DeviceSession } from '../types';
 import { DataService } from './data.service';
 import { normalizeDeviceAlbumMetaPayload, normalizeDeviceBookletPayload } from './device-content.utils';
+import { isHostedHttps } from '../dpa-device-http';
 
 export type ConnectionStatus = 'disconnected' | 'usb' | 'bluetooth' | 'wifi';
 export type RegistrationStatus = 'unregistered' | 'analyzing' | 'registered' | 'lost';
@@ -16,6 +17,7 @@ export type DeviceAccessMode =
   | 'remote_locked'
   | 'dpa_ssid'
   | 'same_wifi'
+  | 'cloud_relay'
   | 'usb_bridge'
   | 'bluetooth'
   | 'simulator';
@@ -101,7 +103,44 @@ export class DeviceConnectionService {
     if (event.wifiMaintenance) parts.push(event.wifiMaintenance);
     return parts.join(' • ');
   });
+  deviceSession = computed<DeviceSession | null>(() => {
+    if (this.isSimulationMode()) {
+      return {
+        deviceId: 'simulator',
+        transport: 'local_direct',
+        reachability: 'online',
+        connection: 'simulator',
+        albumId: this.deviceLibrary()?.albums?.[0]?.id,
+        artworkUrl: this.deviceLibrary()?.albums?.[0]?.artworkUrl,
+        trackCount: this.deviceLibrary()?.tracks?.length ?? 0,
+      };
+    }
+
+    const info = this.deviceInfo();
+    if (!info?.serial || this.connectionStatus() === 'disconnected') return null;
+
+    const accessMode = this.resolveDeviceAccessMode();
+    const library = this.deviceLibrary();
+    return {
+      deviceId: info.serial,
+      transport: accessMode === 'cloud_relay' ? 'cloud_relay' : 'local_direct',
+      reachability: 'online',
+      connection: accessMode === 'cloud_relay'
+        ? 'cloud'
+        : this.connectionStatus() === 'usb'
+          ? 'usb'
+          : this.connectionStatus() === 'wifi'
+            ? 'wifi'
+            : this.connectionStatus() === 'bluetooth'
+              ? 'bluetooth'
+              : 'unknown',
+      albumId: library?.albums?.[0]?.id,
+      artworkUrl: library?.albums?.[0]?.artworkUrl,
+      trackCount: library?.tracks?.length ?? 0,
+    };
+  });
   deviceReadyForWrites = computed(() => {
+    if (this.connectionStatus() === 'usb') return true;
     if (this.connectionStatus() !== 'wifi') return false;
     if (this.wifiRecoveryActive()) return false;
     const runtime = this.deviceRuntime();
@@ -114,6 +153,9 @@ export class DeviceConnectionService {
     if (this.isSimulationMode()) return 'simulator';
     switch (this.connectionStatus()) {
       case 'usb':
+        if (isHostedHttps() && this.bridge.usesHttpBridge()) {
+          return 'cloud_relay';
+        }
         return 'usb_bridge';
       case 'bluetooth':
         return 'bluetooth';
@@ -130,12 +172,16 @@ export class DeviceConnectionService {
   isSnippetMode = computed(() => this.registrationStatus() !== 'registered');
   registeredDeviceId = computed(() => this.deviceInfo()?.serial ?? null);
   deviceAccessMode = computed<DeviceAccessMode>(() => this.resolveDeviceAccessMode());
+  deviceHttpAvailable = computed(() =>
+    this.connectionStatus() === 'wifi' || (this.connectionStatus() === 'usb' && this.bridge.usesHttpBridge())
+  );
   connectionTransportLabel = computed(() => {
     if (this.isSimulationMode()) return 'Simulator';
     if (this.connectionStatus() === 'wifi' && this.wifiRecoveryActive()) return 'WiFi Reconnecting';
     switch (this.resolveDeviceAccessMode()) {
       case 'dpa_ssid': return 'DPA SSID';
       case 'same_wifi': return 'Same WiFi LAN';
+      case 'cloud_relay': return 'Cloud Relay';
       case 'usb_bridge': return 'USB-C Bridge';
       case 'bluetooth': return 'Bluetooth LE';
       default: return 'Disconnected';
@@ -147,6 +193,8 @@ export class DeviceConnectionService {
         return 'Connected through the DPA SSID';
       case 'same_wifi':
         return 'Connected on the same WiFi network';
+      case 'cloud_relay':
+        return 'Connected through the cloud relay';
       case 'usb_bridge':
         return 'Connected through USB-C Bridge';
       case 'bluetooth':
@@ -164,6 +212,8 @@ export class DeviceConnectionService {
         return `Join ${status?.apSsid || 'the DPA WiFi network'} and pull the fan or creator session directly from the device.`;
       case 'same_wifi':
         return `The DPA is on ${status?.sta?.ssid || 'your LAN'} with IP ${status?.sta?.ip || 'unknown'}. Chrome is recommended for shared-LAN discovery and control.`;
+      case 'cloud_relay':
+        return 'The Vercel control plane is serving the latest authenticated device snapshot from the DPA cloud session.';
       case 'usb_bridge':
         return 'The desktop bridge is carrying the live device session, so creator and fan surfaces can stay in sync.';
       case 'bluetooth':
@@ -185,7 +235,8 @@ export class DeviceConnectionService {
       return this.wifiRecoveryActive() ? `${base} • reconnecting` : base;
     }
     if (this.connectionStatus() === 'usb') {
-      return this.deviceInfo()?.serial || 'Bridge connected';
+      const label = this.deviceInfo()?.serial || 'Bridge connected';
+      return this.deviceAccessMode() === 'cloud_relay' ? `${label} • cloud relay` : label;
     }
     if (this.connectionStatus() === 'bluetooth') {
       return this.deviceInfo()?.serial || 'Bluetooth connected';
@@ -356,7 +407,7 @@ export class DeviceConnectionService {
       return this.refreshBridgeConnection(options?.silent === true);
     }
     if (!options?.silent) {
-      this.connectionError.set('Failed to connect to DPA Desktop Bridge. Is the application running on your computer?');
+      this.connectionError.set('Failed to connect to the DPA local bridge. Start the helper on this computer, then retry the USB-C Bridge path.');
     }
     return false;
   }
@@ -487,6 +538,7 @@ export class DeviceConnectionService {
 
       const library = await this.bridge.listLibrary();
       this.deviceLibrary.set(library);
+      this.syncBridgeLibraryIntoDataService(info, library);
 
       if (info.serial) {
         this.registrationStatus.set('registered');
@@ -495,6 +547,23 @@ export class DeviceConnectionService {
       console.error('Failed to get device info/library', e);
       this.disconnectDevice({ expected: false, reason: 'USB bridge lost the device during refresh.' });
     }
+  }
+
+  private syncBridgeLibraryIntoDataService(info: DpaDeviceInfo, library: LibraryIndex | null) {
+    if (!library) return;
+    const firstAlbum = this.dataService.albums()[0];
+    const resolvedAlbumId = library.albums?.[0]?.id || firstAlbum?.albumId;
+    if (!resolvedAlbumId) return;
+    this.dataService.syncAlbumFromDevice(resolvedAlbumId, {
+      artistName: info.serial || undefined,
+      title: library.albums?.[0]?.title || undefined,
+      artworkUrl: library.albums?.[0]?.artworkUrl,
+      tracks: (library.tracks || []).map((track) => ({
+        title: track.title,
+        durationSec: Math.max(0, Number(track.durationSec || 0)),
+        filename: track.blobId,
+      })),
+    });
   }
 
   disconnectDevice(options?: { expected?: boolean; reason?: string }) {
@@ -542,7 +611,8 @@ export class DeviceConnectionService {
         title: track.title,
         durationSec: track.durationSec,
         trackNo: track.trackIndex + 1,
-        codec: 'audio/wav'
+        codec: 'audio/wav',
+        blobId: `mock://${track.trackId}`,
       }))
     };
     this.deviceLibrary.set(libraryIndex);
@@ -550,6 +620,13 @@ export class DeviceConnectionService {
 
   private async refreshWifiLibrary() {
     const tracks = await this.wifi.getDeviceTracks();
+    const expectedTrackCount = Math.max(0, Number(this.wifi.lastStatus()?.storage?.trackCount || 0));
+    if (expectedTrackCount > 1 && tracks.length > 0 && tracks.length < expectedTrackCount) {
+      return;
+    }
+    if (expectedTrackCount > 0 && tracks.length === 0) {
+      return;
+    }
     const duid = this.deviceInfo()?.serial ?? 'DPA';
     // Use device-reported metadata when available, fall back to DataService
     const status = this.wifi.lastStatus();
@@ -572,13 +649,17 @@ export class DeviceConnectionService {
         durationSec: Math.max(0, Math.round(t.durationMs / 1000)),
         trackNo: t.index + 1,
         codec: 'audio/wav',
+        blobId: t.filename,
       })),
     });
-    await this.syncWifiStatusIntoLibrary();
   }
 
   async refreshDeviceCapsules() {
     if (this.connectionStatus() !== 'wifi') {
+      this.deviceCapsules.set([]);
+      return;
+    }
+    if (!this.wifi.canBrowserReadDevicePath('/api/capsules')) {
       this.deviceCapsules.set([]);
       return;
     }
@@ -600,31 +681,6 @@ export class DeviceConnectionService {
       return true;
     } catch {
       return false;
-    }
-  }
-
-  private async syncWifiStatusIntoLibrary() {
-    try {
-      const status: FirmwareStatus = await this.wifi.getStatus();
-      const current = this.deviceLibrary();
-      if (!current || !status?.player?.trackId) return;
-
-      const normalizedPath = status.player.trackId.trim();
-      const normalizedTitle = status.player.trackTitle?.trim();
-
-      this.deviceLibrary.set({
-        ...current,
-        tracks: current.tracks.map((t) => {
-          const samePath = t.id === normalizedPath;
-          const sameTitle = normalizedTitle && t.title === normalizedTitle;
-          if (samePath || sameTitle) {
-            return { ...t, id: normalizedPath || t.id };
-          }
-          return t;
-        }),
-      });
-    } catch {
-      // best effort only
     }
   }
 
@@ -656,8 +712,10 @@ export class DeviceConnectionService {
   private async syncDeviceIntoDataService(status: FirmwareStatus) {
     try {
       const tracks = await this.wifi.getDeviceTracks();
-      const bookletPayload = await this.wifi.getBookletData();
-      const albumMetaPayload = await this.wifi.getAlbumMeta();
+      const canReadBooklet = this.wifi.canBrowserReadDevicePath('/api/booklet');
+      const canReadAlbumMeta = this.wifi.canBrowserReadDevicePath('/api/album/meta');
+      const bookletPayload = canReadBooklet ? await this.wifi.getBookletData() : null;
+      const albumMetaPayload = canReadAlbumMeta ? await this.wifi.getAlbumMeta() : null;
       let coverDataUrl: string | undefined;
       const coverKey = this.coverSyncKey(status);
       if (coverKey && coverKey !== this.lastCoverSyncKey) {
@@ -671,16 +729,21 @@ export class DeviceConnectionService {
 
       const booklet = normalizeDeviceBookletPayload(bookletPayload);
       const albumMeta = normalizeDeviceAlbumMetaPayload(albumMetaPayload);
+      const expectedTrackCount = Math.max(0, Number(status?.storage?.trackCount || 0));
+      const hasCompleteTrackList = tracks.length > 0 && (expectedTrackCount <= 1 || tracks.length >= expectedTrackCount);
+      const shouldReplaceTracks = hasCompleteTrackList || expectedTrackCount === 0;
 
       this.dataService.syncAlbumFromDevice(firstAlbum.albumId, {
         artistName: status.artist || undefined,
         title: status.album || undefined,
         artworkUrl: coverDataUrl,
-        tracks: tracks.map(t => ({
-          title: t.title,
-          durationSec: Math.max(1, Math.round(t.durationMs / 1000)),
-          filename: t.filename,
-        })),
+        ...(shouldReplaceTracks ? {
+          tracks: tracks.map(t => ({
+            title: t.title,
+            durationSec: Math.max(0, Math.round(t.durationMs / 1000)),
+            filename: t.filename,
+          })),
+        } : {}),
         description: booklet?.description,
         lyrics: booklet?.lyrics,
         booklet: booklet?.booklet,
@@ -703,7 +766,12 @@ export class DeviceConnectionService {
    * Runs automatically on WiFi connect from any page.
    */
   private async syncLedColorsFromCover(status?: FirmwareStatus): Promise<void> {
-    const syncKey = this.coverSyncKey(status ?? this.wifi.lastStatus());
+    const effectiveStatus = status ?? this.wifi.lastStatus();
+    if (effectiveStatus?.player?.playing) {
+      // Keep cover-art reads and theme writes off the hot playback path.
+      return;
+    }
+    const syncKey = this.coverSyncKey(effectiveStatus);
     if (syncKey && syncKey === this.lastLedSyncKey) return;
     const coverPath = await this.wifi.resolveAvailableCoverArtPath();
     if (!coverPath) return;
@@ -929,17 +997,32 @@ export class DeviceConnectionService {
     this.stopWifiStatusPolling();
     this.wifiRecoveryActive.set(false);
     this.wifiPollFailures = 0;
-    this.wifiStatusPollTimer = setInterval(() => {
-      void this.pollWifiStatus();
-    }, 2500);
+    this.scheduleNextWifiStatusPoll();
   }
 
   private stopWifiStatusPolling() {
     if (this.wifiStatusPollTimer) {
-      clearInterval(this.wifiStatusPollTimer);
+      clearTimeout(this.wifiStatusPollTimer);
       this.wifiStatusPollTimer = null;
     }
     this.wifiPollFailures = 0;
+  }
+
+  private wifiStatusPollDelayMs(): number {
+    const status = this.wifi.lastStatus();
+    if (status?.player?.playing) return 15000;
+    if (this.isUploadBusy(status)) return 1500;
+    return 3000;
+  }
+
+  private scheduleNextWifiStatusPoll() {
+    if (this.connectionStatus() !== 'wifi') return;
+    if (this.wifiStatusPollTimer) {
+      clearTimeout(this.wifiStatusPollTimer);
+    }
+    this.wifiStatusPollTimer = setTimeout(() => {
+      void this.pollWifiStatus();
+    }, this.wifiStatusPollDelayMs());
   }
 
   private async pollWifiStatus() {
@@ -949,7 +1032,7 @@ export class DeviceConnectionService {
     }
 
     try {
-      const status = await this.wifi.getStatus();
+      const status = await this.wifi.getStatus({ maxAgeMs: 4000, timeoutMs: 5000 });
       this.wifiPollFailures = 0;
       this.wifiRecoveryActive.set(false);
       this.connectionError.set('');
@@ -962,8 +1045,11 @@ export class DeviceConnectionService {
       this.lastUploadBusy = uploadBusy;
     } catch {
       this.wifiPollFailures += 1;
-      if (this.wifiPollFailures < 2) return;
-      if (this.wifiPollFailures === 2) {
+      if (this.wifiPollFailures < 4) {
+        this.scheduleNextWifiStatusPoll();
+        return;
+      }
+      if (this.wifiPollFailures === 4) {
         this.wifiRecoveryActive.set(true);
         this.recordConnectionEvent(
           'disconnect',
@@ -990,9 +1076,11 @@ export class DeviceConnectionService {
           await this.runPostUploadRecovery(status);
           this.lastUploadBusy = this.isUploadBusy(status);
         }
+        this.scheduleNextWifiStatusPoll();
         return;
       }
     }
+    this.scheduleNextWifiStatusPoll();
   }
 
   private async runPostUploadRecovery(status: FirmwareStatus) {

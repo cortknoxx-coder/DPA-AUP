@@ -56,6 +56,7 @@ static String g_notifyPattern = "";
 static bool g_ledIdleFullSpectrum = false;
 static bool g_ledPlayFullSpectrum = false;
 static bool g_ledChargeFullSpectrum = false;
+static bool g_ledPersistDirty = false;
 
 // ── Extern Globals (defined in .ino) ─────────────────────────
 extern String g_ledIdle, g_ledIdlePat;
@@ -933,7 +934,18 @@ void ledTick() {
   // Mirror to onboard LED (same color/brightness as strip)
   onboardLed[0] = leds[0];
 
-  FastLED.show();
+  // Rate-limit FastLED.show() during audio playback.
+  // FASTLED_ALLOW_INTERRUPTS=0 blocks ALL interrupts for ~510µs per show().
+  // At full loop speed (~200Hz) that's ~10% wall time with IRQs disabled.
+  // Cap to 30fps during playback → ~1.5% IRQ-disabled time.
+  extern volatile bool g_audioPlaying;
+  static unsigned long s_lastShowMs = 0;
+  const unsigned long showMinIntervalMs = g_audioPlaying ? 33UL : 0UL;
+  const unsigned long nowMs = millis();
+  if (showMinIntervalMs == 0 || (nowMs - s_lastShowMs) >= showMinIntervalMs) {
+    FastLED.show();
+    s_lastShowMs = nowMs;
+  }
 }
 
 // ── Public API ───────────────────────────────────────────────
@@ -998,7 +1010,17 @@ void ledSaveToNVS() {
   prefs.putString("dcnp_rx", g_dcnpRemix);
   prefs.putString("dcnp_ot", g_dcnpOther);
   prefs.end();
+  g_ledPersistDirty = false;
   Serial.println("[LED] Theme saved to NVS");
+}
+
+void ledMarkDirty() {
+  g_ledPersistDirty = true;
+}
+
+void ledFlushIfDirty() {
+  if (!g_ledPersistDirty) return;
+  ledSaveToNVS();
 }
 
 void ledLoadFromNVS() {

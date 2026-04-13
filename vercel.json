@@ -2,5 +2,15 @@
   "framework": null,
   "installCommand": "npm install --legacy-peer-deps",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/internal-api",
+      "destination": "/api/internal-api"
+    },
+    {
+      "source": "/internal-api/(.*)",
+      "destination": "/api/internal-api/$1"
+    }
+  ]
 }

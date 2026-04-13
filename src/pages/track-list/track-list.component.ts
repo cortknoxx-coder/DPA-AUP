@@ -27,6 +27,7 @@ export class TrackListComponent {
   private dataService = inject(DataService);
   private cryptoService = inject(CryptoService);
   private connectionService = inject(DeviceConnectionService);
+  private refreshToken = 0;
 
   private id = computed(() => this.route.parent?.snapshot.params['id']);
   album = computed(() => this.dataService.getAlbum(this.id())());
@@ -37,16 +38,25 @@ export class TrackListComponent {
   uploadGateMessage = signal<string>('');
 
   private readonly CLOUD_STREAM_BLOCK_MESSAGE =
-    'No cloud streaming: connect your DPA over WiFi before uploading masters.';
+    'No cloud streaming: connect your DPA over the local helper or live device path before uploading masters.';
 
   // Device tracks (live from firmware when connected)
   deviceTracks = signal<DeviceTrack[]>([]);
   trackPlayCounts = signal<Record<string, number>>({});
-  isConnected = computed(() => this.connectionService.connectionStatus() === 'wifi');
+  isConnected = computed(() => this.connectionService.deviceHttpAvailable());
+  hasLiveTrackSource = computed(() => {
+    const connected = this.connectionService.connectionStatus() !== 'disconnected';
+    const libraryTrackCount = this.connectionService.deviceLibrary()?.tracks?.length ?? 0;
+    return connected && (this.deviceTracks().length > 0 || libraryTrackCount > 0);
+  });
 
   // Combined track list: device tracks when connected, DataService tracks when not
   displayTracks = computed(() => {
-    if (this.isConnected() && this.deviceTracks().length > 0) {
+    const effectiveDeviceTracks = this.deviceTracks().length > 0
+      ? this.deviceTracks()
+      : this.synthesizedTracksFromLibrary();
+
+    if (this.hasLiveTrackSource() && effectiveDeviceTracks.length > 0) {
       const counts = this.trackPlayCounts();
       const a = this.album();
       const localByFilename = new Map<string, string>();
@@ -59,7 +69,7 @@ export class TrackListComponent {
           }
         }
       }
-      return this.deviceTracks().map((t, i) => {
+      return effectiveDeviceTracks.map((t, i) => {
         const leaf = t.filename.split('/').pop() || t.filename;
         // Per-track art: local DataService first, then device /api/art, then album cover fallback
         const localArt = localByFilename.get(leaf);
@@ -70,6 +80,7 @@ export class TrackListComponent {
           id: t.filename,
           durationSec: Math.round(t.durationMs / 1000),
           filename: t.filename,
+          route: t.filename,
           format: t.format || 'wav',
           sampleRate: t.sampleRate,
           bitsPerSample: t.bitsPerSample,
@@ -90,6 +101,7 @@ export class TrackListComponent {
       id: t.trackId,
       durationSec: t.durationSec,
       filename: '',
+      route: t.trackId?.startsWith('device://') ? t.trackId.replace('device://', '/') : t.trackId,
       format: 'local',
       sampleRate: undefined as number | undefined,
       bitsPerSample: undefined as number | undefined,
@@ -105,20 +117,54 @@ export class TrackListComponent {
 
   constructor() {
     effect(() => {
-      if (this.connectionService.connectionStatus() === 'wifi') {
-        this.refreshDeviceTracks();
+      const connection = this.connectionService.connectionStatus();
+      const httpAvailable = this.connectionService.deviceHttpAvailable();
+      const deviceId = this.connectionService.registeredDeviceId();
+      const libraryTrackCount = this.connectionService.deviceLibrary()?.tracks?.length ?? 0;
+      const contentRevision = this.connectionService.wifi.contentRevision();
+      void connection;
+      void deviceId;
+      void libraryTrackCount;
+      void contentRevision;
+
+      if (httpAvailable || connection === 'usb') {
+        void this.refreshDeviceTracks();
       } else {
         this.deviceTracks.set([]);
+        this.trackPlayCounts.set({});
       }
     }, { allowSignalWrites: true });
   }
 
+  private synthesizedTracksFromLibrary(): DeviceTrack[] {
+    const libraryTracks = this.connectionService.deviceLibrary()?.tracks ?? [];
+    return libraryTracks.map((track, i) => ({
+      index: i,
+      filename: track.blobId || `/tracks/track_${i + 1}.wav`,
+      title: track.title || `Track ${i + 1}`,
+      sizeMB: 0,
+      plays: 0,
+      durationMs: Math.max(0, Math.round((track.durationSec || 0) * 1000)),
+      format: 'wav',
+      codec: track.codec || 'audio/wav',
+    }));
+  }
+
   private async refreshDeviceTracks() {
+    const refreshToken = ++this.refreshToken;
+    if (this.connectionService.connectionStatus() === 'usb') {
+      if (refreshToken !== this.refreshToken) return;
+      this.deviceTracks.set(this.synthesizedTracksFromLibrary());
+      this.trackPlayCounts.set({});
+      return;
+    }
     const tracks = await this.connectionService.wifi.getDeviceTracks();
-    this.deviceTracks.set(tracks);
+    if (refreshToken !== this.refreshToken) return;
+    this.deviceTracks.set(tracks.length > 0 ? tracks : this.synthesizedTracksFromLibrary());
     // Fetch play counts
     try {
       const analytics = await this.connectionService.wifi.getAnalytics();
+      if (refreshToken !== this.refreshToken) return;
       const counts: Record<string, number> = {};
       for (const a of analytics) {
         if (a.path && a.path.length > 0) {
@@ -347,7 +393,7 @@ export class TrackListComponent {
   }
 
   canTransferToDevice(): boolean {
-    return this.connectionService.connectionStatus() === 'wifi'
+    return this.connectionService.deviceHttpAvailable()
       && !!this.connectionService.deviceInfo()?.serial
       && this.connectionService.deviceInfo()?.serial !== 'DPA-SIM-1234';
   }

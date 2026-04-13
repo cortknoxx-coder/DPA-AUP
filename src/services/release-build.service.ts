@@ -24,10 +24,10 @@ export class ReleaseBuildService {
   async rebuildAndPush(album: Album): Promise<ReleaseBuildResult> {
     const steps: ReleaseBuildStep[] = [];
 
-    if (this.connection.connectionStatus() !== 'wifi') {
+    if (!['wifi', 'usb'].includes(this.connection.connectionStatus())) {
       return this.fail(
         steps,
-        'Connect the creator portal to the DPA over WiFi before rebuilding and pushing.'
+        'Connect the creator portal to the DPA over USB-C Bridge or live device WiFi before rebuilding and pushing.'
       );
     }
 
@@ -257,9 +257,11 @@ export class ReleaseBuildService {
 
   private async verifyDeviceState(album: Album, steps: ReleaseBuildStep[]): Promise<boolean> {
     try {
+      const canReadBooklet = this.connection.wifi.canBrowserReadDevicePath('/api/booklet');
+      const canReadAlbumMeta = this.connection.wifi.canBrowserReadDevicePath('/api/album/meta');
       const status = await this.connection.wifi.getStatus({ forceRefresh: true, maxAgeMs: 0, timeoutMs: 4000 });
-      const booklet = await this.connection.wifi.getBookletData();
-      const albumMeta = await this.connection.wifi.getAlbumMeta();
+      const booklet = canReadBooklet ? await this.connection.wifi.getBookletData() : null;
+      const albumMeta = canReadAlbumMeta ? await this.connection.wifi.getAlbumMeta() : null;
       const coverVerified = album.artworkUrl && album.artworkUrl !== DEFAULT_COVER_DATA_URL
         ? await this.connection.wifi.verifyCoverArt('/art/cover.jpg')
         : true;
@@ -267,28 +269,37 @@ export class ReleaseBuildService {
       await this.connection.syncConnectedWifiState();
 
       const statusMatches = (status.artist || '') === (album.artistName || '') && (status.album || '') === album.title;
-      const bookletMatches =
+      const bookletMatches = !canReadBooklet || (
         (booklet?.description || '') === (album.description || '') &&
         (booklet?.lyrics || '') === (album.lyrics || '') &&
-        (booklet?.booklet?.credits || '') === (album.booklet?.credits || '');
-      const albumMetaMatches =
+        (booklet?.booklet?.credits || '') === (album.booklet?.credits || '')
+      );
+      const albumMetaMatches = !canReadAlbumMeta || (
         (albumMeta?.genre || '') === (album.genre || '') &&
         (albumMeta?.recordLabel || '') === (album.recordLabel || '') &&
         (albumMeta?.copyright || '') === (album.copyright || '') &&
         (albumMeta?.releaseDate || '') === (album.releaseDate || '') &&
         (albumMeta?.upcCode || '') === (album.upcCode || '') &&
-        (!!albumMeta?.parentalAdvisory) === (!!album.parentalAdvisory);
+        (!!albumMeta?.parentalAdvisory) === (!!album.parentalAdvisory)
+      );
 
       const expectedTracks = album.tracks.length;
       const trackCountMatches = deviceTracks.length >= expectedTracks;
       const ok = statusMatches && bookletMatches && albumMetaMatches && coverVerified && trackCountMatches;
+      const skippedReads = [
+        !canReadBooklet ? 'booklet' : '',
+        !canReadAlbumMeta ? 'album metadata' : '',
+      ].filter(Boolean);
+      const skipNote = skippedReads.length > 0
+        ? ` Readback for ${skippedReads.join(' and ')} was skipped because the current hosted/direct browser path cannot legally fetch those device routes.`
+        : '';
 
       steps.push({
         label: 'Device readback verification',
-        status: ok ? 'success' : 'error',
+        status: ok ? (skippedReads.length > 0 ? 'warning' : 'success') : 'error',
         detail: ok
-          ? `Verified metadata, booklet, cover art, and track count against the connected DPA (${deviceTracks.length} track(s) on device).`
-          : `Readback mismatch: metadata=${statusMatches}, booklet=${bookletMatches}, albumMeta=${albumMetaMatches}, cover=${coverVerified}, tracks=${deviceTracks.length}/${expectedTracks}.`,
+          ? `Verified metadata, cover art, and track count against the connected DPA (${deviceTracks.length} track(s) on device).${skipNote}`
+          : `Readback mismatch: metadata=${statusMatches}, booklet=${bookletMatches}, albumMeta=${albumMetaMatches}, cover=${coverVerified}, tracks=${deviceTracks.length}/${expectedTracks}.${skipNote}`,
       });
       return ok;
     } catch {
@@ -303,9 +314,9 @@ export class ReleaseBuildService {
 
   private deviceFilenameForTrack(trackId: string): string | null {
     if (!trackId.startsWith('device://')) return null;
-    const parts = trackId.replace('device://', '').split('/');
-    if (parts.length < 2) return null;
-    return parts.slice(1).join('/');
+    const raw = trackId.replace(/^device:\/\//, '');
+    if (!raw) return null;
+    return raw.startsWith('/') ? raw : `/${raw}`;
   }
 
   private artStem(pathOrFilename: string): string {

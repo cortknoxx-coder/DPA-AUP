@@ -13,9 +13,8 @@ function isHostedHttps(): boolean {
 }
 
 function resolveBridgeUrl(): string | null {
-  const override = readMeta('dpa-bridge-ws-url');
+  const override = readMeta('dpa-relay-ws-url') || readMeta('dpa-bridge-ws-url');
   if (override) {
-    if (isHostedHttps() && override.startsWith('ws://')) return null;
     return override;
   }
   if (isHostedHttps()) {
@@ -26,6 +25,15 @@ function resolveBridgeUrl(): string | null {
     return `ws://${host}:8787`;
   }
   return 'ws://localhost:8787';
+}
+
+function resolveBridgeHttpUrl(): string {
+  const override = readMeta('dpa-cloud-control-base') || readMeta('dpa-bridge-http-url');
+  if (override) return override.replace(/\/$/, '');
+  if (typeof window !== 'undefined' && isHostedHttps()) {
+    return `${window.location.origin}/internal-api/device`;
+  }
+  return 'http://127.0.0.1:8787/bridge';
 }
 
 function resolveApiUrl(): string {
@@ -43,5 +51,6 @@ function resolveApiUrl(): string {
 
 export const DPA_CONFIG = {
   get bridgeWsUrl() { return resolveBridgeUrl(); },
+  get bridgeHttpUrl() { return resolveBridgeHttpUrl(); },
   get apiBaseUrl() { return resolveApiUrl(); },
 };

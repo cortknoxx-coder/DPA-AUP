@@ -272,9 +272,9 @@ export class PerksConsoleComponent {
     req: { albumId: string; eventType: DcnpEventType; capsuleId: string; payload: DcnpPayload },
     isRetry: boolean
   ) {
-    if (this.connectionService.connectionStatus() !== 'wifi') {
+    if (!this.connectionService.deviceHttpAvailable()) {
       this.pushState.set('error');
-      this.pushMessage.set('Device not connected on Wi-Fi. Connect and press Retry Push.');
+      this.pushMessage.set('Device not connected on the local helper or live device path. Connect and press Retry Push.');
       return;
     }
 
