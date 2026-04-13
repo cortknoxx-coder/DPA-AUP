@@ -28,6 +28,21 @@ const DPA_HEADER_BYTES =
   DPA_TITLE_BYTES +
   DPA_FILENAME_BYTES;
 
+const DPA_ARTIST_BYTES = 64;
+const DPA_ALBUM_BYTES = 64;
+const DPA_ISRC_BYTES = 16;
+const DPA_GENRE_BYTES = 32;
+const DPA_LABEL_BYTES = 64;
+const DPA_COPYRIGHT_BYTES = 64;
+const DPA_HEADER_BYTES_V2 =
+  DPA_HEADER_BYTES +
+  DPA_ARTIST_BYTES +
+  DPA_ALBUM_BYTES +
+  DPA_ISRC_BYTES +
+  DPA_GENRE_BYTES +
+  DPA_LABEL_BYTES +
+  DPA_COPYRIGHT_BYTES;
+
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
   const arr = new Uint8Array(bin.length);
@@ -106,23 +121,12 @@ export class CryptoService {
     payload: ArrayBuffer,
     metadata: DpaPackagingMetadata
   ): ArrayBuffer {
-    const out = new ArrayBuffer(DPA_HEADER_BYTES + payload.byteLength);
+    const out = new ArrayBuffer(DPA_HEADER_BYTES_V2 + payload.byteLength);
     const view = new DataView(out);
     const bytes = new Uint8Array(out);
 
-    bytes.set(DPA1_MAGIC, 0);
-    view.setUint8(4, DPA1_VERSION);
-    view.setUint8(5, this.contentFlags('audio', false));
-    view.setUint16(6, DPA_HEADER_BYTES, true);
-    view.setUint32(8, metadata.format, true);
-    view.setUint32(12, metadata.sampleRate, true);
-    view.setUint16(16, metadata.channels, true);
-    view.setUint16(18, metadata.bitsPerSample, true);
-    view.setUint32(20, metadata.durationMs, true);
-    view.setUint32(24, payload.byteLength, true);
-    writeFixedUtf8(bytes, 28, DPA_TITLE_BYTES, metadata.title);
-    writeFixedUtf8(bytes, 28 + DPA_TITLE_BYTES, DPA_FILENAME_BYTES, metadata.originalFilename || '');
-    bytes.set(new Uint8Array(payload), DPA_HEADER_BYTES);
+    this.writeDpa1HeaderBytes(bytes, view, metadata, payload.byteLength);
+    bytes.set(new Uint8Array(payload), DPA_HEADER_BYTES_V2);
     return out;
   }
 
@@ -146,7 +150,8 @@ export class CryptoService {
     const payloadSize = view.getUint32(24, true);
     const title = readFixedUtf8(bytes, 28, DPA_TITLE_BYTES);
     const originalFilename = readFixedUtf8(bytes, 28 + DPA_TITLE_BYTES, DPA_FILENAME_BYTES);
-    return {
+
+    const result: DpaFileHeader = {
       magic: 'DPA1',
       sampleRate: view.getUint32(12, true),
       channels: view.getUint16(16, true),
@@ -161,6 +166,18 @@ export class CryptoService {
       title,
       originalFilename,
     };
+
+    if (headerSize >= DPA_HEADER_BYTES_V2) {
+      let off = DPA_HEADER_BYTES;
+      result.artist = readFixedUtf8(bytes, off, DPA_ARTIST_BYTES); off += DPA_ARTIST_BYTES;
+      result.album = readFixedUtf8(bytes, off, DPA_ALBUM_BYTES); off += DPA_ALBUM_BYTES;
+      result.isrc = readFixedUtf8(bytes, off, DPA_ISRC_BYTES); off += DPA_ISRC_BYTES;
+      result.genre = readFixedUtf8(bytes, off, DPA_GENRE_BYTES); off += DPA_GENRE_BYTES;
+      result.recordLabel = readFixedUtf8(bytes, off, DPA_LABEL_BYTES); off += DPA_LABEL_BYTES;
+      result.copyright = readFixedUtf8(bytes, off, DPA_COPYRIGHT_BYTES);
+    }
+
+    return result;
   }
 
   extractDpaAudioPayload(data: ArrayBuffer): ArrayBuffer {
@@ -181,7 +198,55 @@ export class CryptoService {
       durationMs: metadata.durationMs || info.durationMs,
       title: metadata.title || '',
       originalFilename: metadata.originalFilename || '',
+      artist: metadata.artist,
+      album: metadata.album,
+      isrc: metadata.isrc,
+      genre: metadata.genre,
+      recordLabel: metadata.recordLabel,
+      copyright: metadata.copyright,
     });
+  }
+
+  /**
+   * Build just the DPA1 v2 header bytes (524 bytes) without the payload.
+   * Used for zero-copy Blob wrapping: `new Blob([header, file])`.
+   */
+  buildDpa1Header(metadata: DpaPackagingMetadata, payloadSize: number): Uint8Array {
+    const bytes = new Uint8Array(DPA_HEADER_BYTES_V2);
+    const view = new DataView(bytes.buffer);
+    this.writeDpa1HeaderBytes(bytes, view, metadata, payloadSize);
+    return bytes;
+  }
+
+  inspectWavHeader(headerBytes: ArrayBuffer) {
+    return this.inspectWav(headerBytes);
+  }
+
+  private writeDpa1HeaderBytes(
+    bytes: Uint8Array,
+    view: DataView,
+    metadata: DpaPackagingMetadata,
+    payloadSize: number
+  ) {
+    bytes.set(DPA1_MAGIC, 0);
+    view.setUint8(4, DPA1_VERSION);
+    view.setUint8(5, this.contentFlags('audio', false));
+    view.setUint16(6, DPA_HEADER_BYTES_V2, true);
+    view.setUint32(8, metadata.format, true);
+    view.setUint32(12, metadata.sampleRate, true);
+    view.setUint16(16, metadata.channels, true);
+    view.setUint16(18, metadata.bitsPerSample, true);
+    view.setUint32(20, metadata.durationMs, true);
+    view.setUint32(24, payloadSize, true);
+    writeFixedUtf8(bytes, 28, DPA_TITLE_BYTES, metadata.title);
+    writeFixedUtf8(bytes, 28 + DPA_TITLE_BYTES, DPA_FILENAME_BYTES, metadata.originalFilename || '');
+    let off = DPA_HEADER_BYTES;
+    writeFixedUtf8(bytes, off, DPA_ARTIST_BYTES, metadata.artist); off += DPA_ARTIST_BYTES;
+    writeFixedUtf8(bytes, off, DPA_ALBUM_BYTES, metadata.album); off += DPA_ALBUM_BYTES;
+    writeFixedUtf8(bytes, off, DPA_ISRC_BYTES, metadata.isrc); off += DPA_ISRC_BYTES;
+    writeFixedUtf8(bytes, off, DPA_GENRE_BYTES, metadata.genre); off += DPA_GENRE_BYTES;
+    writeFixedUtf8(bytes, off, DPA_LABEL_BYTES, metadata.recordLabel); off += DPA_LABEL_BYTES;
+    writeFixedUtf8(bytes, off, DPA_COPYRIGHT_BYTES, metadata.copyright);
   }
 
   private inspectWav(wavData: ArrayBuffer) {

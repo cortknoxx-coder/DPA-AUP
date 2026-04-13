@@ -194,16 +194,21 @@ export class AlbumMetadataComponent {
 
   /** Bumped after every successful upload to force <img> cache-bust. */
   coverArtBust = signal(0);
+  private lastKnownCoverUrl = '';
   coverArtPreview = computed(() => {
-    // DEVICE IS SOURCE OF TRUTH when connected + verified — survives browser
-    // refresh and keeps the portal visually in sync with what's actually on SD.
     if (this.connectionService.deviceHttpAvailable() && this.coverArtOnDevice()) {
-      // Touch the bust signal so Angular re-computes when it changes.
       const bust = this.coverArtBust();
-      return this.connectionService.wifi.coverArtUrl('/art/cover.jpg') + '&b=' + bust;
+      const url = this.connectionService.wifi.coverArtUrl('/art/cover.jpg') + '&b=' + bust;
+      this.lastKnownCoverUrl = url;
+      return url;
     }
     const a = this.album();
-    return a?.artworkUrl || '';
+    const local = a?.artworkUrl || '';
+    if (local) {
+      this.lastKnownCoverUrl = local;
+      return local;
+    }
+    return this.lastKnownCoverUrl;
   });
   coverArtPushStatus = signal('');
   coverArtUploading = signal(false);

@@ -95,11 +95,12 @@ String g_eq         = "flat";
 String g_playMode   = "normal";
 
 // Track list (real WAVs from SD)
-String g_wavPaths[32];       // up to 32 tracks
+static const int MAX_TRACKS = 64;
+String g_wavPaths[MAX_TRACKS];
 int    g_wavCount = 0;
 
 // Favorites (hearted tracks, saved to SD)
-String g_favorites[32];
+String g_favorites[MAX_TRACKS];
 int    g_favCount = 0;
 
 // First playable WAV (scanned on boot)
@@ -370,7 +371,7 @@ void scanWavList() {
   g_wavCount = 0;
   File dir = SD.open("/tracks");
   if (!dir || !dir.isDirectory()) { if (dir) dir.close(); return; }
-  while (g_wavCount < 32) {
+  while (g_wavCount < MAX_TRACKS) {
     File f = dir.openNextFile();
     if (!f) break;
     String name = String(f.name());
@@ -399,7 +400,7 @@ void loadFavorites() {
   g_favCount = 0;
   File f = SD.open("/data/favorites.txt", FILE_READ);
   if (!f) return;
-  while (f.available() && g_favCount < 32) {
+  while (f.available() && g_favCount < MAX_TRACKS) {
     String line = f.readStringUntil('\n');
     line.trim();
     if (line.length() > 0) {
@@ -463,7 +464,7 @@ void toggleFavorite(const String& path) {
     }
   }
   // Add
-  if (g_favCount < 32) {
+  if (g_favCount < MAX_TRACKS) {
     g_favorites[g_favCount++] = path;
     Serial.println("[FAV] Added: " + path);
     saveFavorites();
@@ -632,13 +633,14 @@ void buttonsTick() {
 static File g_syncUploadFile;
 static String g_syncFinalPath;
 static String g_syncTempPath;
-static size_t g_syncBytesWritten = 0;
+size_t g_syncBytesWritten = 0;
+size_t g_syncBytesExpected = 0;
 static bool g_syncWriteError = false;
 static bool g_syncCompleted = false;
 static const size_t SYNC_STAGE_TARGET_SIZE = 32768;
 static uint8_t* g_syncStageBuf = nullptr;
 static size_t g_syncStageCapacity = 0;
-static size_t g_syncStageUsed = 0;
+size_t g_syncStageUsed = 0;
 static unsigned long g_syncUploadStartedAtMs = 0;
 static String g_syncUploadMode = "safe";
 static uint32_t g_syncUploadHz = SD_SLOW_HZ;
@@ -857,6 +859,11 @@ void handleSyncFileUpload() {
 
     g_syncUploadFile = SD.open(g_syncTempPath, FILE_WRITE);
     g_syncBytesWritten = 0;
+    g_syncBytesExpected = 0;
+    {
+      String clStr = uploadServer.header("Content-Length");
+      if (clStr.length() > 0) g_syncBytesExpected = (size_t)clStr.toInt();
+    }
     g_syncWriteError = false;
     g_syncCompleted = false;
     g_syncStageUsed = 0;
@@ -957,6 +964,7 @@ void handleSyncFileUpload() {
     g_syncCompleted = false;
     g_syncStageUsed = 0;
     g_syncBytesWritten = 0;
+    g_syncBytesExpected = 0;
     g_syncUploadStartedAtMs = 0;
     g_uploadState = "idle";
     g_lastUploadMode = "aborted";
@@ -1097,6 +1105,40 @@ void setupSyncUploadServer() {
   uploadServer.on("/api/audio/wavs", HTTP_OPTIONS, handleSyncOptions);
   uploadServer.on("/api/sd/upload", HTTP_POST, handleSyncUploadDone, handleSyncFileUpload);
   uploadServer.on("/api/sd/upload", HTTP_OPTIONS, handleSyncOptions);
+  auto syncDeleteHandler = []() {
+    notePortalHttpActivity();
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    if (!g_adminMode) {
+      uploadServer.send(403, "application/json", "{\"error\":\"admin mode required\"}");
+      return;
+    }
+    if (!g_sdMounted) {
+      uploadServer.send(503, "application/json", "{\"error\":\"sd not mounted\"}");
+      return;
+    }
+    if (!uploadServer.hasArg("path")) {
+      uploadServer.send(400, "application/json", "{\"error\":\"path required\"}");
+      return;
+    }
+    String path = uploadServer.arg("path");
+    bool ok = SD.remove(path);
+    Serial.printf("[SD] Delete (p81) %s: %s\n", path.c_str(), ok ? "ok" : "failed");
+    sdRefreshStats();
+    if (path.startsWith("/tracks/")) {
+      scanWavList();
+    }
+    uploadServer.send(200, "application/json", "{\"ok\":" + String(ok ? "true" : "false") + "}");
+  };
+  uploadServer.on("/api/sd/delete", HTTP_DELETE, syncDeleteHandler);
+  uploadServer.on("/api/sd/delete", HTTP_GET, syncDeleteHandler);
+  uploadServer.on("/api/sd/delete", HTTP_OPTIONS, []() {
+    uploadServer.sendHeader("Access-Control-Allow-Origin", "*");
+    uploadServer.sendHeader("Access-Control-Allow-Methods", "GET,DELETE,OPTIONS");
+    uploadServer.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+    uploadServer.send(204);
+  });
+  const char* headerKeys[] = { "Content-Length" };
+  uploadServer.collectHeaders(headerKeys, 1);
   uploadServer.begin();
   Serial.println("[HTTP] Upload server started on port 81");
 }
@@ -1162,6 +1204,26 @@ void setup() {
 
     // Scan all WAVs into track list
     scanWavList();
+
+    // Clean up orphan .part files left by interrupted uploads
+    {
+      File tdir = SD.open("/tracks");
+      if (tdir && tdir.isDirectory()) {
+        File entry = tdir.openNextFile();
+        while (entry) {
+          String fname = String(entry.name());
+          entry.close();
+          if (fname.endsWith(".part")) {
+            String fullPath = "/tracks/" + fname;
+            SD.remove(fullPath);
+            Serial.printf("[BOOT] Removed orphan part file: %s\n", fullPath.c_str());
+          }
+          entry = tdir.openNextFile();
+        }
+        tdir.close();
+      }
+    }
+
     if (g_wavCount > 0) {
       Serial.printf("[BOOT] %d tracks found, first: %s\n", g_wavCount, g_firstPlayableWav.c_str());
     } else {

@@ -48,9 +48,14 @@ export class AlbumOverviewComponent {
   compiledTrackTotalDuration = computed(() =>
     this.compiledTracks().reduce((sum, track) => sum + track.durationSec, 0)
   );
-  compiledCoverUrl = computed(() =>
-    this.connectionService.deviceLibrary()?.albums?.[0]?.artworkUrl || this.album()?.artworkUrl || ''
-  );
+  private lastKnownCoverUrl = '';
+  compiledCoverUrl = computed(() => {
+    const deviceArt = this.connectionService.deviceLibrary()?.albums?.[0]?.artworkUrl;
+    const localArt = this.album()?.artworkUrl;
+    const url = deviceArt || localArt || '';
+    if (url) this.lastKnownCoverUrl = url;
+    return url || this.lastKnownCoverUrl;
+  });
   compiledSourceLabel = computed(() =>
     this.liveDeviceTracks().length > 0 ? 'Creator Portal Live Device Preview' : 'Creator Portal Compiled Preview'
   );

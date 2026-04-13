@@ -37,6 +37,7 @@ extern volatile bool g_uploadInProgress;
 extern String g_bootState, g_sdState, g_uploadState, g_degradedReason;
 extern String g_httpMode, g_wifiMaintenanceMode, g_lastUploadPath;
 extern size_t g_lastUploadBytes;
+extern size_t g_syncBytesWritten, g_syncBytesExpected, g_syncStageUsed;
 extern String g_lastUploadMode;
 extern uint32_t g_lastUploadDurationMs, g_lastUploadRateKBps, g_lastUploadSdHz;
 extern bool g_httpReady, g_wifiReady, g_audioHardwareVerified;
@@ -776,6 +777,8 @@ String buildStatusJson() {
   j += "\"lastUploadPath\":\"" + escJson(g_lastUploadPath) + "\",";
   j += "\"lastUploadBytes\":" + String((unsigned long)g_lastUploadBytes) + ",";
   j += "\"lastUploadMode\":\"" + escJson(g_lastUploadMode) + "\",";
+  j += "\"uploadBytesWritten\":" + String((unsigned long)(g_syncBytesWritten + g_syncStageUsed)) + ",";
+  j += "\"uploadBytesExpected\":" + String((unsigned long)g_syncBytesExpected) + ",";
   j += "\"lastUploadDurationMs\":" + String((unsigned long)g_lastUploadDurationMs) + ",";
   j += "\"lastUploadRateKBps\":" + String((unsigned long)g_lastUploadRateKBps) + ",";
   j += "\"lastUploadSdHz\":" + String((unsigned long)g_lastUploadSdHz) + ",";
@@ -1146,7 +1149,7 @@ void registerApiRoutes(AsyncWebServer& server) {
     bool have = isFavorite(path);
     if (want && !have) {
       // Add
-      if (g_favCount < 32) {
+      if (g_favCount < MAX_TRACKS) {
         int trackIdx = -1;
         for (int i = 0; i < g_wavCount; i++) { if (g_wavPaths[i] == path) { trackIdx = i; break; } }
         g_favorites[g_favCount++] = path;
@@ -1627,29 +1630,46 @@ void registerApiRoutes(AsyncWebServer& server) {
     }
   );
 
-  // ── DELETE /api/sd/delete?path=/file.wav ──────── [ADMIN]
-  server.on("/api/sd/delete", HTTP_DELETE, [](AsyncWebServerRequest* req) {
+  // ── DELETE or GET /api/sd/delete?path=/file.wav ── [ADMIN]
+  // GET alias avoids CORS preflight from cross-origin portals.
+  auto sdDeleteHandler = [](AsyncWebServerRequest* req) {
     if (!g_adminMode) {
-      req->send(403, "application/json", "{\"error\":\"admin mode required\"}");
+      auto* r = req->beginResponse(403, "application/json", "{\"error\":\"admin mode required\"}");
+      r->addHeader("Access-Control-Allow-Origin", "*");
+      req->send(r);
       return;
     }
     if (!g_sdMounted) {
-      req->send(503, "application/json", "{\"error\":\"sd not mounted\"}");
+      auto* r = req->beginResponse(503, "application/json", "{\"error\":\"sd not mounted\"}");
+      r->addHeader("Access-Control-Allow-Origin", "*");
+      req->send(r);
       return;
     }
     if (!req->hasParam("path")) {
-      req->send(400, "application/json", "{\"error\":\"path required\"}");
+      auto* r = req->beginResponse(400, "application/json", "{\"error\":\"path required\"}");
+      r->addHeader("Access-Control-Allow-Origin", "*");
+      req->send(r);
       return;
     }
     String path = req->getParam("path")->value();
     bool ok = SD.remove(path);
     Serial.printf("[SD] Delete %s: %s\n", path.c_str(), ok ? "ok" : "failed");
     sdRefreshStats();
-    // Rescan playable track list if a track was deleted
     if (path.startsWith("/tracks/")) {
       scanWavList();
     }
-    req->send(200, "application/json", "{\"ok\":" + String(ok ? "true" : "false") + "}");
+    auto* r = req->beginResponse(200, "application/json", "{\"ok\":" + String(ok ? "true" : "false") + "}");
+    r->addHeader("Access-Control-Allow-Origin", "*");
+    req->send(r);
+  };
+  server.on("/api/sd/delete", HTTP_DELETE, sdDeleteHandler);
+  server.on("/api/sd/delete", HTTP_GET, sdDeleteHandler);
+  server.on("/api/sd/delete", HTTP_OPTIONS, [](AsyncWebServerRequest* req) {
+    AsyncWebServerResponse* response = req->beginResponse(204);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    response->addHeader("Access-Control-Allow-Methods", "GET, DELETE, OPTIONS");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type, Cache-Control, Pragma");
+    req->send(response);
   });
 
   // ── GET /api/storage ───────────────────────────────────────

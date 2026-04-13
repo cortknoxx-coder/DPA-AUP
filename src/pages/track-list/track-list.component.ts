@@ -40,6 +40,8 @@ export class TrackListComponent {
   private readonly CLOUD_STREAM_BLOCK_MESSAGE =
     'No cloud streaming: connect your DPA over the local helper or live device path before uploading masters.';
 
+  private uploadActiveOrSettling = false;
+
   // Device tracks (live from firmware when connected)
   deviceTracks = signal<DeviceTrack[]>([]);
   trackPlayCounts = signal<Record<string, number>>({});
@@ -129,7 +131,7 @@ export class TrackListComponent {
 
       if (httpAvailable || connection === 'usb') {
         void this.refreshDeviceTracks();
-      } else {
+      } else if (!this.uploadActiveOrSettling) {
         this.deviceTracks.set([]);
         this.trackPlayCounts.set({});
       }
@@ -148,6 +150,20 @@ export class TrackListComponent {
       format: 'wav',
       codec: track.codec || 'audio/wav',
     }));
+  }
+
+  private async waitForDeviceRecoveryAndRefresh() {
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+    for (let i = 0; i < 12; i++) {
+      await sleep(1500);
+      if (this.connectionService.deviceHttpAvailable()) break;
+    }
+    await this.refreshDeviceTracks();
+    this.uploadActiveOrSettling = false;
+    if (this.deviceTracks().length === 0) {
+      await sleep(2000);
+      await this.refreshDeviceTracks();
+    }
   }
 
   private async refreshDeviceTracks() {
@@ -191,9 +207,12 @@ export class TrackListComponent {
 
   async deleteFromDevice(filename: string) {
     if (!this.isConnected()) return;
-    if (!confirm(`Delete ${filename} from device storage?`)) return;
+    const displayName = filename.split('/').pop() || filename;
+    if (!confirm(`Delete ${displayName} from device storage?`)) return;
     const ok = await this.connectionService.wifi.deleteFile(filename);
     if (ok) {
+      this.deviceTracks.update(tracks => tracks.filter(t => t.filename !== filename));
+      await new Promise(r => setTimeout(r, 1500));
       await this.refreshDeviceTracks();
     }
   }
@@ -339,21 +358,41 @@ export class TrackListComponent {
       return;
     }
 
-    let arrayBuffer: ArrayBuffer;
+    this.updateItemStatus(item.id, 'processing', 10);
+
+    let wavInfo: { sampleRate: number; channels: number; bitsPerSample: number; durationMs: number };
     try {
-      // Phase 1: Read file into memory
-      arrayBuffer = await this.readFileWithProgress(file, item.id);
+      const headerSlice = await file.slice(0, 512).arrayBuffer();
+      wavInfo = this.cryptoService.inspectWavHeader(headerSlice);
     } catch {
-      this.failUpload(item.id, 'Could not read source master file.');
+      this.failUpload(item.id, 'File does not appear to be a valid WAV.');
       return;
     }
 
+    const a = this.album();
+    const title = file.name.replace(/\.[^/.]+$/, '');
+    const dpa1Header = this.cryptoService.buildDpa1Header({
+      format: 1,
+      sampleRate: wavInfo.sampleRate,
+      channels: wavInfo.channels,
+      bitsPerSample: wavInfo.bitsPerSample,
+      durationMs: wavInfo.durationMs,
+      title,
+      originalFilename: file.name,
+      artist: a?.artistName,
+      album: a?.title,
+    }, file.size);
+
+    const dpaBlob = new Blob([dpa1Header.buffer as ArrayBuffer, file]);
+    const rawStem = file.name.replace(/\.[^/.]+$/, '');
+    const deviceFilename = this.sanitizeDeviceFilename(rawStem) + '.dpa';
+
     this.updateItemStatus(item.id, 'transferring', 0);
+    this.uploadActiveOrSettling = true;
 
     let transferOk = false;
-    const deviceFilename = this.sanitizeDeviceFilename(file.name);
     try {
-      transferOk = await this.connectionService.wifi.uploadFileToPath(file, `/tracks/${deviceFilename}`, (percent) => {
+      transferOk = await this.connectionService.wifi.uploadFileToPath(dpaBlob, `/tracks/${deviceFilename}`, (percent) => {
         this.uploads.update(items => items.map(u =>
           u.id === item.id ? { ...u, progress: percent } : u
         ));
@@ -362,30 +401,22 @@ export class TrackListComponent {
       transferOk = false;
     }
 
-    // Release the read buffer now that transfer is done or failed.
-    const plainBytes = new Uint8Array(arrayBuffer);
-    plainBytes.fill(0);
-
     if (!transferOk) {
+      this.uploadActiveOrSettling = false;
       this.failUpload(item.id, 'Transfer to device failed. Nothing stored in portal.');
       return;
     }
 
-    // Phase 4: Finalize successful transfer
     this.uploads.update(items => items.map(u =>
       u.id === item.id ? { ...u, status: 'done' as const, progress: 100 } : u
     ));
 
-    // Add to Album Data only after device transfer succeeds.
-    const a = this.album();
     if (a) {
-      const title = file.name.replace(/\.[^/.]+$/, '');
-      const duration = await this.getAudioDuration(file);
+      const duration = Math.round(wavInfo.durationMs / 1000) || await this.getAudioDuration(file);
       this.dataService.addTrack(a.albumId, title, duration, `device://${duid}/${deviceFilename}`);
     }
 
-    // Refresh device track list after successful upload
-    await this.refreshDeviceTracks();
+    await this.waitForDeviceRecoveryAndRefresh();
 
     setTimeout(() => {
       this.uploads.update(items => items.filter(u => u.id !== item.id));
@@ -402,23 +433,6 @@ export class TrackListComponent {
     this.uploads.update(items => items.map(u =>
       u.id === itemId ? { ...u, status: 'error' as const, progress: 0, error: message } : u
     ));
-  }
-
-  private readFileWithProgress(file: File, itemId: string): Promise<ArrayBuffer> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const percent = Math.round((e.loaded / e.total) * 100);
-          this.uploads.update(items => items.map(u =>
-            u.id === itemId ? { ...u, progress: percent } : u
-          ));
-        }
-      };
-      reader.onload = () => resolve(reader.result as ArrayBuffer);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsArrayBuffer(file);
-    });
   }
 
   private updateItemStatus(itemId: string, status: UploadItem['status'], progress: number) {

@@ -38,6 +38,21 @@ static const size_t DPA_HEADER_BYTES =
   DPA_TITLE_BYTES +
   DPA_FILENAME_BYTES;
 
+static const size_t DPA_ARTIST_BYTES = 64;
+static const size_t DPA_ALBUM_BYTES = 64;
+static const size_t DPA_ISRC_BYTES = 16;
+static const size_t DPA_GENRE_BYTES = 32;
+static const size_t DPA_LABEL_BYTES = 64;
+static const size_t DPA_COPYRIGHT_BYTES = 64;
+static const size_t DPA_HEADER_BYTES_V2 =
+  DPA_HEADER_BYTES +
+  DPA_ARTIST_BYTES +
+  DPA_ALBUM_BYTES +
+  DPA_ISRC_BYTES +
+  DPA_GENRE_BYTES +
+  DPA_LABEL_BYTES +
+  DPA_COPYRIGHT_BYTES;
+
 struct DpaFileHeader {
   uint8_t version;
   uint8_t flags;
@@ -50,6 +65,12 @@ struct DpaFileHeader {
   uint32_t payloadSize;
   String title;
   String originalFilename;
+  String artist;
+  String album;
+  String isrc;
+  String genre;
+  String recordLabel;
+  String copyright;
   bool valid;
 };
 
@@ -66,18 +87,26 @@ static inline uint32_t dpaRd32(File& f) {
 }
 
 static inline String dpaReadFixedString(File& f, size_t maxBytes) {
-  uint8_t buf[96] = {0};
-  size_t n = maxBytes > sizeof(buf) ? sizeof(buf) : maxBytes;
-  if (f.read(buf, n) != n) return "";
-  size_t len = 0;
-  while (len < n && buf[len] != 0) len++;
+  uint8_t buf[96];
+  size_t remaining = maxBytes;
   String out = "";
-  for (size_t i = 0; i < len; i++) out += (char)buf[i];
+  bool terminated = false;
+  while (remaining > 0) {
+    size_t chunk = remaining > sizeof(buf) ? sizeof(buf) : remaining;
+    if ((size_t)f.read(buf, chunk) != chunk) return "";
+    if (!terminated) {
+      for (size_t i = 0; i < chunk; i++) {
+        if (buf[i] == 0) { terminated = true; break; }
+        out += (char)buf[i];
+      }
+    }
+    remaining -= chunk;
+  }
   return out;
 }
 
 static inline bool dpaReadHeader(File& f, DpaFileHeader& out) {
-  out = {0, 0, 0, 0, 0, 0, 0, 0, 0, "", "", false};
+  out = {0, 0, 0, 0, 0, 0, 0, 0, 0, "", "", "", "", "", "", "", "", false};
   f.seek(0);
 
   uint8_t magic[4] = {0, 0, 0, 0};
@@ -99,6 +128,16 @@ static inline bool dpaReadHeader(File& f, DpaFileHeader& out) {
   if (out.version != DPA1_VERSION) return false;
   if (out.headerSize < DPA_HEADER_BYTES) return false;
   if (out.payloadSize == 0) return false;
+
+  if (out.headerSize >= DPA_HEADER_BYTES_V2) {
+    out.artist = dpaReadFixedString(f, DPA_ARTIST_BYTES);
+    out.album = dpaReadFixedString(f, DPA_ALBUM_BYTES);
+    out.isrc = dpaReadFixedString(f, DPA_ISRC_BYTES);
+    out.genre = dpaReadFixedString(f, DPA_GENRE_BYTES);
+    out.recordLabel = dpaReadFixedString(f, DPA_LABEL_BYTES);
+    out.copyright = dpaReadFixedString(f, DPA_COPYRIGHT_BYTES);
+  }
+
   out.valid = true;
   return true;
 }

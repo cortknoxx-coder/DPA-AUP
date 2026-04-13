@@ -244,6 +244,8 @@ export interface FirmwareStatus {
   wifiMaintenance?: string;
   lastUploadPath?: string;
   lastUploadBytes?: number;
+  uploadBytesWritten?: number;
+  uploadBytesExpected?: number;
   ingestConfigured?: boolean;
   ingestState?: string;
   ingestLastError?: string;
@@ -539,6 +541,12 @@ export interface DpaPackagingMetadata {
   artistName?: string;
   mime?: string;
   originalFilename?: string;
+  artist?: string;
+  album?: string;
+  isrc?: string;
+  genre?: string;
+  recordLabel?: string;
+  copyright?: string;
 }
 
 export interface DpaFileHeader {
@@ -555,6 +563,12 @@ export interface DpaFileHeader {
   payloadSize: number;
   title: string;
   originalFilename: string;
+  artist?: string;
+  album?: string;
+  isrc?: string;
+  genre?: string;
+  recordLabel?: string;
+  copyright?: string;
 }
 
 export interface DpaEncryptionConfig {

@@ -690,18 +690,22 @@ export class DeviceWifiService {
   // --- Delete File from SD ---
 
   async deleteFile(path: string): Promise<boolean> {
-    try {
-      await this.ensureAdminUnlocked();
-      const response = await fetch(`${this.baseUrl}/api/sd/delete?path=${encodeURIComponent(path)}`, {
-        method: 'DELETE',
-      });
-      const result = await response.json();
-      if (result.ok === true) {
-        this.invalidateAfterMutation(path, { content: true, artwork: path.startsWith('/art/') });
-        return true;
+    await this.ensureAdminUnlocked();
+    for (const root of this.commandRootsInPriorityOrder()) {
+      try {
+        const url = `${root}/api/sd/delete?path=${encodeURIComponent(path)}`;
+        const response = await fetch(url);
+        const result = await response.json();
+        if (root === this.baseUrl) this.mainControlPlaneUnavailableUntil = 0;
+        if (result.ok === true) {
+          this.invalidateAfterMutation(path, { content: true, artwork: path.startsWith('/art/') });
+          return true;
+        }
+      } catch {
+        if (root === this.baseUrl) this.noteMainControlPlaneUnavailable();
       }
-      return false;
-    } catch { return false; }
+    }
+    return false;
   }
 
   // --- .dpa File Upload ---
@@ -710,7 +714,7 @@ export class DeviceWifiService {
     return this.uploadFileToPath(file, `/tracks/${file.name}`, onProgress);
   }
 
-  async uploadFileToPath(file: File, path: string, onProgress?: (percent: number) => void): Promise<boolean> {
+  async uploadFileToPath(file: Blob | File, path: string, onProgress?: (percent: number) => void): Promise<boolean> {
     return this.enqueueUpload(async () => {
       await this.ensureAdminUnlocked();
       const writable = await this.waitForWritableWindow();
@@ -718,7 +722,8 @@ export class DeviceWifiService {
         return false;
       }
       const devicePath = this.sanitizeDevicePath(path);
-      const deviceFilename = devicePath.split('/').pop() || file.name;
+      const fallbackName = (file instanceof File) ? file.name : devicePath.split('/').pop() || 'upload.bin';
+      const deviceFilename = devicePath.split('/').pop() || fallbackName;
       const maxAttempts = file.size > 8 * 1024 * 1024 ? 3 : 2;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -1140,18 +1145,16 @@ export class DeviceWifiService {
     return false;
   }
 
-  private async runUploadAttempt(file: File, path: string, onProgress?: (percent: number) => void): Promise<boolean> {
+  private async runUploadAttempt(file: Blob | File, path: string, onProgress?: (percent: number) => void): Promise<boolean> {
     const uploadUrl = `${this.uploadBaseUrl()}/api/sd/upload?path=${encodeURIComponent(path)}`;
+    const formFilename = path.split('/').pop() || ((file instanceof File) ? file.name : 'upload.bin');
     if (this.isCrossOriginRequest(uploadUrl)) {
       let stopProgressMonitor: (() => void) | null = null;
       try {
-        // Cross-origin upload responses can be blocked by the browser even when
-        // the device accepted the payload. Send the transfer as no-cors and
-        // rely on the existing post-upload verification path to confirm success.
         this.preferredStatusPlane = 'upload';
         this.uploadStatusFallbackUntil = Date.now() + STATUS_UPLOAD_FALLBACK_MS;
         const formData = new FormData();
-        formData.append('file', file, file.name);
+        formData.append('file', file, formFilename);
         stopProgressMonitor = onProgress
           ? this.startCrossOriginUploadProgressMonitor(path, file.size, onProgress)
           : null;
@@ -1188,10 +1191,10 @@ export class DeviceWifiService {
         console.error('[Upload] XHR timeout');
         resolve(false);
       });
-      xhr.timeout = 0;  // No timeout — large files over ESP32 AP WiFi can take 30+ minutes
+      xhr.timeout = 0;
 
       const formData = new FormData();
-      formData.append('file', file, file.name);
+      formData.append('file', file, formFilename);
       xhr.open('POST', uploadUrl);
       xhr.send(formData);
     });
@@ -1224,9 +1227,14 @@ export class DeviceWifiService {
     onProgress(lastPercent);
 
     void (async () => {
+      await this.sleep(1200);
       while (!stopped) {
         try {
-          const status = await this.fetchStatusJson(2500, { forceRefresh: true, maxAgeMs: 0, preferUploadPlane: true });
+          const status = await this.fetchStatusJson(2500, {
+            forceRefresh: true,
+            maxAgeMs: 0,
+            preferUploadPlane: false,
+          });
           const percent = this.estimateCrossOriginUploadProgress(path, totalBytes, status);
           if (percent > lastPercent) {
             lastPercent = percent;
@@ -1236,7 +1244,7 @@ export class DeviceWifiService {
           // Best-effort progress only.
         }
         if (!stopped) {
-          await this.sleep(900);
+          await this.sleep(1500);
         }
       }
     })();
@@ -1248,13 +1256,23 @@ export class DeviceWifiService {
 
   private estimateCrossOriginUploadProgress(path: string, totalBytes: number, status: FirmwareStatus | null): number {
     const uploadState = status?.uploadState ?? 'idle';
+
+    const bytesWritten = Number(status?.uploadBytesWritten ?? 0);
+    const bytesExpected = Number(status?.uploadBytesExpected ?? 0);
+    if (bytesWritten > 0 && (uploadState === 'receiving' || uploadState === 'verifying')) {
+      const denominator = bytesExpected > 0 ? bytesExpected : totalBytes;
+      if (denominator > 0) {
+        return Math.max(2, Math.min(95, Math.round((bytesWritten / denominator) * 100)));
+      }
+    }
+
     const lastUploadPath = status?.lastUploadPath ?? '';
     const lastUploadBytes = Number(status?.lastUploadBytes ?? 0);
     if (lastUploadPath === path && totalBytes > 0 && lastUploadBytes > 0) {
       return Math.max(1, Math.min(95, Math.round((lastUploadBytes / totalBytes) * 100)));
     }
     if (uploadState === 'preparing') return 3;
-    if (uploadState === 'receiving') return 10;
+    if (uploadState === 'receiving') return 5;
     if (uploadState === 'verifying') return 95;
     if (uploadState === 'finalizing') return 97;
     return 1;
@@ -1352,11 +1370,16 @@ export class DeviceWifiService {
     const status = this.lastStatus();
     const duid = status?.duid;
     if (!duid) return;
-    try {
-      const res = await fetch(`${this.baseUrl}/api/admin/unlock?key=${encodeURIComponent(duid)}`);
-      if (res.ok) this.isAdminUnlocked = true;
-    } catch {
-      // best effort; endpoint callers will fail naturally if still locked
+    for (const root of this.commandRootsInPriorityOrder()) {
+      try {
+        const res = await fetch(`${root}/api/admin/unlock?key=${encodeURIComponent(duid)}`);
+        if (res.ok) {
+          this.isAdminUnlocked = true;
+          return;
+        }
+      } catch {
+        // try next root
+      }
     }
   }
 
