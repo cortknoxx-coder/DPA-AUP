@@ -9,6 +9,7 @@ import { DpaDeviceInfo, LibraryIndex, Album, Track, FirmwareStatus, DeviceCapsul
 import { DataService } from './data.service';
 import { normalizeDeviceAlbumMetaPayload, normalizeDeviceBookletPayload } from './device-content.utils';
 import { isHostedHttps } from '../dpa-device-http';
+import { dpaInternalApiBaseUrl } from '../dpa-internal-api-base';
 
 export type ConnectionStatus = 'disconnected' | 'usb' | 'bluetooth' | 'wifi';
 export type RegistrationStatus = 'unregistered' | 'analyzing' | 'registered' | 'lost';
@@ -573,7 +574,7 @@ export class DeviceConnectionService {
       this.recordConnectionEvent('disconnect', options?.reason || 'Device transport disconnected unexpectedly.', currentStatus, this.wifiPollFailures || undefined);
     }
 
-    // Disconnect all transports
+    this.wifi.stopCloudAnalyticsRelay();
     if (this.ble.isConnected()) this.ble.disconnect();
     if (this.wifi.isConnected()) this.wifi.disconnect();
     if (this.bridge.isConnected()) this.bridge.disconnect();
@@ -801,16 +802,49 @@ export class DeviceConnectionService {
     console.log(`[AUTO-LED] Synced album colors from device cover: ${primary} / ${secondary}`);
   }
 
+  private async cloudCheckIn(status: FirmwareStatus): Promise<void> {
+    const apiBase = dpaInternalApiBaseUrl();
+    if (!apiBase) return;
+    const duid = status.duid || this.deviceInfo()?.serial || '';
+    if (!duid) return;
+    try {
+      const analytics = await this.wifi.getAnalytics();
+      const body: Record<string, any> = {
+        duid,
+        firmware: status.ver || '',
+        label: status.album || status.name || '',
+        status: {
+          bootState: status.bootState,
+          sdState: status.sdState,
+          uploadState: status.uploadState,
+          freeHeapBytes: status.mcu?.freeHeapBytes,
+          uptime: status.uptime_s,
+          trackCount: status.storage?.trackCount,
+        },
+        analytics: { tracks: analytics },
+      };
+      await fetch(`${apiBase}/device/check-in`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      // best effort
+    }
+  }
+
   private scheduleWifiHydration(status: FirmwareStatus): Promise<void> {
     if (this.wifiHydrationPromise) return this.wifiHydrationPromise;
 
     this.wifiHydrationPromise = (async () => {
-      // Let the initial connect settle before pulling heavier metadata/art assets.
       await new Promise((resolve) => setTimeout(resolve, 180));
       await this.refreshWifiLibrary();
       await this.refreshDeviceCapsules();
       await this.syncDeviceIntoDataService(status);
       await this.syncLedColorsFromCover(status);
+      void this.cloudCheckIn(status);
+      this.wifi.startCloudAnalyticsRelay();
     })().finally(() => {
       this.wifiHydrationPromise = null;
     });

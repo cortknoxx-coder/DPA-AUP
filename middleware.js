@@ -1,11 +1,11 @@
 /**
- * Vercel Edge Middleware — same-origin HTTPS proxy to the DPA on your LAN.
+ * Vercel Edge Middleware
  *
- * Set in the Vercel project (Production + Preview as needed):
- *   DPA_DEVICE_API_TUNNEL     e.g. https://your-tunnel.example (must reach http://192.168.4.1/)
- *   DPA_DEVICE_UPLOAD_TUNNEL  optional; defaults to DPA_DEVICE_API_TUNNEL (port 81 must be exposed on tunnel)
- *
- * Browser → https://<vercel>/dpa-api/api/status → this middleware → DPA_DEVICE_API_TUNNEL/api/status
+ * 1. Same-origin HTTPS proxy to the DPA on your LAN (/dpa-api, /dpa-upload).
+ * 2. Admin gate for fleet/firmware internal-api routes — requires operator session cookie.
+ * 3. Maintenance mode via Edge Config — returns 503 when enabled.
+ * 4. Geo header injection for analytics.
+ * 5. Portal announcement header from Edge Config.
  */
 
 function trimSlash(s) {
@@ -28,13 +28,86 @@ function upstreamBase(prefix, envMain, envUpload) {
   return trimSlash(envMain) || null;
 }
 
+function parseCookie(cookieHeader, name) {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const [key, ...rest] = part.trim().split('=');
+    if (key === name) return decodeURIComponent(rest.join('=') || '');
+  }
+  return null;
+}
+
 export const config = {
-  matcher: ['/dpa-api/:path*', '/dpa-upload/:path*'],
+  matcher: ['/dpa-api/:path*', '/dpa-upload/:path*', '/internal-api/:path*'],
 };
 
 export default async function middleware(request) {
   const url = new URL(request.url);
   const pathname = url.pathname;
+
+  // ── Internal API routes: admin gate + maintenance + headers ──
+  if (pathname.startsWith('/internal-api')) {
+    const responseHeaders = {};
+
+    // Geo header for analytics
+    const geo = request.geo;
+    if (geo) {
+      const region = [geo.city, geo.region, geo.country].filter(Boolean).join(', ');
+      if (region) responseHeaders['x-dpa-region'] = region;
+    }
+
+    // Maintenance mode check via Edge Config
+    try {
+      const ecConn = process.env.EDGE_CONFIG;
+      if (ecConn) {
+        const { createClient } = await import('@vercel/edge-config');
+        const ec = createClient(ecConn);
+        const maintenance = await ec.get('maintenance_mode');
+        if (maintenance === true) {
+          return new Response(
+            JSON.stringify({ error: 'maintenance_mode', detail: 'The DPA cloud platform is under maintenance. Please try again shortly.' }),
+            { status: 503, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '60' } },
+          );
+        }
+        const announcement = await ec.get('portal_announcement');
+        if (announcement && typeof announcement === 'string' && announcement.length > 0) {
+          responseHeaders['x-dpa-announcement'] = announcement;
+        }
+      }
+    } catch {
+      // Edge Config unavailable — continue without it
+    }
+
+    // Admin gate for protected routes (public endpoints excluded)
+    const publicPaths = ['/internal-api/firmware/latest', '/internal-api/analytics/summary', '/internal-api/analytics/events', '/internal-api/device/check-in', '/internal-api/device/health'];
+    const adminPrefixes = ['/internal-api/fleet/', '/internal-api/firmware/', '/internal-api/devices', '/internal-api/ingest/'];
+    const isPublic = publicPaths.some(p => pathname === p);
+    const needsAdmin = !isPublic && adminPrefixes.some(p => pathname.startsWith(p));
+
+    if (needsAdmin && request.method !== 'OPTIONS') {
+      const sessionCookie = parseCookie(request.headers.get('cookie'), 'dpa_operator_session');
+      if (!sessionCookie) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'operator_auth_required', detail: 'This route requires an authenticated operator session.' }),
+          { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } },
+        );
+      }
+    }
+
+    // Pass through to the serverless function with added headers
+    if (Object.keys(responseHeaders).length > 0) {
+      const response = await fetch(request);
+      const newResponse = new Response(response.body, response);
+      for (const [key, value] of Object.entries(responseHeaders)) {
+        newResponse.headers.set(key, value);
+      }
+      return newResponse;
+    }
+
+    return undefined;
+  }
+
+  // ── Device proxy routes (/dpa-api, /dpa-upload) ──
   const envMain = process.env.DPA_DEVICE_API_TUNNEL;
   const envUpload = process.env.DPA_DEVICE_UPLOAD_TUNNEL;
 

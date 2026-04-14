@@ -22,6 +22,7 @@ import {
   readDeviceTunnelOverride,
   readDeviceUploadTunnelOverride,
 } from '../dpa-device-http';
+import { dpaInternalApiBaseUrl } from '../dpa-internal-api-base';
 
 const DEFAULT_DEVICE_IP = '192.168.4.1';
 const DEVICE_IP_KEY = 'dpa_device_ip';
@@ -1015,7 +1016,54 @@ export class DeviceWifiService {
     }
   }
 
+  private cloudRelayTimer: ReturnType<typeof setInterval> | null = null;
+
+  async relayAnalyticsToCloud(): Promise<void> {
+    const apiBase = dpaInternalApiBaseUrl();
+    if (!apiBase) return;
+    try {
+      const tracks = await this.getAnalytics();
+      if (!tracks.length) return;
+      const status = this.lastStatus();
+      const deviceId = status?.duid || '';
+      if (!deviceId) return;
+
+      const events: any[] = [];
+      for (const t of tracks) {
+        const trackPath = t.path || '';
+        const trackTitle = trackPath.split('/').pop()?.replace(/\.(wav|dpa)$/i, '').replace(/_/g, ' ') || '';
+        if (t.plays > 0) events.push({ type: 'play', deviceId, trackPath, trackTitle, value: 1, metadata: { cumulative: t.plays } });
+        if (t.skips > 0) events.push({ type: 'skip', deviceId, trackPath, trackTitle, value: 1, metadata: { cumulative: t.skips } });
+        if (t.listenMs > 0) events.push({ type: 'listen_ms', deviceId, trackPath, trackTitle, value: t.listenMs });
+      }
+      if (!events.length) return;
+
+      await fetch(`${apiBase}/analytics/events`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events }),
+      });
+    } catch {
+      // best effort
+    }
+  }
+
+  startCloudAnalyticsRelay(): void {
+    this.stopCloudAnalyticsRelay();
+    void this.relayAnalyticsToCloud();
+    this.cloudRelayTimer = setInterval(() => void this.relayAnalyticsToCloud(), 60000);
+  }
+
+  stopCloudAnalyticsRelay(): void {
+    if (this.cloudRelayTimer) {
+      clearInterval(this.cloudRelayTimer);
+      this.cloudRelayTimer = null;
+    }
+  }
+
   disconnect(): void {
+    this.stopCloudAnalyticsRelay();
     this.isConnected.set(false);
     this.lastStatus.set(null);
     this.staConnected.set(false);

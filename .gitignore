@@ -31,3 +31,4 @@ DPA-AUP.zip
 .vercel
 test-results/
 *.wav
+.env*.local

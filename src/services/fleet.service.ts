@@ -1,109 +1,163 @@
 
 import { Injectable, signal } from '@angular/core';
-import { Observable, timer } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { dpaInternalApiBaseUrl } from '../dpa-internal-api-base';
 
 export interface ActivityEvent {
   id: string;
-  type: 'PLAY' | 'SALE' | 'ROYALTY' | 'ACTIVATION';
+  type: 'play' | 'skip' | 'heart' | 'listen_ms' | string;
   message: string;
-  location: string;
+  deviceId: string;
+  trackTitle: string;
   timestamp: Date;
 }
 
-export interface Activation {
-  lat: number;
-  lon: number;
-  activity: number; // 0-1
+export interface FleetDevice {
+  deviceId: string;
+  label: string;
+  firmwareVersion: string;
+  lastSeenAt: string;
+  reachability: 'online' | 'stale' | 'offline';
+  albumId: string;
+  plays?: number;
+  hearts?: number;
 }
 
-export interface Region {
-  code: string;
-  name: string;
-  percentage: number;
+export interface TopTrack {
+  path: string;
+  title: string;
+  plays: number;
 }
 
-export interface Kpis {
-  activeDevices: number;
+export interface FleetKpis {
+  totalDevices: number;
+  onlineDevices: number;
   totalPlays: number;
-  totalRoyalties: number;
-  marketVolume: number;
+  totalHearts: number;
+  totalListenMs: number;
+  totalSkips: number;
 }
 
-@Injectable({
-  providedIn: 'root'
-})
+export interface DeviceAnalytics {
+  deviceId: string;
+  counts: Record<string, { count: number; totalValue: number }>;
+  topTracks: TopTrack[];
+  heartedTracks: { path: string; title: string; heartedAt: string }[];
+  timeline: { hour: string; type: string; count: number }[];
+}
+
+@Injectable({ providedIn: 'root' })
 export class FleetService {
+  kpis = signal<FleetKpis>({ totalDevices: 0, onlineDevices: 0, totalPlays: 0, totalHearts: 0, totalListenMs: 0, totalSkips: 0 });
+  fleetDevices = signal<FleetDevice[]>([]);
+  topTracks = signal<TopTrack[]>([]);
+  activityFeed = signal<ActivityEvent[]>([]);
+  loading = signal(false);
+  error = signal('');
 
-  private locations = [
-    { name: 'United States', lat: 37.0902, lon: -95.7129 },
-    { name: 'Japan', lat: 36.2048, lon: 138.2529 },
-    { name: 'United Kingdom', lat: 55.3781, lon: -3.4360 },
-    { name: 'Germany', lat: 51.1657, lon: 10.4515 },
-    { name: 'Brazil', lat: -14.2350, lon: -51.9253 },
-    { name: 'South Korea', lat: 35.9078, lon: 127.7669 },
-    { name: 'France', lat: 46.2276, lon: 2.2137 },
-    { name: 'Canada', lat: 56.1304, lon: -106.3468 },
-    { name: 'Australia', lat: -25.2744, lon: 133.7751 },
-  ];
+  private feedPollTimer: ReturnType<typeof setInterval> | null = null;
 
-  private trackNames = ['Neon Rain', 'Cyber Heart', 'Analog Dreams', 'Starlight Echo', 'Digital Sea'];
-
-  constructor() {}
-
-  getKpis() {
-    return signal<Kpis>({
-      activeDevices: 4210,
-      totalPlays: 188430,
-      totalRoyalties: 24260.19,
-      marketVolume: 148250.00
-    });
+  private apiBase(): string | null {
+    return dpaInternalApiBaseUrl();
   }
 
-  getActivations() {
-    return signal<Activation[]>(
-      this.locations.flatMap(loc => 
-        Array.from({ length: Math.floor(Math.random() * 5) + 2 }, () => ({
-          lat: loc.lat + (Math.random() - 0.5) * 8,
-          lon: loc.lon + (Math.random() - 0.5) * 8,
-          activity: Math.random()
-        }))
-      )
-    );
+  async refreshAll(): Promise<void> {
+    this.loading.set(true);
+    this.error.set('');
+    try {
+      await Promise.all([this.fetchAnalytics(), this.fetchFleetStatus()]);
+    } catch (e: any) {
+      this.error.set(e?.message || 'Failed to load fleet data');
+    } finally {
+      this.loading.set(false);
+    }
   }
 
-  getTopRegions() {
-    return signal<Region[]>([
-      { code: 'US', name: 'United States', percentage: 45 },
-      { code: 'JP', name: 'Japan', percentage: 21 },
-      { code: 'UK', name: 'United Kingdom', percentage: 14 },
-      { code: 'DE', name: 'Germany', percentage: 9 },
-      { code: 'KR', name: 'South Korea', percentage: 6 },
-    ]);
+  private async fetchAnalytics(): Promise<void> {
+    const base = this.apiBase();
+    if (!base) return;
+    try {
+      const res = await fetch(`${base}/fleet/analytics`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`fleet/analytics ${res.status}`);
+      const data = await res.json();
+      const a = data.analytics || {};
+      this.kpis.set({
+        totalDevices: a.totalDevices || 0,
+        onlineDevices: 0,
+        totalPlays: a.totalPlays || 0,
+        totalHearts: a.totalHearts || 0,
+        totalListenMs: Number(a.totalListenMs || 0),
+        totalSkips: a.totalSkips || 0,
+      });
+      this.topTracks.set(Array.isArray(a.topTracks) ? a.topTracks : []);
+      const events: ActivityEvent[] = (a.recentEvents || []).map((e: any) => ({
+        id: e.id,
+        type: e.type,
+        message: this.describeEvent(e.type, e.trackTitle),
+        deviceId: e.deviceId || '',
+        trackTitle: e.trackTitle || '',
+        timestamp: new Date(e.at),
+      }));
+      this.activityFeed.set(events);
+    } catch {
+      // leave current state
+    }
   }
 
-  getActivityStream(): Observable<ActivityEvent> {
-    return timer(0, 3000).pipe(
-      map(() => this.generateRandomEvent())
-    );
+  private async fetchFleetStatus(): Promise<void> {
+    const base = this.apiBase();
+    if (!base) return;
+    try {
+      const res = await fetch(`${base}/fleet/status`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`fleet/status ${res.status}`);
+      const data = await res.json();
+      const fleet: FleetDevice[] = (data.fleet || []).map((d: any) => ({
+        deviceId: d.deviceId,
+        label: d.label || d.deviceId,
+        firmwareVersion: d.firmwareVersion || '',
+        lastSeenAt: d.lastSeenAt || '',
+        reachability: d.reachability || 'offline',
+        albumId: d.albumId || '',
+      }));
+      this.fleetDevices.set(fleet);
+      const online = data.online || fleet.filter((d: FleetDevice) => d.reachability === 'online').length;
+      this.kpis.update(k => ({ ...k, onlineDevices: online, totalDevices: Math.max(k.totalDevices, data.total || fleet.length) }));
+    } catch {
+      // leave current state
+    }
   }
 
-  private generateRandomEvent(): ActivityEvent {
-    const randomType = Math.random();
-    const location = this.locations[Math.floor(Math.random() * this.locations.length)].name;
-    const id = Math.random().toString(36).substring(2, 9);
-    
-    if (randomType < 0.6) { // 60% chance of PLAY
-      const track = this.trackNames[Math.floor(Math.random() * this.trackNames.length)];
-      return { id, type: 'PLAY', message: `'${track}' played`, location, timestamp: new Date() };
-    } else if (randomType < 0.8) { // 20% chance of SALE
-      const price = (Math.random() * 100 + 50).toFixed(2);
-      return { id, type: 'SALE', message: `Device sold for $${price}`, location, timestamp: new Date() };
-    } else if (randomType < 0.95) { // 15% chance of ROYALTY
-      const royalty = (Math.random() * 10 + 5).toFixed(2);
-      return { id, type: 'ROYALTY', message: `+$${royalty} royalty earned`, location, timestamp: new Date() };
-    } else { // 5% chance of ACTIVATION
-      return { id, type: 'ACTIVATION', message: 'New device activated', location, timestamp: new Date() };
+  async getDeviceAnalytics(duid: string): Promise<DeviceAnalytics | null> {
+    const base = this.apiBase();
+    if (!base) return null;
+    try {
+      const res = await fetch(`${base}/analytics/device/${encodeURIComponent(duid)}`, { credentials: 'include' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  startActivityPolling(): void {
+    this.stopActivityPolling();
+    this.feedPollTimer = setInterval(() => void this.fetchAnalytics(), 10000);
+  }
+
+  stopActivityPolling(): void {
+    if (this.feedPollTimer) {
+      clearInterval(this.feedPollTimer);
+      this.feedPollTimer = null;
+    }
+  }
+
+  private describeEvent(type: string, trackTitle: string): string {
+    const track = trackTitle || 'Unknown Track';
+    switch (type) {
+      case 'play': return `'${track}' played`;
+      case 'skip': return `'${track}' skipped`;
+      case 'heart': return `'${track}' hearted`;
+      case 'listen_ms': return `Listening to '${track}'`;
+      default: return `${type} event`;
     }
   }
 }
