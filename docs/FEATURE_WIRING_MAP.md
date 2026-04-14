@@ -53,6 +53,8 @@ real data (device firmware, creator input, or backend API), update the status.
 | Stop playback | `DeviceWifiService.sendCommand(0x02)` | **WIRED** | Sends pause command |
 | Delete from device | `DeviceWifiService.deleteFile()` | **WIRED** | HTTP DELETE to firmware |
 | Format badge (bit/kHz) | `DeviceTrack.sampleRate/bitsPerSample` | **WIRED** | From firmware track scan |
+| Track reorder (drag-and-drop) | `DeviceWifiService.reorderTracks()` | **WIRED** | POST to `/api/tracks/reorder`, persists on device |
+| Release compile & push | `ReleaseBuildService` | **WIRED** | Compiles album metadata + tracks, pushes to device |
 
 ### 4. Booklet Tab (`/artist/albums/:id/booklet`)
 | Feature | Data Source (was mock) | Status | Notes |
@@ -94,7 +96,7 @@ real data (device firmware, creator input, or backend API), update the status.
 |---------|----------------------|--------|-------|
 | Unit economics | `Album.economics` (was `UnitEconomics`) | **EMPTY** | Was mock 5000 mfg / 4210 sold — all zeroed |
 | Resale transactions | `Album.resales[]` (was `ResaleTransaction[]`) | **EMPTY** | Was 45 mock resales — array starts empty |
-| Device fleet list | `FleetService` | **STUB** | Component exists, generates mock dots on map |
+| Device fleet list | `FleetService` | **WIRED** | Cloud-backed via Neon Postgres + Upstash Redis |
 
 ### 9. Overview Tab (`/artist/albums/:id/overview`)
 | Feature | Data Source (was mock) | Status | Notes |
@@ -103,12 +105,13 @@ real data (device firmware, creator input, or backend API), update the status.
 | Device info card | `FirmwareStatus` | **WIRED** | Live DUID, firmware version, storage when WiFi connected |
 
 ### 10. Fleet Tracker (`/artist/fleet`)
-| Feature | Data Source (was mock) | Status | Notes |
-|---------|----------------------|--------|-------|
-| KPIs | `FleetService.getKpis()` | **STUB** | Returns mock computed values |
-| Device map | `FleetService` | **STUB** | Plots mock dots on world map |
-| Activity feed | `FleetService.getActivityFeed()` | **STUB** | Generates mock events |
-| Track names in feed | `FleetService.trackNames[]` | **EMPTY** | Was mock names — now generic placeholders |
+| Feature | Data Source | Status | Notes |
+|---------|-----------|--------|-------|
+| KPIs (devices, online, plays, hearts, skips, listen time) | `FleetService` → `GET /internal-api/fleet/analytics` | **WIRED** | Live from Neon Postgres via Vercel cloud API |
+| Device list table | `FleetService` → `GET /internal-api/fleet/status` | **WIRED** | Shows all registered devices with reachability, replaces d3 map |
+| Activity feed | `FleetService` → `GET /internal-api/fleet/analytics` | **WIRED** | Real play/skip/heart events from analytics pipeline |
+| Top tracks | `FleetService` → `GET /internal-api/fleet/analytics` | **WIRED** | Aggregated from cloud analytics events |
+| Per-device drill-down | `FleetService` → `GET /internal-api/analytics/device/:duid` | **WIRED** | Expandable device rows with detailed analytics |
 
 ### 11. Account (`/artist/account`)
 | Feature | Data Source (was mock) | Status | Notes |
@@ -206,16 +209,34 @@ real data (device firmware, creator input, or backend API), update the status.
 
 ---
 
-## WHAT NEEDS REAL DATA SOURCES
+## CLOUD-BACKED FEATURES (Vercel Phase 1 + 2)
+
+These features are now backed by Vercel cloud services:
+
+| Feature | Cloud Service | Status |
+|---------|--------------|--------|
+| Fleet tracker KPIs & device list | Neon Postgres + Upstash Redis | **WIRED** |
+| Analytics pipeline (plays, hearts, skips, listen time) | Neon Postgres (event ingestion) | **WIRED** |
+| Device check-in & heartbeat | Neon Postgres + Upstash Redis (presence) | **WIRED** |
+| Operator authentication | Neon Postgres (sessions) + cookies | **WIRED** |
+| Firmware registry | Neon Postgres + Vercel Blob | **WIRED** |
+| Feature flags & maintenance mode | Vercel Edge Config | **WIRED** |
+| Fleet health monitoring | Vercel Cron (every 5 min) | **WIRED** |
+| Analytics aggregation & pruning | Vercel Cron (daily 3 AM) | **WIRED** |
+| Admin route protection | Vercel Edge Middleware | **WIRED** |
+| Geo analytics headers | Vercel Edge Middleware | **WIRED** |
+
+---
+
+## WHAT STILL NEEDS REAL DATA SOURCES
 
 These features have UI but need a backend or real data to be useful:
 
 1. **UserService** (Account tab) — needs auth + user API
-2. **FleetService** (Fleet tracker) — needs device telemetry API
-3. **Marketplace** — needs transaction/listing backend
-4. **Resales / Economics** — needs sales tracking backend
-5. **Booklet** — needs file upload storage (images, videos)
-6. **Payment methods** — needs payment gateway (Stripe etc.)
-7. **Earnings / Payouts** — needs financial backend
+2. **Marketplace** — needs transaction/listing backend
+3. **Resales / Economics** — needs sales tracking backend
+4. **Booklet media** — needs file upload storage for images/videos (Vercel Blob ready)
+5. **Payment methods** — needs payment gateway (Stripe etc.)
+6. **Earnings / Payouts** — needs financial backend
 
-These are Phase 6+ features that require actual backend infrastructure.
+These are Phase 5-6 features that require additional backend infrastructure.

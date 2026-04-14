@@ -274,13 +274,24 @@ Rule:
 
 ## Phase 5: Validation
 
-- [ ] Portal build passes.
-- [ ] Firmware build passes.
-- [ ] Manual Wi-Fi E2E:
+- [x] Portal build passes.
+- [x] Firmware build passes.
+- [x] Manual Wi-Fi E2E:
   - creator pushes capsule
   - device receives packet
   - fan portal displays capsule
   - favorite + playback controls remain stable
+
+## Phase 6: Cloud backend (added April 2026)
+
+- [x] Neon Postgres for device registry, analytics events, operator sessions.
+- [x] Upstash Redis for real-time device presence and session cache.
+- [x] Vercel Blob for firmware binary storage.
+- [x] Vercel Edge Config for feature flags, maintenance mode, firmware pointers.
+- [x] Cron jobs for fleet health (5 min) and analytics rollup (daily).
+- [x] Edge Middleware for admin gate, maintenance mode, geo headers.
+- [x] Portal fleet tracker rewritten to consume live cloud analytics.
+- [x] Device-to-cloud analytics relay (check-in on connect + 60s periodic).
 
 ---
 

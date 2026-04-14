@@ -533,7 +533,7 @@ LED theme settings persist across reboots:
 | Angular | 21 | Application framework |
 | Vite | 6.x | Build tool |
 | Tailwind CSS | 4.x | Utility-first styling |
-| TypeScript | 5.7 | Type safety |
+| TypeScript | 5.9 | Type safety |
 
 ### Key Services
 
@@ -541,11 +541,14 @@ LED theme settings persist across reboots:
 |---------|------|---------------|
 | DeviceConnectionService | `device-connection.service.ts` | Transport orchestrator (WiFi/BLE/NFC/USB Bridge), auto-detect, polling, sync |
 | DeviceBleService | `device-ble.service.ts` | Web Bluetooth GATT operations |
-| DeviceWifiService | `device-wifi.service.ts` | HTTP client for device REST API, upload queue, booklet/albumMeta push |
+| DeviceWifiService | `device-wifi.service.ts` | HTTP client for device REST API, upload/delete/reorder, analytics, cloud analytics relay |
 | CryptoService | `crypto.service.ts` | .dpa encryption/decryption (WebCrypto) |
 | PlayerService | `player.service.ts` | Playback with device command routing |
 | DataService | `data.service.ts` | Album/track data, mock data detection, device sync, capsule feeds |
+| FleetService | `fleet.service.ts` | Live cloud fleet analytics (KPIs, devices, top tracks, activity feed) |
+| ReleaseBuildService | `release-build.service.ts` | Album compile, metadata save, firmware push pipeline |
 | CartService | `cart.service.ts` | Shopping cart for capsule marketplace |
+| InternalOperatorAuthService | `internal-operator-auth.service.ts` | Operator session management for cloud admin routes |
 
 ### Key Utilities & Guards
 
@@ -654,9 +657,74 @@ LED theme settings persist across reboots:
 ### Portal Build
 
 ```bash
-npm install          # Install dependencies
-npm run dev          # Development server (localhost:4200)
-npx ng build        # Production build (output: dist/)
+npm install --legacy-peer-deps   # Install dependencies
+npm run dev                       # Development server (localhost:3000)
+npm run build                     # Production build (output: dist/)
 ```
 
-Zero external API keys required. No Google or AI service dependencies.
+No API keys required for local development. Cloud features require Vercel environment variables.
+
+---
+
+## Vercel Cloud Backend
+
+The portal is deployed to Vercel with a full cloud backend for persistent state, analytics, and fleet management.
+
+### Cloud Services
+
+| Service | Provider | Purpose |
+|---------|----------|---------|
+| Database | Neon Postgres (serverless) | Device registry, analytics events, operator sessions, firmware versions |
+| Cache/Presence | Upstash Redis | Real-time device presence tracking, session cache, rate limiting |
+| Object Storage | Vercel Blob | Firmware binary storage, artwork assets |
+| Feature Flags | Vercel Edge Config | Maintenance mode, firmware pointers, portal announcements |
+| Scheduled Jobs | Vercel Cron | Fleet health checks (5 min), analytics rollup (daily) |
+| Request Processing | Vercel Edge Middleware | Admin auth gate, maintenance mode, geo headers |
+
+### Cloud API Routes (`/internal-api/...`)
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/health` | — | Service health (Postgres, Redis, Blob, Edge Config status) |
+| POST | `/operator/login` | — | Operator session creation (returns session cookie) |
+| POST | `/device/check-in` | Device/Operator | Device heartbeat with status + analytics snapshot |
+| POST | `/analytics/events` | — | Batch analytics event ingestion (play, skip, heart, listen_ms) |
+| GET | `/analytics/device/:duid` | Operator | Per-device analytics detail |
+| GET | `/fleet/status` | Operator | All registered devices with reachability state |
+| GET | `/fleet/analytics` | Operator | Fleet-wide KPIs, top tracks, recent activity feed |
+| GET | `/firmware/latest` | — | Latest stable firmware (checks Edge Config pointer first) |
+
+### Cron Jobs
+
+| Schedule | Route | Purpose |
+|----------|-------|---------|
+| Every 5 minutes | `/api/cron/fleet-health` | Mark stale/offline devices, expire operator sessions |
+| Daily at 3 AM UTC | `/api/cron/analytics-rollup` | Prune old snapshot events, aggregate analytics |
+
+### Edge Middleware
+
+The middleware (`middleware.js`) handles three route patterns:
+
+1. **`/dpa-api/*`** — Proxies to DPA device on LAN (requires `DPA_DEVICE_API_TUNNEL` env var)
+2. **`/dpa-upload/*`** — Proxies to device upload server (port 81)
+3. **`/internal-api/*`** — Cloud API with:
+   - Geo header injection (`x-dpa-region`)
+   - Maintenance mode check (Edge Config → 503)
+   - Portal announcement header (`x-dpa-announcement`)
+   - Admin gate for fleet/firmware/devices/ingest routes (requires `dpa_operator_session` cookie)
+   - Public path exemptions for device-facing endpoints
+
+### Analytics Pipeline
+
+```
+Device (ESP32)                Portal (Angular)              Cloud (Vercel)
+──────────────                ────────────────              ──────────────
+firmware tracks               WiFi connect triggers         POST /analytics/events
+play/skip/listen              → relayAnalyticsToCloud()     → Neon Postgres
+counts on SD                    every 60s                   → device_events table
+                              → cloudCheckIn()              
+                                on connect                  GET /fleet/analytics
+                                                            → aggregated KPIs
+                                                            → top tracks
+                                                            → activity feed
+```
