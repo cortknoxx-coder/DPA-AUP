@@ -32,3 +32,7 @@ DPA-AUP.zip
 test-results/
 *.wav
 .env*.local
+.pycache/
+__pycache__/
+*.pyc
+.internal-ingest-data-ota-smoke/
