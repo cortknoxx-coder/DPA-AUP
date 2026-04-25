@@ -716,7 +716,7 @@ void ledTick() {
 
   else if (pattern == "audio_bass") {
     // Flash on bass hits, 100ms decay
-    float bass = g_audioFeatures.active ? g_audioFeatures.bassEnergy : 0.0f;
+    float bass = g_audioFeatures.active ? audioReactiveLowBandLevel() : 0.0f;
     if (!g_audioFeatures.active) {
       unsigned long ms = millis();
       float phase = (ms % 4000) / 4000.0f;
@@ -869,7 +869,7 @@ void ledTick() {
       fill_solid(leds, NUM_LEDS, CRGB::Black);
       FastLED.setBrightness(bright);
       CRGB gradEnd = getGradientEnd();
-      float bass = g_audioFeatures.bassEnergy * 4.0f;
+      float bass = audioReactiveLowBandLevel() * 4.0f;
       if (bass > 1.0f) bass = 1.0f;
       if (bass > bassDecayVU) bassDecayVU = bass;
       else bassDecayVU *= 0.88f;
@@ -887,16 +887,29 @@ void ledTick() {
   }
 
   else if (pattern == "vu_energy") {
-    // Energy VU: whole-strip glow intensity tracks the envelope
+    // Energy VU: low/mid/high analysis drives different strip zones.
     if (!g_audioFeatures.active) { vuIdleFallback(color, getGradientEnd(), bright); }
     else {
       CRGB gradEnd = getGradientEnd();
-      float env = g_audioFeatures.envelope;
-      float level = 0.15f + env * 0.85f;
+      float low = audioReactiveLowBandLevel();
+      float mid = audioReactiveMidBandLevel();
+      float high = audioReactiveHighBandLevel();
+      float level = 0.15f + ((low * 0.4f) + (mid * 0.35f) + (high * 0.25f)) * 0.85f;
       uint8_t b = (uint8_t)(level * bright);
+      const int lowEnd = NUM_LEDS / 3;
+      const int midEnd = (NUM_LEDS * 2) / 3;
       for (int i = 0; i < NUM_LEDS; i++) {
         float ratio = (float)i / (float)(NUM_LEDS - 1);
-        leds[i] = blend(color, gradEnd, (uint8_t)(ratio * 255));
+        CRGB base = blend(color, gradEnd, (uint8_t)(ratio * 255));
+        float band = high;
+        if (i < lowEnd) band = low;
+        else if (i < midEnd) band = mid;
+        uint8_t scale = (uint8_t)(60 + band * 195.0f);
+        base.nscale8(scale);
+        if (high > 0.65f && i >= midEnd) {
+          base += CRGB(18, 24, 32);
+        }
+        leds[i] = base;
       }
       FastLED.setBrightness(b < 4 ? 4 : b);
     }

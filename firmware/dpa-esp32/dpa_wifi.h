@@ -175,10 +175,14 @@ void wifiSetSleep(bool enable) {
 // ── NVS Load/Save ────────────────────────────────────────────
 void wifiLoadFromNVS() {
   Preferences prefs;
-  prefs.begin("dpa_wifi", true);
-  g_staSSID     = prefs.getString("ssid", "");
-  g_staPassword = prefs.getString("pass", "");
-  prefs.end();
+  if (prefs.begin("dpa_wifi", false)) {
+    g_staSSID     = prefs.isKey("ssid") ? prefs.getString("ssid", "") : "";
+    g_staPassword = prefs.isKey("pass") ? prefs.getString("pass", "") : "";
+    prefs.end();
+  } else {
+    g_staSSID = "";
+    g_staPassword = "";
+  }
   if (g_staSSID.length() > 0) {
     Serial.println("[WIFI] Stored STA credentials: " + g_staSSID);
   } else {
@@ -188,7 +192,10 @@ void wifiLoadFromNVS() {
 
 void wifiSaveToNVS() {
   Preferences prefs;
-  prefs.begin("dpa_wifi", false);
+  if (!prefs.begin("dpa_wifi", false)) {
+    Serial.println("[WIFI] Failed to open NVS for STA credential save");
+    return;
+  }
   prefs.putString("ssid", g_staSSID);
   prefs.putString("pass", g_staPassword);
   prefs.end();
@@ -197,10 +204,11 @@ void wifiSaveToNVS() {
 
 void wifiClearNVS() {
   Preferences prefs;
-  prefs.begin("dpa_wifi", false);
-  prefs.remove("ssid");
-  prefs.remove("pass");
-  prefs.end();
+  if (prefs.begin("dpa_wifi", false)) {
+    prefs.remove("ssid");
+    prefs.remove("pass");
+    prefs.end();
+  }
   g_staSSID = "";
   g_staPassword = "";
   Serial.println("[WIFI] STA credentials cleared");

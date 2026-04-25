@@ -47,10 +47,14 @@ static constexpr UBaseType_t kAudioTaskPriority = configMAX_PRIORITIES - 2;
 static String g_audioTracksJsonCache = "";
 static bool g_audioTracksJsonDirty = true;
 
-// ── Software EQ (3-band biquad) ─────────────────────────────
-// Each band is a second-order IIR biquad filter applied per-channel.
-// Coefficients computed from Audio EQ Cookbook (Robert Bristow-Johnson).
-// Runs in the sample conversion loop — negligible CPU at any sample rate.
+// ── DPA DSP Engine ───────────────────────────────────────────
+// The playback path stays the same: DPA1/raw WAV decode -> 32-bit stereo I2S.
+// This section upgrades the shaping stage to a lightweight DSP chain:
+//   preamp -> cleanup HPF -> preset tone filters -> optional bass enhancement
+//   -> optional stereo widening -> threshold-aware soft limiter -> safety clamp
+//
+// Coefficients use the Audio EQ Cookbook (Robert Bristow-Johnson) and are
+// regenerated at the track's native sample rate so DPA1 playback stays intact.
 
 struct BiquadCoeffs {
   float b0, b1, b2, a1, a2;  // normalized (a0 = 1.0)
@@ -60,14 +64,153 @@ struct BiquadState {
   float x1, x2, y1, y2;      // delay line per channel
 };
 
-#define EQ_NUM_BANDS 3  // bass, mid, treble
+enum DspFilterType : uint8_t {
+  DSP_FILTER_NONE = 0,
+  DSP_FILTER_HIGHPASS,
+  DSP_FILTER_LOWSHELF,
+  DSP_FILTER_PEAKING,
+  DSP_FILTER_HIGHSHELF,
+};
 
-// Per-channel state for 3 bands
-static BiquadState g_eqStateL[EQ_NUM_BANDS] = {};
-static BiquadState g_eqStateR[EQ_NUM_BANDS] = {};
-static BiquadCoeffs g_eqCoeffs[EQ_NUM_BANDS] = {};
+struct DspFilterSpec {
+  DspFilterType type;
+  float freq;
+  float Q;
+  float gainDB;
+};
+
+struct DspPresetConfig {
+  const char* id;
+  float preampDB;
+  float highPassFreq;
+  float highPassQ;
+  DspFilterSpec tone[3];
+  float bassEnhanceDB;
+  float stereoWidth;
+  float limiterDrive;
+  float outputTrimDB;
+};
+
+static constexpr int kDspStageCount = 5;
+static constexpr int kDspToneStageBase = 1;
+static constexpr int kDspBassStage = 4;
+static constexpr float kDspFloatCeiling = 2147483520.0f;
+static constexpr float kLimiterThresholdNorm = 0.985f;
+static constexpr float kBassEnhanceFreqHz = 135.0f;
+static constexpr float kBassEnhanceQ = 0.707f;
+static constexpr float kDefaultHighPassHz = 38.0f;
+static constexpr float kDefaultHighPassQ = 0.707f;
+static constexpr float kControlSmoothingAlpha = 0.02f;
+static constexpr float kMasterOutputCalibrationDB = 2.4f;
+static constexpr float kTelemetryDecay = 0.92f;
+
+static BiquadState g_dspStateL[kDspStageCount] = {};
+static BiquadState g_dspStateR[kDspStageCount] = {};
+static BiquadCoeffs g_dspCoeffs[kDspStageCount] = {};
+static bool g_dspStageEnabled[kDspStageCount] = {};
 static bool g_eqEnabled = false;
-static String g_eqCurrent = "flat";  // tracks which preset is active
+static String g_eqCurrent = "flat";
+static String g_eqStereoWidthMode = "off";
+static float g_dspSampleRate = 44100.0f;
+static float g_dspCurrentPreamp = 1.0f;
+static float g_dspTargetPreamp = 1.0f;
+static float g_dspCurrentWidth = 0.0f;
+static float g_dspTargetWidth = 0.0f;
+static float g_dspCurrentMasterGain = 1.0f;
+static float g_dspTargetMasterGain = 1.0f;
+static float g_dspCurrentOutputTrim = 1.0f;
+static float g_dspTargetOutputTrim = 1.0f;
+static float g_dspLimiterDrive = 2.2f;
+static float g_dspLimiterNorm = 1.0f;
+static float g_eqCustomBassDB = 0.0f;
+static float g_eqCustomMidDB = 0.0f;
+static float g_eqCustomTrebleDB = 0.0f;
+static volatile float g_dspTelemetryPeakPreLimiterNorm = 0.0f;
+static volatile float g_dspTelemetryPeakPostLimiterNorm = 0.0f;
+static volatile float g_dspTelemetryLimiterReductionDb = 0.0f;
+static volatile float g_dspTelemetryVolumeScalar = 1.0f;
+static volatile float g_dspTelemetryPreampDb = 0.0f;
+static volatile float g_dspTelemetryMasterGainDb = kMasterOutputCalibrationDB;
+static volatile float g_dspTelemetryOutputTrimDb = 0.0f;
+static volatile uint32_t g_dspTelemetryLimiterEvents = 0;
+
+static const DspPresetConfig kDspPresets[] = {
+  {
+    "flat",
+    0.0f,
+    34.0f,
+    0.707f,
+    {
+      { DSP_FILTER_LOWSHELF, 160.0f, 0.707f, 0.0f },
+      { DSP_FILTER_PEAKING, 950.0f, 0.90f, 0.0f },
+      { DSP_FILTER_HIGHSHELF, 4200.0f, 0.707f, 0.0f },
+    },
+    0.0f,
+    0.0f,
+    1.8f,
+    0.0f,
+  },
+  {
+    "dpa_signature",
+    -2.0f,
+    32.0f,
+    0.707f,
+    {
+      { DSP_FILTER_LOWSHELF, 150.0f, 0.707f, 4.6f },
+      { DSP_FILTER_PEAKING, 420.0f, 0.95f, -2.4f },
+      { DSP_FILTER_HIGHSHELF, 6400.0f, 0.707f, 3.2f },
+    },
+    2.2f,
+    0.10f,
+    2.8f,
+    0.0f,
+  },
+  {
+    "hip_hop",
+    -3.2f,
+    34.0f,
+    0.707f,
+    {
+      { DSP_FILTER_LOWSHELF, 145.0f, 0.707f, 6.8f },
+      { DSP_FILTER_PEAKING, 340.0f, 0.92f, -3.2f },
+      { DSP_FILTER_HIGHSHELF, 6200.0f, 0.707f, 2.0f },
+    },
+    3.8f,
+    0.06f,
+    3.4f,
+    -0.2f,
+  },
+  {
+    "pop",
+    -2.0f,
+    36.0f,
+    0.707f,
+    {
+      { DSP_FILTER_LOWSHELF, 155.0f, 0.707f, 3.0f },
+      { DSP_FILTER_PEAKING, 700.0f, 1.00f, -1.8f },
+      { DSP_FILTER_HIGHSHELF, 7600.0f, 0.707f, 5.0f },
+    },
+    1.3f,
+    0.14f,
+    2.9f,
+    0.0f,
+  },
+  {
+    "vocal",
+    -1.8f,
+    42.0f,
+    0.707f,
+    {
+      { DSP_FILTER_LOWSHELF, 190.0f, 0.707f, -3.0f },
+      { DSP_FILTER_PEAKING, 2400.0f, 0.88f, 5.2f },
+      { DSP_FILTER_HIGHSHELF, 7800.0f, 0.707f, 2.6f },
+    },
+    0.0f,
+    0.0f,
+    2.6f,
+    0.0f,
+  },
+};
 
 // Apply a single biquad filter to one sample
 static inline float biquadProcess(BiquadState& s, const BiquadCoeffs& c, float x) {
@@ -88,6 +231,18 @@ static void eqPeakingEQ(BiquadCoeffs& c, float sampleRate, float freq, float Q, 
   c.b2 = (1.0f - alpha * A) / a0;
   c.a1 = (-2.0f * cosf(w0)) / a0;
   c.a2 = (1.0f - alpha / A) / a0;
+}
+
+static void eqHighPass(BiquadCoeffs& c, float sampleRate, float freq, float Q) {
+  float w0 = 2.0f * PI * freq / sampleRate;
+  float alpha = sinf(w0) / (2.0f * Q);
+  float cosw0 = cosf(w0);
+  float a0 = 1.0f + alpha;
+  c.b0 = ((1.0f + cosw0) * 0.5f) / a0;
+  c.b1 = (-(1.0f + cosw0)) / a0;
+  c.b2 = ((1.0f + cosw0) * 0.5f) / a0;
+  c.a1 = (-2.0f * cosw0) / a0;
+  c.a2 = (1.0f - alpha) / a0;
 }
 
 // Compute low-shelf biquad coefficients
@@ -120,134 +275,330 @@ static void eqHighShelf(BiquadCoeffs& c, float sampleRate, float freq, float Q, 
 
 // Reset filter delay lines (call on track change to avoid pops)
 static void eqResetState() {
-  memset(g_eqStateL, 0, sizeof(g_eqStateL));
-  memset(g_eqStateR, 0, sizeof(g_eqStateR));
+  memset(g_dspStateL, 0, sizeof(g_dspStateL));
+  memset(g_dspStateR, 0, sizeof(g_dspStateR));
 }
 
-// ── Pre-gain compensation (prevents clipping on boost) ──────
-// EBU R128 mandates -1 dBTP headroom. We subtract the max boost + 1dB.
-static float g_eqPreGain = 1.0f;  // linear multiplier applied before filters
+static inline float eqDbToLinear(float db) {
+  return powf(10.0f, db / 20.0f);
+}
 
-// Set EQ preset — computes coefficients for current sample rate
-// Band 0: Low shelf (200Hz), Band 1: Peaking (1kHz), Band 2: High shelf (3.5kHz)
-// All gains based on industry standards (EBU R128, ITU-R BS.1770, ISO 226:2003)
-// Max boost ≤4dB with pre-gain compensation to prevent clipping on mastered audio.
-void eqSetPreset(const String& preset, uint32_t sampleRate) {
-  if (sampleRate == 0) sampleRate = 44100;
-  eqResetState();
-  g_eqCurrent = preset;
+static inline float eqLinearToDb(float linear) {
+  if (linear <= 0.000001f) return -120.0f;
+  return 20.0f * log10f(linear);
+}
 
-  if (preset == "flat" || preset == "") {
-    g_eqEnabled = false;
-    g_eqPreGain = 1.0f;
+static inline void eqRefreshMasterOutputTarget() {
+  g_dspTargetMasterGain = eqDbToLinear(kMasterOutputCalibrationDB);
+}
+
+static inline void eqResetTelemetry() {
+  g_dspTelemetryPeakPreLimiterNorm = 0.0f;
+  g_dspTelemetryPeakPostLimiterNorm = 0.0f;
+  g_dspTelemetryLimiterReductionDb = 0.0f;
+  g_dspTelemetryLimiterEvents = 0;
+}
+
+static void eqDisableStage(int idx) {
+  if (idx < 0 || idx >= kDspStageCount) return;
+  g_dspStageEnabled[idx] = false;
+  g_dspCoeffs[idx] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+}
+
+static void eqConfigureStage(int idx, DspFilterType type, float sampleRate, float freq, float Q, float gainDB = 0.0f) {
+  if (idx < 0 || idx >= kDspStageCount || type == DSP_FILTER_NONE || freq <= 0.0f) {
+    eqDisableStage(idx);
     return;
   }
-  g_eqEnabled = true;
+  if (sampleRate == 0.0f) sampleRate = 44100.0f;
+  switch (type) {
+    case DSP_FILTER_HIGHPASS:
+      eqHighPass(g_dspCoeffs[idx], sampleRate, freq, Q > 0.0f ? Q : 0.707f);
+      break;
+    case DSP_FILTER_LOWSHELF:
+      eqLowShelf(g_dspCoeffs[idx], sampleRate, freq, Q > 0.0f ? Q : 0.707f, gainDB);
+      break;
+    case DSP_FILTER_PEAKING:
+      eqPeakingEQ(g_dspCoeffs[idx], sampleRate, freq, Q > 0.0f ? Q : 0.707f, gainDB);
+      break;
+    case DSP_FILTER_HIGHSHELF:
+      eqHighShelf(g_dspCoeffs[idx], sampleRate, freq, Q > 0.0f ? Q : 0.707f, gainDB);
+      break;
+    default:
+      eqDisableStage(idx);
+      return;
+  }
+  g_dspStageEnabled[idx] = true;
+}
 
-  // Preset: {bassFreq, bassGain_dB, midFreq, midQ, midGain_dB, trebleFreq, trebleGain_dB}
-  // Q=0.707 = Butterworth (maximally flat shelves, ~2-octave parametric width)
-  float bF=200, bG=0, mF=1000, mQ=0.707f, mG=0, tF=3500, tG=0;
+static bool eqResolvePreset(const String& preset, String& canonical) {
+  canonical = preset;
+  canonical.trim();
+  canonical.toLowerCase();
+  if (canonical.length() == 0 || canonical == "flat") {
+    canonical = "flat";
+    return true;
+  }
+  if (canonical == "bass" || canonical == "bass_boost") canonical = "hip_hop";
+  else if (canonical == "warm" || canonical == "r_and_b") canonical = "dpa_signature";
+  else if (canonical == "bright" || canonical == "electronic" || canonical == "loudness") canonical = "pop";
+  else if (canonical == "late_night") canonical = "vocal";
 
-  if (preset == "bass_boost") {
-    // Low-end emphasis, slight mid scoop to reduce mud. Refs: Spotify Bass Booster
-    bF=200;  bG=+3.5f;   mF=800;  mQ=0.8f;  mG=-1.0f;   tF=3500; tG=0.0f;
-  } else if (preset == "vocal") {
-    // Presence boost (800Hz-3kHz vocal range), low cut for clarity, air shelf
-    bF=200;  bG=-1.5f;   mF=1000; mQ=0.707f; mG=+2.5f;  tF=3500; tG=+1.5f;
-  } else if (preset == "warm") {
-    // Low-mid body, gentle presence dip, treble rolloff. Classic "warm" curve
-    bF=200;  bG=+3.0f;   mF=1000; mQ=0.707f; mG=-0.5f;  tF=3500; tG=-2.0f;
-  } else if (preset == "bright") {
-    // Air and presence lift, slight bass reduction. Open/airy sound
-    bF=200;  bG=-0.5f;   mF=1000; mQ=1.0f;   mG=+1.0f;  tF=3500; tG=+3.5f;
-  } else if (preset == "loudness") {
-    // Fletcher-Munson compensation for low-volume listening (ISO 226:2003)
-    // Boost bass + treble extremes where ear is least sensitive at low SPL
-    bF=200;  bG=+3.5f;   mF=1000; mQ=0.707f; mG=-1.0f;  tF=3500; tG=+2.5f;
-  } else if (preset == "r_and_b") {
-    // Warm bass with smooth presence. Sub-bass emphasis, recessed upper-mids
-    bF=200;  bG=+3.0f;   mF=1000; mQ=0.707f; mG=-1.5f;  tF=3500; tG=+1.0f;
-  } else if (preset == "electronic") {
-    // Sub-bass heavy, scooped mids, crisp highs. Standard EDM curve
-    bF=200;  bG=+4.0f;   mF=1000; mQ=0.707f; mG=-2.0f;  tF=3500; tG=+2.5f;
-  } else if (preset == "late_night") {
-    // Reduced dynamics: boost mids (ear-sensitive range), cut extremes
-    // Simulates loudness normalization for quiet listening
-    bF=200;  bG=-2.0f;   mF=1000; mQ=0.707f; mG=+2.0f;  tF=3500; tG=-1.5f;
+  for (const auto& presetConfig : kDspPresets) {
+    if (canonical == presetConfig.id) return true;
+  }
+  return false;
+}
+
+static bool eqIsValidPreset(const String& preset) {
+  String canonical;
+  return eqResolvePreset(preset, canonical);
+}
+
+static String eqCanonicalPreset(const String& preset) {
+  String canonical;
+  if (eqResolvePreset(preset, canonical)) return canonical;
+  return "flat";
+}
+
+static const DspPresetConfig* eqGetPresetConfigById(const String& preset) {
+  String canonical;
+  if (!eqResolvePreset(preset, canonical)) return nullptr;
+  for (const auto& presetConfig : kDspPresets) {
+    if (canonical == presetConfig.id) return &presetConfig;
+  }
+  return nullptr;
+}
+
+static void eqRefreshStereoWidthTarget(float presetWidth) {
+  if (g_eqStereoWidthMode == "enhanced") {
+    g_dspTargetWidth = presetWidth > 0.0f ? presetWidth : 0.14f;
   } else {
-    g_eqEnabled = false;
-    g_eqPreGain = 1.0f;
-    return;
+    g_dspTargetWidth = 0.0f;
+  }
+}
+
+static void eqSetStereoWidthMode(const String& mode) {
+  String next = mode;
+  next.trim();
+  next.toLowerCase();
+  if (next != "enhanced") next = "off";
+  g_eqStereoWidthMode = next;
+
+  float presetWidth = 0.0f;
+  const DspPresetConfig* active = eqGetPresetConfigById(g_eqCurrent);
+  if (active) presetWidth = active->stereoWidth;
+  eqRefreshStereoWidthTarget(presetWidth);
+}
+
+static const String& eqGetStereoWidthMode() {
+  return g_eqStereoWidthMode;
+}
+
+static const String& eqGetActivePreset() {
+  return g_eqCurrent;
+}
+
+static String eqGetSelectedPreset() {
+  if (g_eq == "custom") return String("custom");
+  String canonical;
+  if (eqResolvePreset(g_eq, canonical)) return canonical;
+  if (g_eqCurrent == "custom") return String("custom");
+  if (eqResolvePreset(g_eqCurrent, canonical)) return canonical;
+  return String("flat");
+}
+
+static float eqGetCustomBassDB() {
+  return g_eqCustomBassDB;
+}
+
+static float eqGetCustomMidDB() {
+  return g_eqCustomMidDB;
+}
+
+static float eqGetCustomTrebleDB() {
+  return g_eqCustomTrebleDB;
+}
+
+static void eqConfigureLimiter(float drive, float outputTrimDB) {
+  g_dspLimiterDrive = drive < 1.1f ? 1.1f : drive;
+  g_dspLimiterNorm = tanhf(g_dspLimiterDrive);
+  if (g_dspLimiterNorm < 0.0001f) g_dspLimiterNorm = 1.0f;
+  g_dspTargetOutputTrim = eqDbToLinear(outputTrimDB);
+}
+
+static void eqApplyPresetConfig(const DspPresetConfig& cfg, uint32_t sampleRate) {
+  if (sampleRate == 0) sampleRate = 44100;
+  g_dspSampleRate = (float)sampleRate;
+  eqResetState();
+  memset(g_dspStageEnabled, 0, sizeof(g_dspStageEnabled));
+
+  eqConfigureStage(0, DSP_FILTER_HIGHPASS, g_dspSampleRate,
+                   cfg.highPassFreq > 0.0f ? cfg.highPassFreq : kDefaultHighPassHz,
+                   cfg.highPassQ > 0.0f ? cfg.highPassQ : kDefaultHighPassQ);
+
+  for (int i = 0; i < 3; ++i) {
+    const DspFilterSpec& band = cfg.tone[i];
+    eqConfigureStage(kDspToneStageBase + i, band.type, g_dspSampleRate, band.freq, band.Q, band.gainDB);
   }
 
-  // Compute pre-gain: attenuate by max boost + 1dB headroom (EBU R128: -1 dBTP)
-  float maxBoost = fmaxf(0.0f, fmaxf(bG, fmaxf(mG, tG)));
-  float preGainDB = -(maxBoost + 1.0f);
-  g_eqPreGain = powf(10.0f, preGainDB / 20.0f);  // dB to linear
+  if (fabsf(cfg.bassEnhanceDB) > 0.05f) {
+    eqConfigureStage(kDspBassStage, DSP_FILTER_LOWSHELF, g_dspSampleRate,
+                     kBassEnhanceFreqHz, kBassEnhanceQ, cfg.bassEnhanceDB);
+  } else {
+    eqDisableStage(kDspBassStage);
+  }
 
-  eqLowShelf(g_eqCoeffs[0], sampleRate, bF, 0.707f, bG);
-  eqPeakingEQ(g_eqCoeffs[1], sampleRate, mF, mQ, mG);
-  eqHighShelf(g_eqCoeffs[2], sampleRate, tF, 0.707f, tG);
+  g_eqEnabled = true;
+  g_dspTargetPreamp = eqDbToLinear(cfg.preampDB);
+  g_dspCurrentPreamp = g_dspTargetPreamp;
+  eqRefreshMasterOutputTarget();
+  g_dspCurrentMasterGain = g_dspTargetMasterGain;
+  g_dspCurrentOutputTrim = g_dspTargetOutputTrim;
+  eqRefreshStereoWidthTarget(cfg.stereoWidth);
+  g_dspCurrentWidth = g_dspTargetWidth;
+  eqConfigureLimiter(cfg.limiterDrive, cfg.outputTrimDB);
+  g_dspCurrentOutputTrim = g_dspTargetOutputTrim;
+  eqResetTelemetry();
 
-  Serial.printf("[EQ] Preset '%s' @ %luHz | preGain=%.1fdB (%.3f)\n",
-    preset.c_str(), (unsigned long)sampleRate, preGainDB, g_eqPreGain);
-  Serial.printf("[EQ] Bass: %.1fdB@%dHz | Mid: %.1fdB@%dHz Q%.2f | Treble: %.1fdB@%dHz\n",
-    bG, (int)bF, mG, (int)mF, mQ, tG, (int)tF);
+  Serial.printf("[DSP] Preset '%s' @ %luHz | preamp=%.1fdB master=%.1fdB width=%s bass+=%.1fdB limiterDrive=%.2f trim=%.1fdB\n",
+    cfg.id,
+    (unsigned long)sampleRate,
+    cfg.preampDB,
+    kMasterOutputCalibrationDB,
+    g_eqStereoWidthMode.c_str(),
+    cfg.bassEnhanceDB,
+    g_dspLimiterDrive,
+    cfg.outputTrimDB);
+}
+
+void eqSetPreset(const String& preset, uint32_t sampleRate) {
+  String canonical;
+  if (!eqResolvePreset(preset, canonical)) canonical = "flat";
+  g_eqCurrent = canonical;
+  g_eq = canonical;
+
+  const DspPresetConfig* cfg = eqGetPresetConfigById(canonical);
+  if (!cfg) {
+    g_eqEnabled = false;
+    g_dspTargetPreamp = 1.0f;
+    g_dspCurrentPreamp = 1.0f;
+    g_dspTargetMasterGain = 1.0f;
+    g_dspCurrentMasterGain = 1.0f;
+    g_dspTargetOutputTrim = 1.0f;
+    g_dspCurrentOutputTrim = 1.0f;
+    g_dspTargetWidth = 0.0f;
+    g_dspCurrentWidth = 0.0f;
+    eqResetTelemetry();
+    return;
+  }
+  eqApplyPresetConfig(*cfg, sampleRate);
 }
 
 // Set custom EQ from user mixer sliders (bass/mid/treble in dB, clamped ±6)
 void eqSetCustom(float bassDB, float midDB, float trebleDB, uint32_t sampleRate) {
   if (sampleRate == 0) sampleRate = 44100;
-  eqResetState();
-  g_eqCurrent = "custom";
-
-  // Clamp to safe range
   bassDB = fmaxf(-6.0f, fminf(6.0f, bassDB));
   midDB = fmaxf(-6.0f, fminf(6.0f, midDB));
   trebleDB = fmaxf(-6.0f, fminf(6.0f, trebleDB));
+  g_eqCustomBassDB = bassDB;
+  g_eqCustomMidDB = midDB;
+  g_eqCustomTrebleDB = trebleDB;
 
-  // Check if flat
-  if (fabsf(bassDB) < 0.1f && fabsf(midDB) < 0.1f && fabsf(trebleDB) < 0.1f) {
-    g_eqEnabled = false;
-    g_eqPreGain = 1.0f;
-    return;
-  }
-  g_eqEnabled = true;
+  g_eqCurrent = "custom";
+  g_eq = "custom";
+  g_dspSampleRate = (float)sampleRate;
+  eqResetState();
+  memset(g_dspStageEnabled, 0, sizeof(g_dspStageEnabled));
 
-  // Pre-gain compensation
+  eqConfigureStage(0, DSP_FILTER_HIGHPASS, g_dspSampleRate, kDefaultHighPassHz, kDefaultHighPassQ);
+  eqConfigureStage(1, DSP_FILTER_LOWSHELF, g_dspSampleRate, 180.0f, 0.707f, bassDB);
+  eqConfigureStage(2, DSP_FILTER_PEAKING, g_dspSampleRate, 1100.0f, 0.90f, midDB);
+  eqConfigureStage(3, DSP_FILTER_HIGHSHELF, g_dspSampleRate, 5600.0f, 0.707f, trebleDB);
+  eqDisableStage(kDspBassStage);
+
   float maxBoost = fmaxf(0.0f, fmaxf(bassDB, fmaxf(midDB, trebleDB)));
-  float preGainDB = -(maxBoost + 1.0f);
-  g_eqPreGain = powf(10.0f, preGainDB / 20.0f);
+  float preampDB = -((maxBoost * 0.7f) + 0.8f);
+  g_dspTargetPreamp = eqDbToLinear(preampDB);
+  g_dspCurrentPreamp = g_dspTargetPreamp;
+  eqRefreshMasterOutputTarget();
+  g_dspCurrentMasterGain = g_dspTargetMasterGain;
+  eqRefreshStereoWidthTarget(0.0f);
+  g_dspCurrentWidth = g_dspTargetWidth;
+  eqConfigureLimiter(2.5f + (maxBoost * 0.10f), 0.0f);
+  g_dspCurrentOutputTrim = g_dspTargetOutputTrim;
+  g_eqEnabled = true;
+  eqResetTelemetry();
 
-  // Standard crossover: 200Hz low shelf, 1kHz parametric, 3.5kHz high shelf
-  eqLowShelf(g_eqCoeffs[0], sampleRate, 200.0f, 0.707f, bassDB);
-  eqPeakingEQ(g_eqCoeffs[1], sampleRate, 1000.0f, 0.707f, midDB);
-  eqHighShelf(g_eqCoeffs[2], sampleRate, 3500.0f, 0.707f, trebleDB);
-
-  Serial.printf("[EQ] Custom @ %luHz | bass=%.1f mid=%.1f treble=%.1f preGain=%.1fdB\n",
-    (unsigned long)sampleRate, bassDB, midDB, trebleDB, preGainDB);
+  Serial.printf("[DSP] Custom @ %luHz | bass=%.1f mid=%.1f treble=%.1f preamp=%.1fdB master=%.1fdB width=%s\n",
+    (unsigned long)sampleRate, bassDB, midDB, trebleDB, preampDB, kMasterOutputCalibrationDB, g_eqStereoWidthMode.c_str());
 }
 
-// Apply EQ to a stereo sample pair (in-place, 32-bit fixed point)
-// Pre-gain → 3-band biquad → soft-clip limiter
+static inline float eqSoftLimitSample(float sample) {
+  const float threshold = kLimiterThresholdNorm * kDspFloatCeiling;
+  const float sign = sample < 0.0f ? -1.0f : 1.0f;
+  const float magnitude = fabsf(sample);
+  if (magnitude <= threshold) return sample;
+  const float excessNorm = (magnitude - threshold) / (kDspFloatCeiling - threshold);
+  const float curved = tanhf(excessNorm * g_dspLimiterDrive) / g_dspLimiterNorm;
+  return sign * (threshold + curved * (kDspFloatCeiling - threshold));
+}
+
+// Apply DSP to a stereo sample pair (in-place, 32-bit fixed point)
 static inline void eqApply(int32_t& lSample, int32_t& rSample) {
-  if (!g_eqEnabled) return;
-  // Convert to float and apply pre-gain (headroom reduction before boost)
-  float lf = (float)lSample * g_eqPreGain;
-  float rf = (float)rSample * g_eqPreGain;
-  // 3-band biquad filter chain
-  for (int b = 0; b < EQ_NUM_BANDS; b++) {
-    lf = biquadProcess(g_eqStateL[b], g_eqCoeffs[b], lf);
-    rf = biquadProcess(g_eqStateR[b], g_eqCoeffs[b], rf);
+  g_dspCurrentPreamp += (g_dspTargetPreamp - g_dspCurrentPreamp) * kControlSmoothingAlpha;
+  g_dspCurrentWidth += (g_dspTargetWidth - g_dspCurrentWidth) * kControlSmoothingAlpha;
+  g_dspCurrentMasterGain += (g_dspTargetMasterGain - g_dspCurrentMasterGain) * kControlSmoothingAlpha;
+  g_dspCurrentOutputTrim += (g_dspTargetOutputTrim - g_dspCurrentOutputTrim) * kControlSmoothingAlpha;
+
+  float lf = (float)lSample * g_dspCurrentPreamp;
+  float rf = (float)rSample * g_dspCurrentPreamp;
+
+  if (g_eqEnabled) {
+    for (int stage = 0; stage < kDspStageCount; ++stage) {
+      if (!g_dspStageEnabled[stage]) continue;
+      lf = biquadProcess(g_dspStateL[stage], g_dspCoeffs[stage], lf);
+      rf = biquadProcess(g_dspStateR[stage], g_dspCoeffs[stage], rf);
+    }
   }
-  // Soft-clip limiter (tanh-style) — prevents harsh digital clipping
-  const float ceiling = 2147483647.0f;
-  if (lf > ceiling * 0.9f || lf < -ceiling * 0.9f) {
-    lf = tanhf(lf / ceiling) * ceiling;  // smooth saturation above 90%
+
+  if (g_dspCurrentWidth > 0.001f) {
+    float mid = 0.5f * (lf + rf);
+    float side = 0.5f * (lf - rf);
+    side *= (1.0f + g_dspCurrentWidth);
+    lf = mid + side;
+    rf = mid - side;
   }
-  if (rf > ceiling * 0.9f || rf < -ceiling * 0.9f) {
-    rf = tanhf(rf / ceiling) * ceiling;
+
+  lf *= g_dspCurrentMasterGain;
+  rf *= g_dspCurrentMasterGain;
+
+  const float preLimiterPeak = fmaxf(fabsf(lf), fabsf(rf)) / kDspFloatCeiling;
+  g_dspTelemetryPeakPreLimiterNorm = fmaxf(preLimiterPeak, g_dspTelemetryPeakPreLimiterNorm * kTelemetryDecay);
+
+  const float limitedL = eqSoftLimitSample(lf);
+  const float limitedR = eqSoftLimitSample(rf);
+  const float preLimiterAbs = fmaxf(fabsf(lf), fabsf(rf));
+  const float postLimiterAbs = fmaxf(fabsf(limitedL), fabsf(limitedR));
+  if (postLimiterAbs + 1.0f < preLimiterAbs) {
+    float reductionDb = eqLinearToDb(postLimiterAbs / preLimiterAbs);
+    if (reductionDb < g_dspTelemetryLimiterReductionDb) g_dspTelemetryLimiterReductionDb = reductionDb;
+    g_dspTelemetryLimiterEvents++;
+  } else {
+    g_dspTelemetryLimiterReductionDb *= kTelemetryDecay;
   }
+
+  lf = limitedL * g_dspCurrentOutputTrim;
+  rf = limitedR * g_dspCurrentOutputTrim;
+
+  const float postLimiterPeak = fmaxf(fabsf(lf), fabsf(rf)) / kDspFloatCeiling;
+  g_dspTelemetryPeakPostLimiterNorm = fmaxf(postLimiterPeak, g_dspTelemetryPeakPostLimiterNorm * kTelemetryDecay);
+
+  if (lf > kDspFloatCeiling) lf = kDspFloatCeiling;
+  if (lf < -kDspFloatCeiling) lf = -kDspFloatCeiling;
+  if (rf > kDspFloatCeiling) rf = kDspFloatCeiling;
+  if (rf < -kDspFloatCeiling) rf = -kDspFloatCeiling;
+
   lSample = (int32_t)lf;
   rSample = (int32_t)rf;
 }
@@ -583,6 +934,10 @@ static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavIn
 
   // Pre-compute volume scale ONCE per buffer (was per-sample — saves ~5K ops at 96kHz)
   const int32_t volScale = (int32_t)((constrain(g_volume, 0, 100) * 256L) / 100L);
+  g_dspTelemetryVolumeScalar = (float)volScale / 256.0f;
+  g_dspTelemetryPreampDb = eqLinearToDb(g_dspCurrentPreamp);
+  g_dspTelemetryMasterGainDb = eqLinearToDb(g_dspCurrentMasterGain);
+  g_dspTelemetryOutputTrimDb = eqLinearToDb(g_dspCurrentOutputTrim);
 
   // Branch on format OUTSIDE the hot loop — eliminates per-sample conditional branching
   if (info.bitsPerSample == 16 && bytesPerChan == 2) {
@@ -595,10 +950,10 @@ static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavIn
         int16_t s1 = (int16_t)(p[2] | (p[3] << 8));
         r = ((int32_t)s1) << 16;
       } else { r = l; }
-      audioReactiveAccumulate(l, r);  // BEFORE volume — VU reacts to source level
       l = (int32_t)(((int64_t)l * volScale) >> 8);
       r = (int32_t)(((int64_t)r * volScale) >> 8);
       eqApply(l, r);
+      audioReactiveAccumulate(l, r);
       outBuf[outSamples++] = l;
       outBuf[outSamples++] = r;
       p += info.blockAlign;
@@ -609,10 +964,10 @@ static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavIn
       int32_t l, r;
       l = audioRead24le_to_32(p);
       if (stereo) { r = audioRead24le_to_32(p + 3); } else { r = l; }
-      audioReactiveAccumulate(l, r);  // BEFORE volume
       l = (int32_t)(((int64_t)l * volScale) >> 8);
       r = (int32_t)(((int64_t)r * volScale) >> 8);
       eqApply(l, r);
+      audioReactiveAccumulate(l, r);
       outBuf[outSamples++] = l;
       outBuf[outSamples++] = r;
       p += info.blockAlign;
@@ -624,10 +979,10 @@ static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavIn
       int32_t l, r;
       l = audioReadFloat32le(p);
       if (stereo) { r = audioReadFloat32le(p + 4); } else { r = l; }
-      audioReactiveAccumulate(l, r);
       l = (int32_t)(((int64_t)l * volScale) >> 8);
       r = (int32_t)(((int64_t)r * volScale) >> 8);
       eqApply(l, r);
+      audioReactiveAccumulate(l, r);
       outBuf[outSamples++] = l;
       outBuf[outSamples++] = r;
       p += info.blockAlign;
@@ -639,10 +994,10 @@ static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavIn
       int32_t l, r;
       l = audioRead32le(p);
       if (stereo) { r = audioRead32le(p + 4); } else { r = l; }
-      audioReactiveAccumulate(l, r);
       l = (int32_t)(((int64_t)l * volScale) >> 8);
       r = (int32_t)(((int64_t)r * volScale) >> 8);
       eqApply(l, r);
+      audioReactiveAccumulate(l, r);
       outBuf[outSamples++] = l;
       outBuf[outSamples++] = r;
       p += info.blockAlign;
@@ -650,9 +1005,6 @@ static size_t audioConvertToStereo32(const uint8_t* inBuf, size_t n, const WavIn
   } else {
     return 0;
   }
-
-  // Feed bass EQ state to reactive system once per buffer (was per-sample)
-  if (g_eqEnabled) audioReactiveSetBass(g_eqStateL[0].y1);
 
   return outSamples * sizeof(int32_t);
 }
@@ -811,6 +1163,7 @@ static void audioRunPlaybackPath(const String& path) {
 
   // Apply EQ preset at the file's native sample rate
   eqSetPreset(g_eq, info.sampleRate);
+  audioReactiveConfigure(info.sampleRate);
 
   unsigned long playbackHealthLogAt = millis();
   uint32_t loopCount = 0;
@@ -1041,6 +1394,9 @@ bool audioPlayTestTone() {
   g_wavBitsPerSample = 32;
   g_wavDataSize = g_toneSamplesLeft * 8;
   g_wavBytesRead = 0;
+  if (g_eq == "custom") eqSetCustom(g_eqCustomBassDB, g_eqCustomMidDB, g_eqCustomTrebleDB, 44100);
+  else eqSetPreset(g_eq, 44100);
+  audioReactiveConfigure(44100);
   Serial.println("[AUDIO] Playing test tone (440Hz, 3s)");
   return true;
 }
@@ -1066,8 +1422,12 @@ static void audioToneTick() {
     float t = (float)phase / 44100.0f;
     int32_t val = (int32_t)(2000000000.0f * sinf(2.0f * PI * 440.0f * t));
     val = (int32_t)(((int64_t)val * constrain(g_volume, 0, 100)) / 100);
-    buf[i * 2]     = val;
-    buf[i * 2 + 1] = val;
+    int32_t l = val;
+    int32_t r = val;
+    eqApply(l, r);
+    audioReactiveAccumulate(l, r);
+    buf[i * 2]     = l;
+    buf[i * 2 + 1] = r;
     phase++;
   }
 

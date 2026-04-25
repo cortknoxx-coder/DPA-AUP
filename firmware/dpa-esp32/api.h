@@ -29,6 +29,7 @@ extern String g_eq, g_playMode;
 extern float g_battVoltage;
 extern int g_battPercent;
 extern bool g_charging;
+extern bool g_battPresent;
 extern unsigned long g_bootTime;
 extern int g_playCount, g_pauseCount, g_nextCount, g_prevCount;
 extern String g_firstPlayableWav;
@@ -874,11 +875,14 @@ String buildStatusJson() {
     j += "},";
   }
   j += "\"uptime_s\":" + String(uptime) + ",";
-  j += "\"battery\":{\"voltage\":" + String(g_battVoltage, 2) + ",";
+  j += "\"battery\":{\"present\":" + String(g_battPresent ? "true" : "false") + ",";
+  j += "\"voltage\":" + String(g_battVoltage, 2) + ",";
   j += "\"percent\":" + String(g_battPercent) + ",";
   j += "\"charging\":" + String(g_charging ? "true" : "false") + "},";
   j += "\"audio\":{\"volume\":" + String(g_volume) + ",";
-  j += "\"eq\":\"" + g_eq + "\",\"mode\":\"" + g_playMode + "\",";
+  j += "\"eq\":\"" + escJson(eqGetSelectedPreset()) + "\",";
+  j += "\"width\":\"" + escJson(eqGetStereoWidthMode()) + "\",";
+  j += "\"mode\":\"" + g_playMode + "\",";
   j += "\"a2dp\":\"disconnected\",\"a2dpDevice\":\"\"},";
   if (g_sdMounted) {
     j += "\"storage\":{\"totalMB\":" + String(g_sdTotalMB, 0) + ",";
@@ -1129,34 +1133,97 @@ void registerApiRoutes(AsyncWebServer& server) {
     req->send(200, "application/json", "{\"ok\":true,\"volume\":" + String(g_volume) + "}");
   });
 
+  // ── GET /api/eq/custom?bass=X&mid=X&treble=X (dB, ±6 range) ──
+  // NOTE: Must be registered BEFORE /api/eq to avoid prefix matching against
+  // the broader route and returning the preset list instead of custom values.
+  server.on("/api/eq/custom", HTTP_GET, [](AsyncWebServerRequest* req) {
+    float bass = eqGetCustomBassDB();
+    float mid = eqGetCustomMidDB();
+    float treble = eqGetCustomTrebleDB();
+    const bool hasBass = req->hasParam("bass");
+    const bool hasMid = req->hasParam("mid");
+    const bool hasTreble = req->hasParam("treble");
+    const bool shouldUpdate = hasBass || hasMid || hasTreble;
+
+    if (hasBass) bass = req->getParam("bass")->value().toFloat();
+    if (hasMid) mid = req->getParam("mid")->value().toFloat();
+    if (hasTreble) treble = req->getParam("treble")->value().toFloat();
+
+    if (shouldUpdate) {
+      g_eq = "custom";
+      uint32_t sr = (g_audioPlaying && g_wavSampleRate > 0) ? g_wavSampleRate : 44100;
+      eqSetCustom(bass, mid, treble, sr);
+      Serial.printf("[API] EQ custom: bass=%.1f mid=%.1f treble=%.1f\n", bass, mid, treble);
+    } else {
+      bass = eqGetCustomBassDB();
+      mid = eqGetCustomMidDB();
+      treble = eqGetCustomTrebleDB();
+    }
+
+    String j = "{\"ok\":true,\"eq\":\"" + escJson(eqGetActivePreset()) + "\",\"bass\":" + String(bass,1) + ",\"mid\":" + String(mid,1) + ",\"treble\":" + String(treble,1) + "}";
+    req->send(200, "application/json", j);
+  });
+
   // ── GET /api/eq?preset=X ─────────────────────────────────────
   server.on("/api/eq", HTTP_GET, [](AsyncWebServerRequest* req) {
     if (req->hasParam("preset")) {
       String preset = req->getParam("preset")->value();
-      g_eq = preset;
-      if (g_audioPlaying && g_wavSampleRate > 0) {
-        eqSetPreset(preset, g_wavSampleRate);
+      if (!eqIsValidPreset(preset)) {
+        req->send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_eq_preset\"}");
+        return;
       }
-      Serial.printf("[API] EQ -> %s\n", preset.c_str());
-      req->send(200, "application/json", "{\"ok\":true,\"eq\":\"" + escJson(preset) + "\"}");
+      String canonical = eqCanonicalPreset(preset);
+      uint32_t sr = g_wavSampleRate > 0 ? g_wavSampleRate : 44100;
+      eqSetPreset(canonical, sr);
+      Serial.printf("[API] EQ -> %s\n", canonical.c_str());
+      req->send(200, "application/json", "{\"ok\":true,\"eq\":\"" + escJson(canonical) + "\"}");
     } else {
-      String j = "{\"eq\":\"" + escJson(g_eq) + "\",\"presets\":[";
-      j += "\"flat\",\"bass_boost\",\"vocal\",\"warm\"";
+      String j = "{\"eq\":\"" + escJson(eqGetSelectedPreset()) + "\",\"presets\":[";
+      j += "\"flat\",\"dpa_signature\",\"hip_hop\",\"pop\",\"vocal\"";
       j += "]}";
       req->send(200, "application/json", j);
     }
   });
 
-  // ── GET /api/eq/custom?bass=X&mid=X&treble=X (dB, ±6 range) ──
-  server.on("/api/eq/custom", HTTP_GET, [](AsyncWebServerRequest* req) {
-    float bass = req->hasParam("bass") ? req->getParam("bass")->value().toFloat() : 0;
-    float mid = req->hasParam("mid") ? req->getParam("mid")->value().toFloat() : 0;
-    float treble = req->hasParam("treble") ? req->getParam("treble")->value().toFloat() : 0;
-    g_eq = "custom";
-    uint32_t sr = (g_audioPlaying && g_wavSampleRate > 0) ? g_wavSampleRate : 44100;
-    eqSetCustom(bass, mid, treble, sr);
-    Serial.printf("[API] EQ custom: bass=%.1f mid=%.1f treble=%.1f\n", bass, mid, treble);
-    String j = "{\"ok\":true,\"eq\":\"custom\",\"bass\":" + String(bass,1) + ",\"mid\":" + String(mid,1) + ",\"treble\":" + String(treble,1) + "}";
+  // ── GET /api/audio/stereo-width?mode=off|enhanced ─────────────
+  server.on("/api/audio/stereo-width", HTTP_GET, [](AsyncWebServerRequest* req) {
+    if (req->hasParam("mode")) {
+      String mode = req->getParam("mode")->value();
+      mode.trim();
+      mode.toLowerCase();
+      if (mode != "off" && mode != "enhanced") {
+        req->send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_stereo_width_mode\"}");
+        return;
+      }
+      eqSetStereoWidthMode(mode);
+      Serial.printf("[API] Stereo width -> %s\n", eqGetStereoWidthMode().c_str());
+      req->send(200, "application/json",
+        "{\"ok\":true,\"width\":\"" + escJson(eqGetStereoWidthMode()) + "\"}");
+      return;
+    }
+
+    String j = "{\"width\":\"" + escJson(eqGetStereoWidthMode()) + "\",\"modes\":[\"off\",\"enhanced\"]}";
+    req->send(200, "application/json", j);
+  });
+
+  // ── GET /api/audio/output-gain ───────────────────────────────
+  server.on("/api/audio/output-gain", HTTP_GET, [](AsyncWebServerRequest* req) {
+    (void)req;
+    String j = "{";
+    j += "\"ok\":true,";
+    j += "\"selectedEq\":\"" + escJson(eqGetSelectedPreset()) + "\",";
+    j += "\"activeEq\":\"" + escJson(eqGetActivePreset()) + "\",";
+    j += "\"volume\":" + String(g_volume) + ",";
+    j += "\"volumeScalar\":" + String(g_dspTelemetryVolumeScalar, 3) + ",";
+    j += "\"preampDb\":" + String(g_dspTelemetryPreampDb, 2) + ",";
+    j += "\"masterCalibrationDb\":" + String(g_dspTelemetryMasterGainDb, 2) + ",";
+    j += "\"outputTrimDb\":" + String(g_dspTelemetryOutputTrimDb, 2) + ",";
+    j += "\"limiterThresholdNorm\":" + String(kLimiterThresholdNorm, 3) + ",";
+    j += "\"peakPreLimiterNorm\":" + String(g_dspTelemetryPeakPreLimiterNorm, 3) + ",";
+    j += "\"peakPostLimiterNorm\":" + String(g_dspTelemetryPeakPostLimiterNorm, 3) + ",";
+    j += "\"limiterReductionDb\":" + String(g_dspTelemetryLimiterReductionDb, 2) + ",";
+    j += "\"limiterEvents\":" + String((unsigned long)g_dspTelemetryLimiterEvents);
+    j += "}";
     req->send(200, "application/json", j);
   });
 
@@ -1197,7 +1264,7 @@ void registerApiRoutes(AsyncWebServer& server) {
       Serial.println("[FAV] Set removed: " + path);
     }
     bool nowLiked = isFavorite(path);
-    ledNotify(nowLiked ? "#cc0040" : "#444444", "heartbeat", 700);
+    ledNotify(nowLiked ? "#5c0000" : "#444444", "heartbeat", 700);
     String j = "{\"ok\":true,\"file\":\"" + escJson(path) + "\",\"favorite\":" + String(nowLiked ? "true" : "false") + "}";
     req->send(200, "application/json", j);
   });
@@ -1213,7 +1280,7 @@ void registerApiRoutes(AsyncWebServer& server) {
     bool wasLiked = isFavorite(path);
     toggleFavorite(path);
     bool nowLiked = !wasLiked;
-    ledNotify(nowLiked ? "#cc0040" : "#444444", "heartbeat", 700);
+    ledNotify(nowLiked ? "#5c0000" : "#444444", "heartbeat", 700);
     String j = "{\"ok\":true,\"file\":\"" + escJson(path) + "\",\"favorite\":" + String(nowLiked ? "true" : "false") + "}";
     req->send(200, "application/json", j);
   });

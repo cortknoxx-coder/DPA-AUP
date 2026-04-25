@@ -188,17 +188,27 @@ void batteryInit() {
 void batteryRead() {
   // Average 8 samples for stability
   uint32_t sum = 0;
+  uint16_t minRaw = 4095;
+  uint16_t maxRaw = 0;
   for (int i = 0; i < 8; i++) {
-    sum += analogRead(BATT_ADC_PIN);
+    uint16_t raw = (uint16_t)analogRead(BATT_ADC_PIN);
+    sum += raw;
+    if (raw < minRaw) minRaw = raw;
+    if (raw > maxRaw) maxRaw = raw;
     delayMicroseconds(100);
   }
   float adcAvg = sum / 8.0f;
   float adcVolts = (adcAvg / 4095.0f) * 3.3f;
   float battV = adcVolts * BATT_DIVIDER;
+  const uint16_t rawSpan = maxRaw - minRaw;
 
-  // Detect if battery circuit is wired:
-  // If ADC reads < 0.1V or > 4.5V (after divider), no battery connected
-  if (battV < 0.3f || battV > 4.5f) {
+  // Dev units may have no battery circuit attached yet. A floating ADC pin can
+  // drift into a fake "almost empty" reading, so treat implausible / unstable
+  // low-voltage values as USB-powered instead of a dead pack.
+  const bool implausiblyLow = battV < 2.7f;
+  const bool implausiblyHigh = battV > 4.5f;
+  const bool unstableFloatingLow = battV < 3.1f && rawSpan > 40;
+  if (implausiblyLow || implausiblyHigh || unstableFloatingLow) {
     g_battPresent = false;
     g_battVoltage = 5.0;       // USB voltage
     g_battPercent = -1;        // Signals "USB Powered" to dashboard
@@ -346,9 +356,12 @@ static void notePortalHttpActivity() {
 // ── DUID from NVS ────────────────────────────────────────────
 void loadOrGenerateDUID() {
   Preferences prefs;
-  prefs.begin("dpa_id", false);
+  bool prefsReady = prefs.begin("dpa_id", false);
+  if (!prefsReady) {
+    Serial.println("[BOOT] NVS unavailable for DUID; using volatile identity");
+  }
 
-  if (prefs.isKey("duid")) {
+  if (prefsReady && prefs.isKey("duid")) {
     g_duid = prefs.getString("duid", "DPA-AB12");
     Serial.println("[BOOT] DUID loaded: " + g_duid);
   } else {
@@ -356,11 +369,15 @@ void loadOrGenerateDUID() {
     char buf[9];
     snprintf(buf, sizeof(buf), "DPA-%04X", (uint16_t)(esp_random() & 0xFFFF));
     g_duid = String(buf);
-    prefs.putString("duid", g_duid);
-    Serial.println("[BOOT] DUID generated: " + g_duid);
+    if (prefsReady) {
+      prefs.putString("duid", g_duid);
+      Serial.println("[BOOT] DUID generated: " + g_duid);
+    } else {
+      Serial.println("[BOOT] DUID generated (volatile): " + g_duid);
+    }
   }
 
-  prefs.end();
+  if (prefsReady) prefs.end();
 }
 
 // ── Scan all playable track paths into g_wavPaths[] ──────────
@@ -674,7 +691,7 @@ void buttonsTick() {
             bool wasLiked = isFavorite(path);
             toggleFavorite(path);
             // Red heart pulse on LED (700ms)
-            ledNotify(wasLiked ? "#444444" : "#cc0040", "heartbeat", 700);
+            ledNotify(wasLiked ? "#444444" : "#5c0000", "heartbeat", 700);
             Serial.printf("[BTN] Heart %s: %s\n", wasLiked ? "removed" : "added", path.c_str());
           } else {
             Serial.println("[BTN] Heart — no track selected");
