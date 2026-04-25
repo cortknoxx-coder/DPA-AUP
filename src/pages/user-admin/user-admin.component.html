@@ -2,60 +2,59 @@
 <div class="space-y-8 relative pb-20">
   
   <!-- Header & Actions -->
-  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 anim-fade-up">
     <div>
-      <h1 class="text-2xl font-bold text-slate-50">Financial Dashboard</h1>
-      <p class="text-sm text-slate-400 mt-1">Real-time revenue tracking and payout management.</p>
+      <div class="eyebrow">DPA / Admin</div>
+      <h1 class="h-display-2 mt-1.5">Financial Dashboard</h1>
+      <p class="text-sm text-fg-muted mt-2">Real-time revenue tracking and payout management.</p>
     </div>
-    
+
     <div class="flex items-center gap-4">
       <div class="text-right">
-        <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Payable Balance</div>
-        <div class="text-xl font-bold text-teal-400">{{ userService.financials().currentBalance | currency }}</div>
+        <div class="stat-label">Payable Balance</div>
+        <div class="text-xl font-display font-semibold mt-1" style="color: var(--success);">{{ userService.financials().currentBalance | currency }}</div>
       </div>
-      <button (click)="initiateWithdraw()" class="rounded-lg bg-teal-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-teal-900/20 hover:bg-teal-500 transition-all">
-        Withdraw
-      </button>
+      <button (click)="initiateWithdraw()" class="btn btn-accent btn-lg">Withdraw</button>
     </div>
   </div>
 
   <!-- KPI Cards -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-    <div class="lg:col-span-1 sm:col-span-2 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Artist Lifetime Revenue</div>
-      <div class="text-2xl font-bold text-slate-100 mt-2">{{ userService.financials().totalEarnings | currency:'USD':'symbol':'1.0-0' }}</div>
-      <div class="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
-        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 anim-stagger">
+    <div class="lg:col-span-1 sm:col-span-2 stat">
+      <div class="stat-label">Artist Lifetime Revenue</div>
+      <div class="stat-value">{{ userService.financials().totalEarnings | currency:'USD':'symbol':'1.0-0' }}</div>
+      <div class="stat-delta stat-delta-up flex items-center gap-1">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
         +14% vs last mo
       </div>
     </div>
-    
+
     @if (connectionService.isSimulationMode()) {
-      <div class="rounded-xl border border-indigo-500/30 bg-indigo-900/10 p-5">
-        <div class="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center justify-between">
+      <div class="stat" style="border-color: rgba(99,102,241,0.25); background: linear-gradient(135deg, rgba(99,102,241,0.06), transparent);">
+        <div class="stat-label flex items-center justify-between">
           DPAC Operator Profit
-          <span class="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[8px] font-bold text-amber-500 uppercase">Simulator</span>
+          <span class="chip chip-warning">Simulator</span>
         </div>
-        <div class="text-2xl font-bold text-indigo-400 mt-2">{{ totalDpacProfit() | currency:'USD':'symbol':'1.0-0' }}</div>
-        <div class="text-[10px] text-indigo-400/80 mt-1">Total platform earnings from your catalog</div>
+        <div class="stat-value" style="color: var(--info);">{{ totalDpacProfit() | currency:'USD':'symbol':'1.0-0' }}</div>
+        <div class="stat-delta">Total platform earnings from your catalog</div>
       </div>
     }
 
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">DPA Primary Sales</div>
-      <div class="text-2xl font-bold text-slate-100 mt-2">{{ userService.financials().dpaSalesSource | currency:'USD':'symbol':'1.0-0' }}</div>
-      <div class="text-[10px] text-slate-500 mt-1">From {{ totalUnitsSold() | number }} units sold</div>
+    <div class="stat">
+      <div class="stat-label">DPA Primary Sales</div>
+      <div class="stat-value">{{ userService.financials().dpaSalesSource | currency:'USD':'symbol':'1.0-0' }}</div>
+      <div class="stat-delta">From {{ totalUnitsSold() | number }} units sold</div>
     </div>
 
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Smart Royalties</div>
-      <div class="text-2xl font-bold text-slate-100 mt-2">{{ userService.financials().royaltySource | currency:'USD':'symbol':'1.0-0' }}</div>
-      <div class="text-[10px] text-slate-500 mt-1">{{ totalResaleTransactions() | number }} trades on {{ totalSecondaryVolume() | currency }} volume</div>
+    <div class="stat">
+      <div class="stat-label">Smart Royalties</div>
+      <div class="stat-value">{{ userService.financials().royaltySource | currency:'USD':'symbol':'1.0-0' }}</div>
+      <div class="stat-delta">{{ totalResaleTransactions() | number }} trades on {{ totalSecondaryVolume() | currency }} volume</div>
     </div>
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Perk Earnings</div>
-      <div class="text-2xl font-bold text-rose-400 mt-2">{{ userService.financials().perksSource | currency:'USD':'symbol':'1.0-0' }}</div>
-      <div class="text-[10px] text-rose-400/80 mt-1">From digital content (DCNP) sales</div>
+    <div class="stat">
+      <div class="stat-label">Perk Earnings</div>
+      <div class="stat-value" style="color: var(--danger);">{{ userService.financials().perksSource | currency:'USD':'symbol':'1.0-0' }}</div>
+      <div class="stat-delta">From digital content (DCNP) sales</div>
     </div>
   </div>
 
@@ -63,17 +62,18 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     
     <!-- Sales by Region -->
-    <div class="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col">
+    <div class="lg:col-span-2 surface p-6 flex flex-col">
       <div class="flex justify-between items-center mb-6">
-        <h3 class="text-sm font-semibold text-slate-100 uppercase tracking-wide">Sales by Region</h3>
-        <span class="text-xs text-slate-500">Top Markets</span>
+        <div class="eyebrow">Sales by Region</div>
+        <span class="chip">Top Markets</span>
       </div>
       <div #regionChartContainer class="flex-1 w-full min-h-[250px]"></div>
     </div>
 
     <!-- Revenue Sources Donut/List -->
-    <div class="lg:col-span-1 rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-      <h3 class="text-sm font-semibold text-slate-100 uppercase tracking-wide mb-6">Revenue Mix</h3>
+    <div class="lg:col-span-1 surface p-6">
+      <div class="eyebrow">Revenue Mix</div>
+      <div class="mt-6"></div>
       
       <div class="space-y-6">
         <div>
@@ -126,10 +126,10 @@
   </div>
 
   <!-- Trend Chart -->
-  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col">
+  <div class="surface p-6 flex flex-col">
     <div class="flex justify-between items-center mb-4">
-      <h3 class="text-sm font-semibold text-slate-100 uppercase tracking-wide">Earnings Trend</h3>
-      <select class="bg-slate-950 border border-slate-800 text-xs text-slate-400 rounded px-2 py-1 outline-none">
+      <div class="eyebrow">Earnings Trend</div>
+      <select class="text-xs text-fg-muted rounded px-2 py-1 outline-none" style="background: var(--bg-base); border: 1px solid var(--border-subtle);">
         <option>Last 12 Months</option>
         <option>All Time</option>
       </select>
@@ -138,9 +138,9 @@
   </div>
 
   <!-- Top Earners Table -->
-  <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-    <div class="p-6 border-b border-slate-800">
-      <h3 class="text-sm font-semibold text-slate-100 uppercase tracking-wide">Top Earning Assets</h3>
+  <div class="surface overflow-hidden">
+    <div class="p-6 border-b" style="border-color: var(--border-subtle);">
+      <div class="eyebrow">Top Earning Assets</div>
     </div>
     <div class="overflow-x-auto">
       <table class="min-w-full text-sm text-left">

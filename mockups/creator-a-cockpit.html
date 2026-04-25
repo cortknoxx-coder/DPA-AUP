@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="studio">
+<head>
+  <meta charset="utf-8">
+  <title>Creator · Concept A · Cockpit</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="preconnect" href="https://rsms.me/">
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../src/design/tokens.css">
+  <style>
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+    .sparkline { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+    .sparkline-fill { fill: var(--accent-soft); stroke: none; }
+    kbd { font-family: var(--font-mono); font-size: 0.7rem; padding: 0.1rem 0.4rem; background: var(--bg-elev); border: 1px solid var(--border-default); border-radius: 4px; color: var(--fg-muted); }
+  </style>
+</head>
+<body data-mode="studio" class="min-h-screen text-fg-default flex">
+
+  <!-- Sidebar -->
+  <aside class="w-60 shrink-0 border-r flex flex-col" style="border-color: var(--border-subtle); background: var(--bg-base);">
+    <div class="px-4 h-14 flex items-center border-b" style="border-color: var(--border-subtle);">
+      <div class="font-mono text-sm font-bold tracking-widest text-fg-strong">DPA<span class="text-accent">/</span>OPS</div>
+    </div>
+
+    <div class="p-2">
+      <button class="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-fg-muted hover:bg-elev hover:text-fg-strong transition-colors">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span class="flex-1 text-left">Search</span>
+        <kbd>⌘K</kbd>
+      </button>
+    </div>
+
+    <nav class="flex-1 px-2 space-y-0.5 text-sm">
+      <div class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-fg-faint">Workspace</div>
+      <a class="flex items-center gap-2 px-3 py-2 rounded-md bg-accent-soft text-accent">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Overview
+      </a>
+      <a class="flex items-center gap-2 px-3 py-2 rounded-md text-fg-muted hover:bg-elev hover:text-fg-strong"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Albums</a>
+      <a class="flex items-center gap-2 px-3 py-2 rounded-md text-fg-muted hover:bg-elev hover:text-fg-strong"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Capsules</a>
+      <a class="flex items-center gap-2 px-3 py-2 rounded-md text-fg-muted hover:bg-elev hover:text-fg-strong"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 10h20"/></svg>Perks</a>
+
+      <div class="px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-fg-faint">Fleet</div>
+      <a class="flex items-center gap-2 px-3 py-2 rounded-md text-fg-muted hover:bg-elev hover:text-fg-strong"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M12 3v18"/></svg>Tracker</a>
+      <a class="flex items-center gap-2 px-3 py-2 rounded-md text-fg-muted hover:bg-elev hover:text-fg-strong"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Devices</a>
+      <a class="flex items-center gap-2 px-3 py-2 rounded-md text-fg-muted hover:bg-elev hover:text-fg-strong"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Analytics</a>
+    </nav>
+
+    <div class="p-3 border-t" style="border-color: var(--border-subtle);">
+      <div class="flex items-center gap-2.5">
+        <div class="h-8 w-8 rounded-full bg-elev flex items-center justify-center font-mono text-xs text-accent">CK</div>
+        <div class="min-w-0 flex-1">
+          <div class="text-xs font-medium text-fg-strong truncate">Cortknox</div>
+          <div class="text-[10px] font-mono text-fg-faint truncate">DPA-AB12 · online</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 min-w-0">
+    <!-- Top bar -->
+    <header class="h-14 border-b flex items-center justify-between px-6" style="border-color: var(--border-subtle); background: var(--bg-base);">
+      <div class="flex items-center gap-3 text-sm font-mono text-fg-muted">
+        <a href="./index.html" class="text-fg-faint hover:text-fg-default">← Concepts</a>
+        <span class="text-fg-dim">·</span>
+        <span class="text-fg-strong">CREATOR</span>
+        <span class="text-fg-dim">/</span>
+        <span>OVERVIEW</span>
+        <span class="text-fg-dim">/</span>
+        <span class="text-accent">night-ride</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="btn btn-soft btn-sm">Theme</button>
+        <button class="btn btn-soft btn-sm">Push</button>
+        <button class="btn btn-accent btn-sm">Compile & Push</button>
+      </div>
+    </header>
+
+    <div class="p-6 space-y-6 grid-bg">
+      <!-- KPI strip -->
+      <div class="grid grid-cols-4 gap-3">
+        <div class="stat">
+          <div class="stat-label">Devices Online</div>
+          <div class="flex items-end justify-between">
+            <div class="stat-value">142</div>
+            <svg viewBox="0 0 80 24" class="w-20 h-6">
+              <polyline points="0,18 10,15 20,16 30,12 40,10 50,11 60,7 70,9 80,4" class="sparkline"/>
+            </svg>
+          </div>
+          <div class="stat-delta stat-delta-up">+12 last 24h</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Plays · 24h</div>
+          <div class="flex items-end justify-between">
+            <div class="stat-value">3,418</div>
+            <svg viewBox="0 0 80 24" class="w-20 h-6"><polyline points="0,20 10,18 20,14 30,16 40,8 50,10 60,5 70,8 80,3" class="sparkline"/></svg>
+          </div>
+          <div class="stat-delta stat-delta-up">+842 vs yesterday</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Hearts · 24h</div>
+          <div class="flex items-end justify-between">
+            <div class="stat-value">238</div>
+            <svg viewBox="0 0 80 24" class="w-20 h-6"><polyline points="0,12 10,14 20,10 30,8 40,11 50,9 60,7 70,5 80,8" class="sparkline"/></svg>
+          </div>
+          <div class="stat-delta">+22 vs yesterday</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Listen Time</div>
+          <div class="flex items-end justify-between">
+            <div class="stat-value font-mono">214h</div>
+            <svg viewBox="0 0 80 24" class="w-20 h-6"><polyline points="0,16 10,15 20,11 30,13 40,9 50,12 60,6 70,7 80,4" class="sparkline"/></svg>
+          </div>
+          <div class="stat-delta stat-delta-up">+18% week</div>
+        </div>
+      </div>
+
+      <!-- Two column main -->
+      <div class="grid grid-cols-12 gap-5">
+        <!-- Tracks panel -->
+        <section class="col-span-8 surface">
+          <div class="px-5 py-4 flex items-center justify-between border-b" style="border-color: var(--border-subtle);">
+            <div>
+              <h3 class="font-display text-fg-strong text-lg">Tracks · Night Ride</h3>
+              <div class="text-xs font-mono text-fg-faint mt-0.5">12 tracks · 42:18 · DPA1 · 24/96</div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="btn btn-soft btn-sm">Reorder</button>
+              <button class="btn btn-soft btn-sm">+ Upload</button>
+            </div>
+          </div>
+
+          <div class="px-5 grid grid-cols-12 py-2 text-[10px] font-mono uppercase tracking-widest text-fg-faint border-b" style="border-color: var(--border-subtle);">
+            <div class="col-span-1">#</div>
+            <div class="col-span-4">Title</div>
+            <div class="col-span-2">Format</div>
+            <div class="col-span-2">Plays</div>
+            <div class="col-span-2">Skips</div>
+            <div class="col-span-1 text-right">Length</div>
+          </div>
+
+          <div class="divide-y" style="border-color: var(--border-subtle);">
+            <!-- 6 rows -->
+            <div class="grid grid-cols-12 px-5 py-2.5 items-center font-mono text-sm hover:bg-white/[0.02] cursor-pointer">
+              <div class="col-span-1 text-fg-faint">01</div>
+              <div class="col-span-4 text-fg-strong font-sans">Drift Lane</div>
+              <div class="col-span-2 text-fg-muted text-xs">DPA1 24/96</div>
+              <div class="col-span-2 text-fg-default">142</div>
+              <div class="col-span-2 text-fg-default">8</div>
+              <div class="col-span-1 text-right text-fg-muted">3:42</div>
+            </div>
+            <div class="grid grid-cols-12 px-5 py-2.5 items-center font-mono text-sm hover:bg-white/[0.02] cursor-pointer">
+              <div class="col-span-1 text-fg-faint">02</div>
+              <div class="col-span-4 text-fg-strong font-sans">Glasshouse</div>
+              <div class="col-span-2 text-fg-muted text-xs">DPA1 24/96</div>
+              <div class="col-span-2 text-fg-default">98</div>
+              <div class="col-span-2 text-fg-default">14</div>
+              <div class="col-span-1 text-right text-fg-muted">4:11</div>
+            </div>
+            <div class="grid grid-cols-12 px-5 py-2.5 items-center font-mono text-sm cursor-pointer" style="background: var(--accent-soft);">
+              <div class="col-span-1 text-accent">03</div>
+              <div class="col-span-4 text-accent font-sans">Lowtide<span class="ml-2 text-[10px] uppercase tracking-widest">live</span></div>
+              <div class="col-span-2 text-accent text-xs">DPA1 24/96</div>
+              <div class="col-span-2 text-accent">231</div>
+              <div class="col-span-2 text-accent">3</div>
+              <div class="col-span-1 text-right text-accent">4:48</div>
+            </div>
+            <div class="grid grid-cols-12 px-5 py-2.5 items-center font-mono text-sm hover:bg-white/[0.02] cursor-pointer">
+              <div class="col-span-1 text-fg-faint">04</div>
+              <div class="col-span-4 text-fg-strong font-sans">No Sleep</div>
+              <div class="col-span-2 text-fg-muted text-xs">DPA1 24/96</div>
+              <div class="col-span-2 text-fg-default">76</div>
+              <div class="col-span-2 text-fg-default">6</div>
+              <div class="col-span-1 text-right text-fg-muted">3:21</div>
+            </div>
+            <div class="grid grid-cols-12 px-5 py-2.5 items-center font-mono text-sm hover:bg-white/[0.02] cursor-pointer">
+              <div class="col-span-1 text-fg-faint">05</div>
+              <div class="col-span-4 text-fg-strong font-sans">Velvet Static</div>
+              <div class="col-span-2 text-fg-muted text-xs">DPA1 24/96</div>
+              <div class="col-span-2 text-fg-default">112</div>
+              <div class="col-span-2 text-fg-default">2</div>
+              <div class="col-span-1 text-right text-fg-muted">5:02</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right column -->
+        <div class="col-span-4 space-y-5">
+          <!-- Build panel -->
+          <section class="surface p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-display text-fg-strong">Release Build</h3>
+              <span class="chip chip-success font-mono">PASS</span>
+            </div>
+            <div class="space-y-1.5 font-mono text-xs">
+              <div class="flex justify-between"><span class="text-fg-faint">Last build</span><span class="text-fg-strong">2m ago</span></div>
+              <div class="flex justify-between"><span class="text-fg-faint">Manifest</span><span class="text-fg-strong">v3.2.1</span></div>
+              <div class="flex justify-between"><span class="text-fg-faint">Tracks</span><span class="text-fg-strong">12 / 12</span></div>
+              <div class="flex justify-between"><span class="text-fg-faint">Capsules</span><span class="text-fg-strong">4 / 4</span></div>
+              <div class="flex justify-between"><span class="text-fg-faint">Perks</span><span class="text-fg-strong">3 / 3</span></div>
+              <div class="flex justify-between"><span class="text-fg-faint">Total size</span><span class="text-fg-strong">128.4 MB</span></div>
+            </div>
+            <button class="btn btn-accent btn-sm w-full mt-4">Recompile & Push</button>
+          </section>
+
+          <!-- Activity feed -->
+          <section class="surface p-5">
+            <h3 class="font-display text-fg-strong mb-3">Live Activity</h3>
+            <ol class="space-y-2.5 text-xs font-mono">
+              <li class="flex items-start gap-2"><span class="chip chip-success text-[9px] py-0">PLAY</span><span class="text-fg-default">DPA-7C42 → Lowtide</span><span class="ml-auto text-fg-faint">4s</span></li>
+              <li class="flex items-start gap-2"><span class="chip chip-info text-[9px] py-0">HEART</span><span class="text-fg-default">DPA-AB12 → Drift Lane</span><span class="ml-auto text-fg-faint">12s</span></li>
+              <li class="flex items-start gap-2"><span class="chip chip-success text-[9px] py-0">PLAY</span><span class="text-fg-default">DPA-3F19 → Glasshouse</span><span class="ml-auto text-fg-faint">28s</span></li>
+              <li class="flex items-start gap-2"><span class="chip chip-warning text-[9px] py-0">SKIP</span><span class="text-fg-default">DPA-9D81 → No Sleep</span><span class="ml-auto text-fg-faint">42s</span></li>
+              <li class="flex items-start gap-2"><span class="chip text-[9px] py-0">SYNC</span><span class="text-fg-default">DPA-AB12 firmware OK</span><span class="ml-auto text-fg-faint">1m</span></li>
+            </ol>
+          </section>
+
+          <!-- Theme & DCNP -->
+          <section class="surface p-5">
+            <h3 class="font-display text-fg-strong mb-3">Theme</h3>
+            <div class="grid grid-cols-3 gap-2">
+              <div class="aspect-square rounded-md flex items-end p-1.5" style="background: linear-gradient(135deg, #ff4d8d, #ff8a3d);"><span class="text-[9px] font-mono text-white/90">IDLE</span></div>
+              <div class="aspect-square rounded-md flex items-end p-1.5" style="background: linear-gradient(135deg, #00e5ff, #8b5cf6);"><span class="text-[9px] font-mono text-white/90">PLAY</span></div>
+              <div class="aspect-square rounded-md flex items-end p-1.5" style="background: linear-gradient(135deg, #fbbf24, #fb7185);"><span class="text-[9px] font-mono text-white/90">CHRG</span></div>
+            </div>
+            <button class="btn btn-soft btn-sm w-full mt-4">Open Theme Editor</button>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

@@ -6,13 +6,12 @@ import { PlayerService, PlayerTrack } from '../../services/player.service';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { CartService } from '../../services/cart.service';
 import { DeviceRuntimeBannerComponent } from '../../components/device-runtime-banner/device-runtime-banner.component';
-import { BrandMarkComponent } from '../../components/brand-mark/brand-mark.component';
 import { DEFAULT_COVER_DATA_URL } from '../../default-cover';
 
 @Component({
   selector: 'app-fan-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, DeviceRuntimeBannerComponent, BrandMarkComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, DeviceRuntimeBannerComponent],
   templateUrl: './fan-layout.component.html'
 })
 export class FanLayoutComponent {

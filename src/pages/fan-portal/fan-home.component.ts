@@ -1,5 +1,5 @@
 
-import { Component, inject, computed } from '@angular/core';
+import { Component, DestroyRef, effect, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DeviceConnectionService } from '../../services/device-connection.service';
 import { RouterLink, Router } from '@angular/router';
@@ -7,6 +7,7 @@ import { DataService } from '../../services/data.service';
 import { PlayerService } from '../../services/player.service';
 import { mergeCapsuleFeeds } from '../../services/device-content.utils';
 import { DEFAULT_COVER_DATA_URL } from '../../default-cover';
+import { applyAlbumAccent, resetAlbumAccent } from '../../design/tokens';
 
 @Component({
   selector: 'app-fan-home',
@@ -31,6 +32,17 @@ export class FanHomeComponent {
     })
   );
   latestCapsule = computed(() => this.capsules()?.[0]);
+  private destroyRef = inject(DestroyRef);
+
+  constructor() {
+    effect(() => {
+      const album = this.connectedAlbum();
+      const art = album?.artworkUrl;
+      if (art) void applyAlbumAccent(art);
+      else resetAlbumAccent();
+    });
+    this.destroyRef.onDestroy(() => resetAlbumAccent());
+  }
 
   logout() {
     this.router.navigate(['/login']);

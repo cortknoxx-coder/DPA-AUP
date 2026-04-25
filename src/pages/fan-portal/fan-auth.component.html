@@ -1,146 +1,126 @@
 
-<div class="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+<div class="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden" style="background: var(--bg-canvas);">
   <!-- Background Effects -->
-  <div class="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-indigo-900/20 rounded-full blur-3xl pointer-events-none animate-pulse-fast"></div>
-  <div class="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-teal-900/20 rounded-full blur-3xl pointer-events-none animate-breathe"></div>
+  <div class="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 rounded-full blur-3xl pointer-events-none" style="background: var(--accent-glow); opacity: 0.18; animation: pulse 4s ease-in-out infinite;"></div>
+  <div class="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 rounded-full blur-3xl pointer-events-none" style="background: rgba(20, 184, 166, 0.18); animation: pulse 6s ease-in-out infinite 1s;"></div>
 
-  <div class="w-full max-w-md text-center z-10">
-    <div class="inline-flex items-center justify-center h-16 w-16 rounded-xl bg-gradient-to-br from-indigo-500 to-teal-600 shadow-[0_0_30px_rgba(79,70,229,0.3)] mb-6">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3" /></svg>
+  <div class="w-full max-w-md text-center z-10 anim-fade-up">
+    <div class="inline-flex items-center justify-center h-16 w-16 rounded-2xl mb-6" style="background: linear-gradient(135deg, var(--accent), #14b8a6); box-shadow: var(--shadow-glow);">
+      <svg class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3" /></svg>
     </div>
-    <h1 class="text-3xl font-bold text-slate-100 tracking-tight">Authenticate Your Device</h1>
+    <div class="eyebrow">DPA / Authenticate</div>
+    <h1 class="h-display-2 mt-2">Authenticate Your Device</h1>
     @if (autoProbing()) {
-      <p class="text-teal-400 mt-2 flex items-center justify-center gap-2">
-        <span class="h-4 w-4 rounded-full border-2 border-teal-400/30 border-t-teal-400 animate-spin"></span>
-        Checking for an already connected DPA...
+      <p class="mt-3 flex items-center justify-center gap-2" style="color: var(--success);">
+        <span class="h-4 w-4 rounded-full border-2 animate-spin" style="border-color: rgba(34,197,94,0.3); border-top-color: var(--success);"></span>
+        Checking for an already connected DPA…
       </p>
     } @else {
-      <p class="text-slate-400 mt-2">If your DPA is already on WiFi or attached over USB-C, the portal should now pick it up first.</p>
+      <p class="text-fg-muted mt-3">If your DPA is already on Wi-Fi or attached over USB-C, the portal should pick it up first.</p>
     }
-    <div class="mt-4 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-left">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-300">Portal Rule</div>
-      <div class="mt-2 text-sm font-semibold text-slate-100">{{ deviceService.deviceAccessHeadline() }}</div>
-      <p class="mt-1 text-xs leading-5 text-slate-400">{{ deviceService.deviceAccessDetail() }}</p>
+    <div class="mt-5 surface px-4 py-3 text-left">
+      <div class="eyebrow">Portal Rule</div>
+      <div class="mt-2 text-sm font-semibold text-fg-strong">{{ deviceService.deviceAccessHeadline() }}</div>
+      <p class="mt-1 text-xs leading-5 text-fg-muted">{{ deviceService.deviceAccessDetail() }}</p>
     </div>
   </div>
 
-  <div class="w-full max-w-sm space-y-4 mt-12 z-10" [class.opacity-50]="autoProbing()" [class.pointer-events-none]="autoProbing()">
+  <div class="w-full max-w-sm space-y-3 mt-10 z-10 anim-stagger" [class.opacity-50]="autoProbing()" [class.pointer-events-none]="autoProbing()">
     <!-- USB-C Bridge -->
-    <button (click)="connectUSB()" [disabled]="connectingVia() !== null" class="w-full group relative flex items-center gap-4 px-6 py-4 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-slate-800/70 hover:border-teal-500/50 transition-all duration-300 transform hover:-translate-y-1 shadow-lg overflow-hidden disabled:opacity-50 disabled:hover:translate-y-0">
-      <div class="absolute left-0 top-0 bottom-0 w-1 bg-teal-500 rounded-l-xl transition-transform duration-300 scale-y-0 group-hover:scale-y-100 origin-center"></div>
-      <div class="text-teal-400">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+    <button (click)="connectUSB()" [disabled]="connectingVia() !== null"
+            class="w-full group relative flex items-center gap-4 px-5 py-4 surface hover:border-default transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0">
+      <div class="absolute left-0 top-0 bottom-0 w-0.5 rounded-l-2xl transition-transform duration-300 scale-y-0 group-hover:scale-y-100" style="background: var(--success);"></div>
+      <div style="color: var(--success);">
+        <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
       </div>
       <div class="text-left flex-1">
-        <h3 class="font-semibold text-white">{{ isHostedPortal ? 'Cloud Relay' : 'USB-C Bridge' }}</h3>
-        <p class="text-xs text-slate-400">
-          {{ isHostedPortal ? 'Use the authenticated Vercel relay session when the DPA has internet.' : 'Connect via the DPA Desktop Bridge application.' }}
-        </p>
+        <h3 class="font-semibold text-fg-strong">{{ isHostedPortal ? 'Cloud Relay' : 'USB-C Bridge' }}</h3>
+        <p class="text-xs text-fg-muted">{{ isHostedPortal ? 'Use the authenticated Vercel relay session when the DPA has internet.' : 'Connect via the DPA Desktop Bridge application.' }}</p>
       </div>
     </button>
 
     <!-- Bluetooth LE -->
-    <button (click)="connectBluetooth()" [disabled]="connectingVia() !== null" class="w-full group relative flex items-center gap-4 px-6 py-4 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-slate-800/70 hover:border-indigo-500/50 transition-all duration-300 transform hover:-translate-y-1 shadow-lg overflow-hidden disabled:opacity-50 disabled:hover:translate-y-0">
-      <div class="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-xl transition-transform duration-300 scale-y-0 group-hover:scale-y-100 origin-center"></div>
-      <div class="text-indigo-400">
+    <button (click)="connectBluetooth()" [disabled]="connectingVia() !== null"
+            class="w-full group relative flex items-center gap-4 px-5 py-4 surface hover:border-default transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0">
+      <div class="absolute left-0 top-0 bottom-0 w-0.5 rounded-l-2xl transition-transform duration-300 scale-y-0 group-hover:scale-y-100" style="background: var(--info);"></div>
+      <div style="color: var(--info);">
         @if (connectingVia() === 'ble') {
-          <div class="h-8 w-8 flex items-center justify-center">
-            <div class="h-5 w-5 rounded-full border-2 border-indigo-400/30 border-t-indigo-400 animate-spin"></div>
-          </div>
+          <div class="h-7 w-7 flex items-center justify-center"><div class="h-5 w-5 rounded-full border-2 animate-spin" style="border-color: rgba(99,102,241,0.3); border-top-color: var(--info);"></div></div>
         } @else {
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6.343 17.657l11.314-11.314m-11.314 0l11.314 11.314L12 12l-5.657 5.657z" /></svg>
+          <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M6.343 17.657l11.314-11.314m-11.314 0l11.314 11.314L12 12l-5.657 5.657z" /></svg>
         }
       </div>
       <div class="text-left flex-1">
-        <h3 class="font-semibold text-white">Bluetooth LE</h3>
-        @if (connectingVia() === 'ble') {
-          <p class="text-xs text-indigo-400">Scanning for devices...</p>
-        } @else if (!hasBle) {
-          <p class="text-xs text-amber-400">Not supported in this browser. Use Chrome.</p>
-        } @else {
-          <p class="text-xs text-slate-400">Pair directly with your DPA™ device.</p>
-        }
+        <h3 class="font-semibold text-fg-strong">Bluetooth LE</h3>
+        @if (connectingVia() === 'ble') { <p class="text-xs" style="color: var(--info);">Scanning for devices…</p> }
+        @else if (!hasBle) { <p class="text-xs" style="color: var(--warning);">Not supported in this browser. Use Chrome.</p> }
+        @else { <p class="text-xs text-fg-muted">Pair directly with your DPA device.</p> }
       </div>
     </button>
 
     <!-- WiFi AP -->
-    <button (click)="connectWiFi()" [disabled]="connectingVia() !== null" class="w-full group relative flex items-center gap-4 px-6 py-4 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-slate-800/70 hover:border-emerald-500/50 transition-all duration-300 transform hover:-translate-y-1 shadow-lg overflow-hidden disabled:opacity-50 disabled:hover:translate-y-0">
-      <div class="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 rounded-l-xl transition-transform duration-300 scale-y-0 group-hover:scale-y-100 origin-center"></div>
-      <div class="text-emerald-400">
+    <button (click)="connectWiFi()" [disabled]="connectingVia() !== null"
+            class="w-full group relative flex items-center gap-4 px-5 py-4 surface hover:border-default transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0">
+      <div class="absolute left-0 top-0 bottom-0 w-0.5 rounded-l-2xl transition-transform duration-300 scale-y-0 group-hover:scale-y-100" style="background: var(--success);"></div>
+      <div style="color: var(--success);">
         @if (connectingVia() === 'wifi') {
-          <div class="h-8 w-8 flex items-center justify-center">
-            <div class="h-5 w-5 rounded-full border-2 border-emerald-400/30 border-t-emerald-400 animate-spin"></div>
-          </div>
+          <div class="h-7 w-7 flex items-center justify-center"><div class="h-5 w-5 rounded-full border-2 animate-spin" style="border-color: rgba(34,197,94,0.3); border-top-color: var(--success);"></div></div>
         } @else {
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0" /></svg>
+          <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0" /></svg>
         }
       </div>
       <div class="text-left flex-1">
-        <h3 class="font-semibold text-white">WiFi / Same LAN</h3>
-        @if (connectingVia() === 'wifi') {
-          <p class="text-xs text-emerald-400">Probing device at {{ deviceService.wifi.deviceIp() }}...</p>
-        } @else {
-          <p class="text-xs text-slate-400">Use the DPA SSID or keep the DPA on the same home WiFi, then connect.</p>
-        }
+        <h3 class="font-semibold text-fg-strong">Wi-Fi / Same LAN</h3>
+        @if (connectingVia() === 'wifi') { <p class="text-xs" style="color: var(--success);">Probing device at {{ deviceService.wifi.deviceIp() }}…</p> }
+        @else { <p class="text-xs text-fg-muted">Use the DPA SSID or keep the DPA on the same home Wi-Fi, then connect.</p> }
       </div>
     </button>
 
     <!-- NFC Tap -->
-    <button (click)="connectNFC()" [disabled]="connectingVia() !== null" class="w-full group relative flex items-center gap-4 px-6 py-4 rounded-xl border border-slate-700 bg-slate-900/50 hover:bg-slate-800/70 hover:border-sky-500/50 transition-all duration-300 transform hover:-translate-y-1 shadow-lg overflow-hidden disabled:opacity-50 disabled:hover:translate-y-0">
-      <div class="absolute left-0 top-0 bottom-0 w-1 bg-sky-500 rounded-l-xl transition-transform duration-300 scale-y-0 group-hover:scale-y-100 origin-center"></div>
-      <div class="text-sky-400">
+    <button (click)="connectNFC()" [disabled]="connectingVia() !== null"
+            class="w-full group relative flex items-center gap-4 px-5 py-4 surface hover:border-default transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0">
+      <div class="absolute left-0 top-0 bottom-0 w-0.5 rounded-l-2xl transition-transform duration-300 scale-y-0 group-hover:scale-y-100" style="background: var(--info);"></div>
+      <div style="color: var(--info);">
         @if (connectingVia() === 'nfc') {
-          <div class="h-8 w-8 flex items-center justify-center">
-            <div class="h-5 w-5 rounded-full border-2 border-sky-400/30 border-t-sky-400 animate-spin"></div>
-          </div>
+          <div class="h-7 w-7 flex items-center justify-center"><div class="h-5 w-5 rounded-full border-2 animate-spin" style="border-color: rgba(99,102,241,0.3); border-top-color: var(--info);"></div></div>
         } @else {
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M4 15v5h5M15 4h5v5M15 20h5v-5" /></svg>
+          <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M4 4v5h5M4 15v5h5M15 4h5v5M15 20h5v-5" /></svg>
         }
       </div>
       <div class="text-left flex-1">
-        <h3 class="font-semibold text-white">NFC Tap</h3>
-        @if (connectingVia() === 'nfc') {
-          <p class="text-xs text-sky-400">Hold your DPA™ near the phone...</p>
-        } @else if (!hasNfc()) {
-          <p class="text-xs text-amber-400">Android Chrome only. Not available here.</p>
-        } @else {
-          <p class="text-xs text-slate-400">Tap your DPA™ to an NFC reader.</p>
-        }
+        <h3 class="font-semibold text-fg-strong">NFC Tap</h3>
+        @if (connectingVia() === 'nfc') { <p class="text-xs" style="color: var(--info);">Hold your DPA near the phone…</p> }
+        @else if (!hasNfc()) { <p class="text-xs" style="color: var(--warning);">Android Chrome only. Not available here.</p> }
+        @else { <p class="text-xs text-fg-muted">Tap your DPA to an NFC reader.</p> }
       </div>
     </button>
   </div>
 
   <!-- Error message -->
   @if (wifiError() || deviceService.connectionError()) {
-    <div class="mt-4 max-w-sm w-full z-10 p-3 rounded-lg bg-rose-900/20 border border-rose-900/50 text-rose-400 text-xs flex items-center gap-2 animate-fade-in-up">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+    <div class="mt-5 max-w-sm w-full z-10 p-3 rounded-xl text-xs flex items-center gap-2 anim-fade-up" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--danger);">
+      <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
       {{ wifiError() || deviceService.connectionError() }}
     </div>
   }
 
   <div class="mt-8 grid w-full max-w-4xl gap-4 md:grid-cols-3 z-10">
-    <div class="rounded-xl border border-emerald-500/20 bg-emerald-900/10 p-4 text-left">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300">On DPA SSID</div>
-      <p class="mt-2 text-xs leading-5 text-slate-300">
-        Authenticate, connect to the branded DPA WiFi network, pull state directly from the device, then reveal the fan portal.
-      </p>
+    <div class="surface px-4 py-3 text-left" style="border-color: rgba(34,197,94,0.2); background: rgba(34,197,94,0.05);">
+      <div class="eyebrow" style="color: var(--success);">On DPA SSID</div>
+      <p class="mt-2 text-xs leading-5 text-fg-muted">Authenticate, connect to the branded DPA Wi-Fi network, pull state directly from the device, then reveal the fan portal.</p>
     </div>
-    <div class="rounded-xl border border-sky-500/20 bg-sky-900/10 p-4 text-left">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-300">On Same Home WiFi</div>
-      <p class="mt-2 text-xs leading-5 text-slate-300">
-        Keep the phone and the DPA on the same LAN, then let the portal confirm the live device session before showing the dashboard. Chrome is recommended here.
-      </p>
+    <div class="surface px-4 py-3 text-left" style="border-color: rgba(56,189,248,0.2); background: rgba(56,189,248,0.05);">
+      <div class="eyebrow" style="color: #38bdf8;">On Same Home Wi-Fi</div>
+      <p class="mt-2 text-xs leading-5 text-fg-muted">Keep the phone and the DPA on the same LAN, then let the portal confirm the live device session before showing the dashboard. Chrome is recommended here.</p>
     </div>
-    <div class="rounded-xl border border-amber-500/20 bg-amber-900/10 p-4 text-left">
-      <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-300">Remote Only</div>
-      <p class="mt-2 text-xs leading-5 text-slate-300">
-        The fan dashboard stays locked until a live DPA is reachable. Remote account context can exist, but the device-authenticated experience does not reveal yet.
-      </p>
+    <div class="surface px-4 py-3 text-left" style="border-color: rgba(245,158,11,0.2); background: rgba(245,158,11,0.05);">
+      <div class="eyebrow" style="color: var(--warning);">Remote Only</div>
+      <p class="mt-2 text-xs leading-5 text-fg-muted">The fan dashboard stays locked until a live DPA is reachable. Remote account context can exist, but the device-authenticated experience does not reveal yet.</p>
     </div>
   </div>
 
   <div class="mt-8 z-10">
-    <button (click)="useSimulator()" class="text-xs text-slate-500 hover:text-amber-400 transition-colors">
+    <button (click)="useSimulator()" class="text-xs text-fg-faint hover:text-fg-default transition-colors">
       No device? Use Simulator
     </button>
   </div>

@@ -1,85 +1,85 @@
 
-<div class="space-y-6">
+<div class="space-y-8 anim-fade-up">
   <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
     <div>
-      <app-brand-mark tone="teal" size="compact" suffix="CREATOR"></app-brand-mark>
-      <h1 class="text-2xl font-bold text-slate-50">Dashboard</h1>
-      <p class="text-sm text-slate-400 mt-1">Manage your DPA™ projects and releases.</p>
+      <div class="eyebrow">DPA / Studio</div>
+      <h1 class="h-display-2 mt-1.5">Dashboard</h1>
+      <p class="text-sm text-fg-muted mt-2">Manage your DPA projects and releases.</p>
     </div>
-    <div class="flex gap-2">
-      <a routerLink="/artist/fleet" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-slate-800 border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+    <div class="flex gap-2.5">
+      <a routerLink="/artist/fleet" class="btn btn-soft">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/></svg>
         Fleet Tracker
       </a>
-      <a routerLink="/artist/albums/new" class="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 transition-colors">
-        + New Album
+      <a routerLink="/artist/albums/new" class="btn btn-accent">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+        New Album
       </a>
     </div>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 anim-stagger">
     @for (album of albums(); track album.id) {
-      <a [routerLink]="['/artist/albums', album.albumId]" class="group block rounded-xl border border-slate-800 bg-slate-900/50 hover:border-slate-700 hover:bg-slate-900 transition-all overflow-hidden">
+      <a [routerLink]="['/artist/albums', album.albumId]"
+         class="group block surface overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lg"
+         style="transition-duration: var(--dur-normal);">
         <div class="relative">
           <!-- DPA Device Mockup -->
-          <div class="relative w-full aspect-[16/10] bg-gradient-to-br from-slate-200 via-slate-50 to-slate-400 overflow-hidden">
-            <!-- Skin -->
-            <div class="absolute inset-0 h-[75%] bg-slate-300 overflow-hidden border-b border-slate-400/30">
-              <img [src]="album.artworkUrl || defaultCover" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300">
+          <div class="relative w-full aspect-[16/10] overflow-hidden" style="background: linear-gradient(135deg, #cbd5e1, #f1f5f9 40%, #94a3b8);">
+            <div class="absolute inset-0 h-[75%] overflow-hidden" style="background: var(--bg-elev); border-bottom: 1px solid rgba(0,0,0,0.2);">
+              <img [src]="album.artworkUrl || defaultCover" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500">
             </div>
-            <!-- Chin -->
             <div class="absolute bottom-0 left-0 right-0 h-[25%] px-4 flex items-center justify-end">
-              <app-brand-mark size="micro" tone="slate" descriptor="AUDIO" [framed]="false"></app-brand-mark>
+              <span class="text-[9px] font-mono font-bold tracking-widest" style="color: rgba(15,23,42,0.7);">DPA · AUDIO</span>
             </div>
           </div>
           <!-- Authenticity Badge -->
-          <div class="absolute top-3 left-3 z-10 flex items-center gap-1 bg-emerald-950/60 border border-emerald-500/30 rounded-full px-2 py-1 text-emerald-400 text-[9px] font-bold backdrop-blur-sm">
-            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
-            AUTHENTIC
+          <div class="absolute top-3 left-3 z-10 chip chip-success backdrop-blur-glass" style="background: rgba(52, 211, 153, 0.18);">
+            <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            Authentic
           </div>
           <!-- Status Badge -->
-          <span class="absolute top-3 right-3 z-10 inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset"
-            [class.bg-teal-900/30]="album.status === 'ready'"
-            [class.text-teal-400]="album.status === 'ready'"
-            [class.ring-teal-400/30]="album.status === 'ready'"
-            [class.bg-slate-800]="album.status !== 'ready'"
-            [class.text-slate-400]="album.status !== 'ready'"
-            [class.ring-slate-700]="album.status !== 'ready'">
+          <span class="absolute top-3 right-3 z-10 chip"
+                [class.chip-accent]="album.status === 'ready'">
             {{ album.status | uppercase }}
           </span>
         </div>
-        
-        <!-- Info section below the mockup -->
-        <div class="p-4">
-          <h3 class="text-base font-semibold text-slate-100 group-hover:text-teal-400 transition-colors truncate">
+
+        <div class="p-5">
+          <h3 class="text-base font-semibold text-fg-strong group-hover:text-accent transition-colors truncate">
             {{ album.title }}
           </h3>
-          <p class="mt-1 text-xs text-slate-500 font-mono">{{ album.albumId }}</p>
-          <div class="mt-4 flex items-center justify-between border-t border-slate-800/50 pt-3 text-xs text-slate-400">
+          <p class="mt-1 text-xs text-fg-faint font-mono">{{ album.albumId }}</p>
+          <div class="mt-4 flex items-center justify-between border-t pt-3 text-xs text-fg-muted" style="border-color: var(--border-subtle);">
             <span>{{ album.skuType | titlecase }} SKU</span>
-            <span>v{{ album.dpacVersion }}</span>
+            <span class="font-mono">v{{ album.dpacVersion }}</span>
           </div>
         </div>
       </a>
     }
     @empty {
-      <div class="col-span-full rounded-xl border border-dashed border-slate-800 p-12 text-center text-slate-500">
-        No albums found. Create your first DPA™ project to get started.
+      <div class="col-span-full empty-state">
+        <div class="empty-state-icon">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7l9-4 9 4-9 4-9-4z"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg>
+        </div>
+        <div class="empty-state-title">No albums yet</div>
+        <p class="empty-state-body">Create your first DPA project to get started.</p>
+        <a routerLink="/artist/albums/new" class="btn btn-accent btn-sm mt-3">+ New Album</a>
       </div>
     }
   </div>
 
   <!-- Masters Storage Policy -->
-  <div class="mt-8 rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-    <h3 class="text-sm font-semibold text-slate-100 mb-4">Masters Storage Policy</h3>
-    <div class="flex gap-4 items-start">
-      <div class="h-8 w-8 rounded bg-slate-800 flex items-center justify-center text-teal-500 shrink-0">
-        🛡️
+  <div class="surface p-6">
+    <div class="flex items-start gap-4">
+      <div class="h-10 w-10 rounded-lg flex items-center justify-center shrink-0" style="background: var(--accent-soft); color: var(--accent);">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
       </div>
-      <div class="text-xs text-slate-400 leading-relaxed max-w-2xl">
-        Your unencrypted WAV/FLAC masters are stored temporarily in a secure intake bucket. 
-        Once the DPAC (Encrypted Capsule) is successfully built, the raw source files are 
-        <span class="text-slate-200 font-semibold">permanently purged</span> from our cloud. 
-        Only the encrypted assets remain to ensure maximum security for your IP.
+      <div>
+        <div class="eyebrow">Masters Storage Policy</div>
+        <p class="mt-2 text-sm text-fg-muted leading-relaxed max-w-2xl">
+          Your unencrypted WAV/FLAC masters are stored temporarily in a secure intake bucket. Once the DPAC (Encrypted Capsule) is successfully built, the raw source files are <span class="text-fg-strong font-semibold">permanently purged</span> from our cloud. Only the encrypted assets remain to ensure maximum security for your IP.
+        </p>
       </div>
     </div>
   </div>

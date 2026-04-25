@@ -10,6 +10,7 @@ import { DEFAULT_COVER_DATA_URL } from '../../default-cover';
 import { CompiledAlbumViewComponent } from '../../components/compiled-album-view/compiled-album-view.component';
 import { PrivateIngestSummary } from '../../services/private-ingest.service';
 import { PrivateIngestPublicService } from '../../services/private-ingest-public.service';
+import { applyAlbumAccent, resetAlbumAccent } from '../../design/tokens';
 
 const FALLBACK_THEME: Theme = {
   albumColor: { primary: '#4f46e5', accent: '#06b6d4', background: '#020617' },
@@ -168,6 +169,15 @@ export class FanAlbumDetailComponent {
       }
       void this.loadIngestSummary(albumId);
     }, { allowSignalWrites: true });
+    effect(() => {
+      const cover = this.albumCoverUrl();
+      if (cover) void applyAlbumAccent(cover);
+      else resetAlbumAccent();
+    });
+  }
+
+  ngOnDestroy() {
+    resetAlbumAccent();
   }
 
   async loadManifest(albumId: string) {

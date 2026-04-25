@@ -2,7 +2,6 @@ import { CommonModule, DatePipe } from '@angular/common';
 import { Component, ElementRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { BrandMarkComponent } from '../../components/brand-mark/brand-mark.component';
 import { PrivateIngestItem, PrivateIngestService } from '../../services/private-ingest.service';
 import { InternalOperatorAuthService } from '../../services/internal-operator-auth.service';
 import { DeviceConnectionService } from '../../services/device-connection.service';
@@ -10,29 +9,32 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
 @Component({
   selector: 'app-internal-ingest',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, BrandMarkComponent],
+  imports: [CommonModule, FormsModule, DatePipe],
   template: `
     <div class="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-      <header class="rounded-3xl border border-slate-800 bg-slate-950/70 p-6 sm:p-8">
+      <header class="surface p-6 sm:p-8 anim-fade-up">
         <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <app-brand-mark tone="teal" size="compact" suffix="INTERNAL"></app-brand-mark>
-            <h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-50">Private DPAC Ingest</h1>
-            <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
+            <div class="flex items-center gap-2">
+              <span class="h-1.5 w-1.5 rounded-full animate-pulse" style="background: var(--warning);"></span>
+              <span class="eyebrow" style="color: var(--warning);">DPA / Internal</span>
+            </div>
+            <h1 class="h-display-2 mt-2">Private DPAC Ingest</h1>
+            <p class="mt-3 max-w-3xl text-sm leading-6 text-fg-muted">
               Operator-only ingest surface backed by a private API and filesystem storage. Raw drops stay outside creator and fan portal flows.
             </p>
-            <p class="mt-2 text-xs uppercase tracking-[0.22em] text-amber-300">
+            <div class="mt-3 chip chip-warning">
               Device-push runs over STA connectivity. Keep this surface unlinked from creator and fan navigation.
-            </p>
+            </div>
           </div>
-          <div class="flex flex-wrap gap-3">
-            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-xs text-slate-400">
-              Enter via <span class="font-mono text-slate-200">#/internal/login</span> to keep this surface separate from creator/fan flows.
+          <div class="flex flex-wrap gap-3 items-center">
+            <div class="surface-strong px-3 py-2 text-xs text-fg-muted">
+              Enter via <span class="font-mono text-fg-strong">#/internal/login</span>
             </div>
             <button
               type="button"
               (click)="logout()"
-              class="rounded-full border border-slate-700 px-4 py-3 text-xs font-semibold text-slate-200 transition-colors hover:border-teal-500 hover:text-white"
+              class="btn btn-ghost"
             >
               Sign Out
             </button>
@@ -40,23 +42,11 @@ import { DeviceConnectionService } from '../../services/device-connection.servic
         </div>
       </header>
 
-      <section class="grid gap-4 md:grid-cols-4">
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-          <div class="text-[11px] uppercase tracking-[0.22em] text-slate-500">State</div>
-          <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.state() | uppercase }}</div>
-        </div>
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-          <div class="text-[11px] uppercase tracking-[0.22em] text-slate-500">Staged</div>
-          <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.stagedCount() }}</div>
-        </div>
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-          <div class="text-[11px] uppercase tracking-[0.22em] text-slate-500">Verified</div>
-          <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.verifiedCount() }}</div>
-        </div>
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-          <div class="text-[11px] uppercase tracking-[0.22em] text-slate-500">Registered Devices</div>
-          <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.devices().length }}</div>
-        </div>
+      <section class="grid gap-3 md:grid-cols-4 anim-stagger">
+        <div class="stat"><div class="stat-label">State</div><div class="stat-value">{{ ingest.state() | uppercase }}</div></div>
+        <div class="stat"><div class="stat-label">Staged</div><div class="stat-value">{{ ingest.stagedCount() }}</div></div>
+        <div class="stat"><div class="stat-label">Verified</div><div class="stat-value" style="color: var(--success);">{{ ingest.verifiedCount() }}</div></div>
+        <div class="stat"><div class="stat-label">Registered Devices</div><div class="stat-value" style="color: var(--accent);">{{ ingest.devices().length }}</div></div>
       </section>
 
       <section class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">

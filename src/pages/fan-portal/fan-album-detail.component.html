@@ -1,141 +1,119 @@
 
 @if (isLoading()) {
-  <div class="text-center p-12 text-slate-500 animate-pulse">Loading album from device...</div>
+  <div class="space-y-8 anim-fade">
+    <div class="flex flex-col md:flex-row gap-8 items-end">
+      <div class="skeleton w-64 h-64 md:w-80 md:h-80" style="border-radius: var(--radius-xl);"></div>
+      <div class="flex-1 space-y-3">
+        <div class="skeleton h-3 w-32"></div>
+        <div class="skeleton h-12 w-3/4"></div>
+        <div class="skeleton h-4 w-2/3"></div>
+      </div>
+    </div>
+    <div class="space-y-2">
+      <div class="skeleton h-12"></div>
+      <div class="skeleton h-12"></div>
+      <div class="skeleton h-12"></div>
+    </div>
+  </div>
 } @else if (manifest(); as m) {
   @if (albumMetadata(); as a) {
-    <div class="space-y-12 pb-20">
-      <!-- Hero Header -->
-      <header class="flex flex-col md:flex-row gap-8 items-end relative">
-        <div class="relative group shrink-0">
-           <img [src]="albumCoverUrl() || defaultCover" 
-                alt="Album Cover" 
-                class="w-64 h-64 md:w-80 md:h-80 rounded-lg shadow-2xl shadow-black/80 object-cover border border-white/10"
-                (error)="handleAlbumCoverError($event)">
-           
-           <button class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm rounded-lg"
-                   (click)="playAlbum()">
-              <div class="h-16 w-16 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform shadow-xl">
-                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 ml-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
-              </div>
-           </button>
-        </div>
+    <div class="space-y-10 pb-20 anim-fade-up">
 
-        <div class="flex flex-col justify-end w-full">
-          <div class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-2">ALBUM LOADED FROM DEVICE</div>
-          <h1 class="text-5xl lg:text-8xl font-black text-white tracking-tighter mt-1 leading-none">{{ a.title }}</h1>
-          <div class="mt-6 flex flex-wrap items-center gap-4 text-sm font-medium border-t border-white/10 pt-4">
-            <div class="text-white text-lg">{{ a.artistName }}</div>
-            <span class="text-slate-600 text-xs uppercase tracking-widest">{{ a.genre }}</span>
-            <span class="text-slate-600">•</span>
-            <span class="text-slate-500">{{ a.releaseDate | date:'y' }}</span>
-            <span class="text-slate-600">•</span>
-            <span class="text-slate-500">{{ m.tracks.length }} Tracks</span>
-            <span class="text-slate-600">•</span>
-            <span class="text-slate-500 font-mono">{{ formatDuration(totalDuration()) }}</span>
+      <!-- Hero -->
+      <header class="hero-album rounded-2xl overflow-hidden">
+        <div class="px-6 sm:px-10 py-10 lg:py-14">
+          <div class="flex flex-col md:flex-row gap-8 lg:gap-12 items-end">
+            <div class="relative group shrink-0">
+              <img [src]="albumCoverUrl() || defaultCover"
+                   alt="Album Cover"
+                   class="w-56 sm:w-64 md:w-72 lg:w-80 aspect-square rounded-2xl shadow-album-glow object-cover"
+                   style="background: var(--bg-elev);"
+                   (error)="handleAlbumCoverError($event)">
+              <button class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl"
+                      (click)="playAlbum()" style="background: rgba(0,0,0,0.45); backdrop-filter: blur(6px);">
+                <div class="h-16 w-16 rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg" style="background: var(--album-accent); color: #fff;">
+                  <svg class="h-7 w-7 ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+              </button>
+            </div>
+
+            <div class="flex flex-col justify-end w-full min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="chip" style="background: var(--album-accent-soft); color: var(--album-accent); border-color: transparent;">Album · loaded from device</span>
+                @if (usingLiveDeviceTracks()) {
+                  <span class="chip chip-success"><span class="h-1.5 w-1.5 rounded-full bg-current animate-pulse"></span>Live · Wi-Fi</span>
+                }
+              </div>
+              <h1 class="h-display-1 mt-5">{{ a.title }}</h1>
+              <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                <span class="text-fg-strong font-medium">{{ a.artistName }}</span>
+                @if (a.genre) { <span class="text-fg-dim">·</span><span class="text-fg-muted uppercase tracking-widest text-xs">{{ a.genre }}</span> }
+                <span class="text-fg-dim">·</span>
+                <span class="text-fg-muted">{{ a.releaseDate | date:'y' }}</span>
+                <span class="text-fg-dim">·</span>
+                <span class="text-fg-muted">{{ m.tracks.length }} tracks</span>
+                <span class="text-fg-dim">·</span>
+                <span class="text-fg-muted font-mono">{{ formatDuration(totalDuration()) }}</span>
+              </div>
+              <div class="mt-7 flex flex-wrap gap-2.5">
+                <button (click)="playAlbum()" class="btn btn-accent btn-lg" style="--accent: var(--album-accent); --accent-glow: var(--album-accent-glow);">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  Play Album
+                </button>
+                <button class="btn btn-ghost btn-lg">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                  Shuffle
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      @if (usingLiveDeviceTracks()) {
-        <div class="rounded-xl border border-teal-500/30 bg-teal-500/5 px-4 py-2 text-xs text-teal-300 inline-flex items-center gap-2">
-          <span class="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse"></span>
-          Live firmware track list (Wi-Fi)
-        </div>
-      }
-
+      <!-- Ingest summary panel -->
       @if (ingestSummary(); as ingest) {
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+        <div class="surface p-5">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Private Ingest Summary</div>
-              <p class="mt-2 text-sm text-slate-300">
-                This album may also include operator-side private drops. Only safe status is shown here.
-              </p>
+              <div class="eyebrow">Private Ingest Summary</div>
+              <p class="mt-2 text-sm text-fg-muted max-w-prose">This album may also include operator-side private drops. Only safe status is shown here.</p>
             </div>
-            <div class="rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-xs text-slate-400">
-              {{ ingest.verifiedFiles }} verified
-            </div>
+            <span class="chip chip-info">{{ ingest.verifiedFiles }} verified</span>
           </div>
           <div class="mt-4 grid gap-3 sm:grid-cols-3">
-            <div class="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
-              <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Total Files</div>
-              <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.totalFiles }}</div>
-            </div>
-            <div class="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
-              <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Active Sessions</div>
-              <div class="mt-2 text-lg font-semibold text-slate-100">{{ ingest.activeSessions }}</div>
-            </div>
-            <div class="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3">
-              <div class="text-[11px] uppercase tracking-[0.2em] text-slate-500">Last Upload</div>
-              <div class="mt-2 text-sm font-semibold text-slate-100">
-                {{ ingest.lastUploadedAt ? (ingest.lastUploadedAt | date:'medium') : 'None yet' }}
-              </div>
-            </div>
+            <div class="surface-strong px-4 py-3"><div class="stat-label">Total Files</div><div class="text-lg font-semibold text-fg-strong mt-1.5 font-mono">{{ ingest.totalFiles }}</div></div>
+            <div class="surface-strong px-4 py-3"><div class="stat-label">Active Sessions</div><div class="text-lg font-semibold text-fg-strong mt-1.5 font-mono">{{ ingest.activeSessions }}</div></div>
+            <div class="surface-strong px-4 py-3"><div class="stat-label">Last Upload</div><div class="text-sm font-semibold text-fg-strong mt-1.5">{{ ingest.lastUploadedAt ? (ingest.lastUploadedAt | date:'medium') : 'None yet' }}</div></div>
           </div>
         </div>
       }
 
-      <div class="flex flex-wrap gap-2 rounded-xl border border-slate-800 bg-slate-900/40 p-2">
-        <button
-          type="button"
-          (click)="activeSection.set('overview')"
-          class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-          [class.bg-white]="activeSection() === 'overview'"
-          [class.text-black]="activeSection() === 'overview'"
-          [class.text-slate-400]="activeSection() !== 'overview'">
+      <!-- Tabs -->
+      <div class="flex flex-wrap items-center gap-1 border-b" style="border-color: var(--border-subtle);">
+        <button type="button" (click)="activeSection.set('overview')"
+                class="px-4 py-2.5 text-sm font-medium relative transition-colors"
+                [class.text-fg-strong]="activeSection() === 'overview'"
+                [class.text-fg-muted]="activeSection() !== 'overview'">
           Overview
+          @if (activeSection() === 'overview') { <span class="absolute bottom-0 inset-x-3 h-0.5 rounded-full" style="background: var(--album-accent);"></span> }
         </button>
-        <button
-          type="button"
-          (click)="activeSection.set('tracks')"
-          class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-          [class.bg-white]="activeSection() === 'tracks'"
-          [class.text-black]="activeSection() === 'tracks'"
-          [class.text-slate-400]="activeSection() !== 'tracks'">
+        <button type="button" (click)="activeSection.set('tracks')"
+                class="px-4 py-2.5 text-sm font-medium relative transition-colors"
+                [class.text-fg-strong]="activeSection() === 'tracks'"
+                [class.text-fg-muted]="activeSection() !== 'tracks'">
           Tracks
+          @if (activeSection() === 'tracks') { <span class="absolute bottom-0 inset-x-3 h-0.5 rounded-full" style="background: var(--album-accent);"></span> }
         </button>
         @if (hasExtendedContent()) {
-          <button
-            type="button"
-            (click)="activeSection.set('booklet')"
-            class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-            [class.bg-white]="activeSection() === 'booklet'"
-            [class.text-black]="activeSection() === 'booklet'"
-            [class.text-slate-400]="activeSection() !== 'booklet'">
-            Booklet
-          </button>
-          <button
-            type="button"
-            (click)="activeSection.set('lyrics')"
-            class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-            [class.bg-white]="activeSection() === 'lyrics'"
-            [class.text-black]="activeSection() === 'lyrics'"
-            [class.text-slate-400]="activeSection() !== 'lyrics'">
-            Lyrics
-          </button>
-          <button
-            type="button"
-            (click)="activeSection.set('gallery')"
-            class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-            [class.bg-white]="activeSection() === 'gallery'"
-            [class.text-black]="activeSection() === 'gallery'"
-            [class.text-slate-400]="activeSection() !== 'gallery'">
-            Gallery
-          </button>
-          <button
-            type="button"
-            (click)="activeSection.set('videos')"
-            class="rounded-full px-4 py-2 text-sm font-semibold transition-colors"
-            [class.bg-white]="activeSection() === 'videos'"
-            [class.text-black]="activeSection() === 'videos'"
-            [class.text-slate-400]="activeSection() !== 'videos'">
-            Videos
-          </button>
+          <button type="button" (click)="activeSection.set('booklet')" class="px-4 py-2.5 text-sm font-medium relative transition-colors" [class.text-fg-strong]="activeSection() === 'booklet'" [class.text-fg-muted]="activeSection() !== 'booklet'">Booklet @if (activeSection() === 'booklet') { <span class="absolute bottom-0 inset-x-3 h-0.5 rounded-full" style="background: var(--album-accent);"></span> }</button>
+          <button type="button" (click)="activeSection.set('lyrics')" class="px-4 py-2.5 text-sm font-medium relative transition-colors" [class.text-fg-strong]="activeSection() === 'lyrics'" [class.text-fg-muted]="activeSection() !== 'lyrics'">Lyrics @if (activeSection() === 'lyrics') { <span class="absolute bottom-0 inset-x-3 h-0.5 rounded-full" style="background: var(--album-accent);"></span> }</button>
+          <button type="button" (click)="activeSection.set('gallery')" class="px-4 py-2.5 text-sm font-medium relative transition-colors" [class.text-fg-strong]="activeSection() === 'gallery'" [class.text-fg-muted]="activeSection() !== 'gallery'">Gallery @if (activeSection() === 'gallery') { <span class="absolute bottom-0 inset-x-3 h-0.5 rounded-full" style="background: var(--album-accent);"></span> }</button>
+          <button type="button" (click)="activeSection.set('videos')" class="px-4 py-2.5 text-sm font-medium relative transition-colors" [class.text-fg-strong]="activeSection() === 'videos'" [class.text-fg-muted]="activeSection() !== 'videos'">Videos @if (activeSection() === 'videos') { <span class="absolute bottom-0 inset-x-3 h-0.5 rounded-full" style="background: var(--album-accent);"></span> }</button>
         }
       </div>
 
       @if (activeSection() === 'overview') {
-        <section id="overview">
+        <section id="overview" class="anim-fade">
           <app-compiled-album-view
             [album]="a"
             [tracks]="m.tracks"
@@ -148,211 +126,171 @@
         </section>
       }
 
-      <!-- TRACKS -->
+      <!-- Tracks -->
       @if (activeSection() === 'tracks') {
-      <section id="tracks">
-         <!-- Equalizer keyframes -->
-         <style>
-           @keyframes eq-bar-1 { 0%,100%{height:4px} 50%{height:16px} }
-           @keyframes eq-bar-2 { 0%,100%{height:12px} 50%{height:4px} }
-           @keyframes eq-bar-3 { 0%,100%{height:8px} 50%{height:18px} }
-           .eq-bar { width: 3px; border-radius: 1px; }
-           .eq-bar-1 { animation: eq-bar-1 0.45s ease-in-out infinite; }
-           .eq-bar-2 { animation: eq-bar-2 0.55s ease-in-out infinite 0.1s; }
-           .eq-bar-3 { animation: eq-bar-3 0.5s ease-in-out infinite 0.2s; }
-           .heart-btn { transition: transform 0.2s ease, color 0.2s ease; }
-           .heart-btn:hover { transform: scale(1.25); }
-           .heart-btn:active { transform: scale(0.9); }
-         </style>
+      <section id="tracks" class="anim-fade">
+        <style>
+          @keyframes eq-bar-1 { 0%,100%{height:4px} 50%{height:16px} }
+          @keyframes eq-bar-2 { 0%,100%{height:12px} 50%{height:4px} }
+          @keyframes eq-bar-3 { 0%,100%{height:8px} 50%{height:18px} }
+          .eq-bar { width: 3px; border-radius: 1px; background: var(--album-accent); }
+          .eq-bar-1 { animation: eq-bar-1 0.45s ease-in-out infinite; }
+          .eq-bar-2 { animation: eq-bar-2 0.55s ease-in-out infinite 0.1s; }
+          .eq-bar-3 { animation: eq-bar-3 0.5s ease-in-out infinite 0.2s; }
+          .heart-btn { transition: transform 0.2s ease, color 0.2s ease; }
+          .heart-btn:hover { transform: scale(1.2); }
+          .heart-btn:active { transform: scale(0.9); }
+        </style>
 
-         <div class="space-y-1">
+        <div class="surface overflow-hidden">
+          <div class="divide-y" style="border-color: var(--border-subtle);">
             @for (track of m.tracks; track track.trackId; let idx = $index) {
               <div
-                class="group flex items-center gap-4 px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 border border-transparent"
-                [class.bg-indigo-500/10]="playerService.currentTrack()?.id === track.trackId"
-                [class.border-indigo-500/20]="playerService.currentTrack()?.id === track.trackId"
-                [class.hover:bg-white/5]="playerService.currentTrack()?.id !== track.trackId"
-                [class.hover:border-white/5]="playerService.currentTrack()?.id !== track.trackId"
+                class="group flex items-center gap-4 px-4 sm:px-5 py-3 cursor-pointer transition-colors"
+                [class.bg-album-soft]="playerService.currentTrack()?.id === track.trackId"
+                [style.background]="playerService.currentTrack()?.id === track.trackId ? 'var(--album-accent-soft)' : ''"
+                [class.hover:bg-white/[0.025]]="playerService.currentTrack()?.id !== track.trackId"
                 (click)="playTrack(track)">
 
-                <!-- Track number / Equalizer -->
-                <div class="w-8 flex items-center justify-center shrink-0">
+                <div class="w-7 flex items-center justify-center shrink-0">
                   @if (playerService.currentTrack()?.id === track.trackId && playerService.isPlaying()) {
                     <div class="flex items-end gap-[2px] h-5">
-                      <div class="eq-bar eq-bar-1 bg-indigo-400"></div>
-                      <div class="eq-bar eq-bar-2 bg-indigo-400"></div>
-                      <div class="eq-bar eq-bar-3 bg-indigo-400"></div>
+                      <div class="eq-bar eq-bar-1"></div>
+                      <div class="eq-bar eq-bar-2"></div>
+                      <div class="eq-bar eq-bar-3"></div>
                     </div>
                   } @else {
-                    <span class="font-mono text-sm text-slate-500 group-hover:text-white transition-colors">
-                      {{ track.trackNo }}
-                    </span>
+                    <span class="font-mono text-xs text-fg-faint group-hover:text-fg-default transition-colors">{{ track.trackNo }}</span>
                   }
                 </div>
 
-                <!-- Track thumbnail -->
-                <div class="w-10 h-10 rounded overflow-hidden bg-slate-800 shrink-0">
+                <div class="w-10 h-10 rounded-md overflow-hidden bg-elev shrink-0">
                   <img [src]="trackArtUrls()[track.trackId] || albumCoverUrl()"
                        class="w-full h-full object-cover"
                        (error)="handleTrackArtError($event, track.trackId)"
                        loading="lazy">
                 </div>
 
-                <!-- Track info + popularity bar -->
                 <div class="flex-1 min-w-0">
-                   <div class="font-bold text-[15px] leading-snug truncate transition-colors duration-200"
-                        [class.text-indigo-400]="playerService.currentTrack()?.id === track.trackId"
-                        [class.text-slate-200]="playerService.currentTrack()?.id !== track.trackId"
-                        [class.group-hover:text-white]="playerService.currentTrack()?.id !== track.trackId">
-                      {{ track.title }}
-                   </div>
-
-                   <!-- Popularity bar -->
-                   <div class="mt-1.5 h-[3px] rounded-full bg-white/5 overflow-hidden w-full max-w-[200px]">
-                     <div class="h-full rounded-full transition-all duration-700 ease-out"
-                          [style.width.%]="getPopularity(track.trackId)"
-                          [class.bg-indigo-400/60]="playerService.currentTrack()?.id === track.trackId"
-                          [class.bg-white/15]="playerService.currentTrack()?.id !== track.trackId">
-                     </div>
-                   </div>
+                  <div class="text-sm font-medium leading-snug truncate transition-colors"
+                       [style.color]="playerService.currentTrack()?.id === track.trackId ? 'var(--album-accent)' : 'var(--fg-strong)'">
+                    {{ track.title }}
+                  </div>
+                  <div class="mt-1.5 h-[3px] rounded-full overflow-hidden w-full max-w-[200px]" style="background: rgba(255,255,255,0.05);">
+                    <div class="h-full rounded-full transition-all duration-700 ease-out"
+                         [style.width.%]="getPopularity(track.trackId)"
+                         [style.background]="playerService.currentTrack()?.id === track.trackId ? 'var(--album-accent)' : 'rgba(255,255,255,0.2)'">
+                    </div>
+                  </div>
                 </div>
 
-                <!-- Play count -->
-                <div class="hidden sm:flex items-center gap-1 text-xs text-slate-600 group-hover:text-slate-400 transition-colors shrink-0 tabular-nums">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
-                  </svg>
+                <div class="hidden sm:flex items-center gap-1 text-xs text-fg-faint group-hover:text-fg-muted transition-colors shrink-0 tabular-nums font-mono">
+                  <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
                   {{ trackPlayCounts()[track.trackId] ?? 0 }}
                 </div>
 
-                <!-- Duration -->
-                <div class="font-mono text-sm text-slate-600 group-hover:text-slate-400 transition-colors shrink-0">
-                  {{ formatTime(track.durationSec) }}
-                </div>
+                <div class="font-mono text-xs text-fg-faint group-hover:text-fg-muted transition-colors shrink-0">{{ formatTime(track.durationSec) }}</div>
 
-                <!-- Heart / Favorite button -->
                 <button class="heart-btn shrink-0 p-1 rounded-full"
-                        [class.text-rose-500]="favorites().has(track.trackId)"
-                        [class.text-slate-600]="!favorites().has(track.trackId)"
-                        [class.hover:text-rose-400]="!favorites().has(track.trackId)"
-                        [style.filter]="favorites().has(track.trackId) ? 'drop-shadow(0 0 6px rgba(244,63,94,0.5))' : 'none'"
+                        [style.color]="favorites().has(track.trackId) ? 'var(--album-accent)' : 'var(--fg-faint)'"
+                        [style.filter]="favorites().has(track.trackId) ? 'drop-shadow(0 0 6px var(--album-accent-glow))' : 'none'"
                         (click)="toggleFavorite(track.trackId, $event)">
                   @if (favorites().has(track.trackId)) {
-                    <!-- Filled heart -->
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" />
-                    </svg>
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" /></svg>
                   } @else {
-                    <!-- Outline heart -->
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                   }
                 </button>
               </div>
             }
-         </div>
+          </div>
+        </div>
       </section>
       }
 
+      <!-- Booklet -->
       @if (activeSection() === 'booklet') {
-        <section class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-            <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Liner Notes</div>
-            <div class="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-300">
+        <section class="grid gap-5 lg:grid-cols-[1.2fr_0.8fr] anim-fade">
+          <div class="surface p-6">
+            <div class="eyebrow">Liner Notes</div>
+            <div class="mt-4 whitespace-pre-wrap text-sm leading-7 text-fg-default">
               {{ a.description || 'No booklet notes uploaded yet.' }}
             </div>
           </div>
-
-          <div class="space-y-6">
-            <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-              <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Credits</div>
-              <div class="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                {{ a.booklet?.credits || 'No credits uploaded yet.' }}
-              </div>
+          <div class="space-y-5">
+            <div class="surface p-6">
+              <div class="eyebrow">Credits</div>
+              <div class="mt-4 whitespace-pre-wrap text-sm leading-7 text-fg-default">{{ a.booklet?.credits || 'No credits uploaded yet.' }}</div>
             </div>
-
-            <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-              <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Album Details</div>
+            <div class="surface p-6">
+              <div class="eyebrow">Album Details</div>
               <div class="mt-4 flex flex-wrap gap-2 text-xs">
-                @if (a.genre) {
-                  <span class="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300">{{ a.genre }}</span>
-                }
-                @if (a.recordLabel) {
-                  <span class="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300">{{ a.recordLabel }}</span>
-                }
-                @if (a.releaseDate) {
-                  <span class="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300">{{ a.releaseDate | date:'longDate' }}</span>
-                }
-                @if (a.parentalAdvisory) {
-                  <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-amber-300">Parental Advisory</span>
-                }
-                @if (!a.genre && !a.recordLabel && !a.releaseDate && !a.parentalAdvisory) {
-                  <span class="text-slate-500">No extended album details uploaded yet.</span>
-                }
+                @if (a.genre) { <span class="chip">{{ a.genre }}</span> }
+                @if (a.recordLabel) { <span class="chip">{{ a.recordLabel }}</span> }
+                @if (a.releaseDate) { <span class="chip">{{ a.releaseDate | date:'longDate' }}</span> }
+                @if (a.parentalAdvisory) { <span class="chip chip-warning">Parental Advisory</span> }
+                @if (!a.genre && !a.recordLabel && !a.releaseDate && !a.parentalAdvisory) { <span class="text-fg-faint">No extended details uploaded yet.</span> }
               </div>
             </div>
           </div>
         </section>
       }
 
+      <!-- Lyrics -->
       @if (activeSection() === 'lyrics') {
-        <section class="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-          <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Lyrics</div>
-          <div class="mt-4 whitespace-pre-wrap font-serif text-sm leading-8 text-slate-300">
-            {{ a.lyrics || 'No lyrics uploaded yet.' }}
-          </div>
+        <section class="surface p-6 anim-fade">
+          <div class="eyebrow">Lyrics</div>
+          <div class="mt-4 whitespace-pre-wrap font-serif text-sm leading-8 text-fg-default">{{ a.lyrics || 'No lyrics uploaded yet.' }}</div>
         </section>
       }
 
+      <!-- Gallery -->
       @if (activeSection() === 'gallery') {
-        <section class="space-y-4">
-          <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Gallery</div>
+        <section class="space-y-4 anim-fade">
+          <div class="eyebrow">Gallery</div>
           @if (galleryImages().length > 0) {
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               @for (image of galleryImages(); track image) {
-                <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/40">
+                <div class="surface overflow-hidden">
                   <img [src]="image" class="aspect-square w-full object-cover" loading="lazy">
                 </div>
               }
             </div>
           } @else {
-            <div class="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-10 text-center text-sm text-slate-500">
-              No gallery images uploaded yet.
+            <div class="empty-state">
+              <div class="empty-state-icon"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>
+              <div class="empty-state-title">No gallery images yet</div>
             </div>
           }
         </section>
       }
 
+      <!-- Videos -->
       @if (activeSection() === 'videos') {
-        <section class="space-y-4">
-          <div class="text-xs font-bold uppercase tracking-[0.24em] text-indigo-400">Videos</div>
+        <section class="space-y-4 anim-fade">
+          <div class="eyebrow">Videos</div>
           @if (bookletVideos().length > 0) {
             <div class="grid gap-4 lg:grid-cols-2">
               @for (video of bookletVideos(); track video.id) {
-                <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/40">
-                  <div class="aspect-video bg-slate-950">
-                    @if (video.poster) {
-                      <img [src]="video.poster" class="h-full w-full object-cover" loading="lazy">
-                    } @else {
-                      <div class="flex h-full items-center justify-center text-slate-600">No poster</div>
-                    }
+                <div class="surface overflow-hidden">
+                  <div class="aspect-video bg-base">
+                    @if (video.poster) { <img [src]="video.poster" class="h-full w-full object-cover" loading="lazy"> }
+                    @else { <div class="flex h-full items-center justify-center text-fg-faint">No poster</div> }
                   </div>
                   <div class="space-y-3 p-5">
-                    <div class="text-lg font-semibold text-white">{{ video.title }}</div>
-                    <div class="text-sm text-slate-400 break-all">{{ video.url || 'No video URL uploaded yet.' }}</div>
+                    <div class="font-medium text-fg-strong">{{ video.title }}</div>
+                    <div class="text-sm text-fg-muted break-all font-mono">{{ video.url || 'No video URL uploaded yet.' }}</div>
                     @if (video.url) {
-                      <a [href]="video.url" target="_blank" rel="noreferrer" class="inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-slate-200">
-                        Open Video
-                      </a>
+                      <a [href]="video.url" target="_blank" rel="noreferrer" class="btn btn-primary btn-sm">Open Video</a>
                     }
                   </div>
                 </div>
               }
             </div>
           } @else {
-            <div class="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-10 text-center text-sm text-slate-500">
-              No booklet videos uploaded yet.
+            <div class="empty-state">
+              <div class="empty-state-icon"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+              <div class="empty-state-title">No booklet videos yet</div>
             </div>
           }
         </section>
@@ -360,8 +298,11 @@
     </div>
   }
 } @else {
-  <div class="text-center p-12 text-rose-400 border border-dashed border-rose-500/30 rounded-lg">
-    <h2 class="font-bold">Error Loading Album</h2>
-    <p class="text-sm text-slate-400 mt-2">Could not retrieve manifest from the connected device. Please ensure the device is connected properly and contains this album.</p>
+  <div class="empty-state">
+    <div class="empty-state-icon" style="color: var(--danger);">
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+    </div>
+    <div class="empty-state-title text-fg-strong">Could not load album</div>
+    <p class="text-sm text-fg-muted max-w-md">Could not retrieve manifest from the connected device. Please ensure the device is connected and contains this album.</p>
   </div>
 }

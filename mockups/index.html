@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="studio">
+<head>
+  <meta charset="utf-8">
+  <title>DPA Portal — Concept Mockups</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="preconnect" href="https://rsms.me/">
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../src/design/tokens.css">
+  <style>
+    body { background: var(--bg-canvas); font-family: var(--font-ui); }
+    .card { background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: 14px; }
+    .card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+    .card { transition: all .2s var(--ease-emphasis); }
+  </style>
+</head>
+<body class="text-fg-default min-h-screen">
+  <div class="max-w-5xl mx-auto px-6 py-16">
+    <div class="text-center mb-14">
+      <div class="eyebrow">DPA Portal · Concept Frames</div>
+      <h1 class="h-display-1 mt-3">UI Refresh Mockups</h1>
+      <p class="mt-4 text-fg-muted max-w-xl mx-auto">Static, deployable previews of the four directions. Pick one per portal — the implementation will adopt the chosen language across all 16 surfaces.</p>
+    </div>
+
+    <div class="mb-10">
+      <div class="eyebrow text-album">Fan Portal · Modern Streaming</div>
+      <div class="grid md:grid-cols-2 gap-5 mt-3">
+        <a href="./fan-a-album-hero.html" class="card p-6 group">
+          <div class="aspect-video rounded-lg mb-4 overflow-hidden" style="background: radial-gradient(ellipse 80% 70% at 50% -10%, rgba(255,77,141,0.5), transparent 60%), linear-gradient(180deg, #06080d, #11151f);"></div>
+          <div class="flex items-baseline justify-between">
+            <div class="font-display font-semibold text-fg-strong text-xl">Concept A · Album-as-Hero</div>
+            <span class="chip chip-accent" style="--accent: var(--album-accent); --accent-soft: var(--album-accent-soft);">Recommended</span>
+          </div>
+          <p class="mt-2 text-sm text-fg-muted">Full-bleed artwork, blurred background, frosted glass player bar, large display type, color extracted from album.</p>
+        </a>
+        <a href="./fan-b-liner-notes.html" class="card p-6 group">
+          <div class="aspect-video rounded-lg mb-4 overflow-hidden bg-base flex items-center justify-center">
+            <div class="text-fg-faint font-display text-2xl tracking-tight">A · Side B</div>
+          </div>
+          <div class="flex items-baseline justify-between">
+            <div class="font-display font-semibold text-fg-strong text-xl">Concept B · Liner Notes</div>
+            <span class="chip">Editorial</span>
+          </div>
+          <p class="mt-2 text-sm text-fg-muted">Magazine layout, more whitespace, serif accents on credits, vinyl-collector overtones, metadata-rich.</p>
+        </a>
+      </div>
+    </div>
+
+    <div>
+      <div class="eyebrow" style="color: #00e5ff;">Creator / Admin · Studio Pro</div>
+      <div class="grid md:grid-cols-2 gap-5 mt-3">
+        <a href="./creator-a-cockpit.html" class="card p-6 group">
+          <div class="aspect-video rounded-lg mb-4 overflow-hidden bg-base relative">
+            <div class="absolute inset-0" style="background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 24px 24px;"></div>
+            <div class="absolute top-3 left-3 right-3 grid grid-cols-3 gap-2">
+              <div class="h-8 rounded bg-elev"></div>
+              <div class="h-8 rounded bg-elev"></div>
+              <div class="h-8 rounded bg-elev"></div>
+            </div>
+          </div>
+          <div class="flex items-baseline justify-between">
+            <div class="font-display font-semibold text-fg-strong text-xl">Concept A · Cockpit</div>
+            <span class="chip chip-info">Linear-style</span>
+          </div>
+          <p class="mt-2 text-sm text-fg-muted">Dense tabular data, monospace metrics, hard-edged cards, command palette, sidebar nav.</p>
+        </a>
+        <a href="./creator-b-studio.html" class="card p-6 group">
+          <div class="aspect-video rounded-lg mb-4 overflow-hidden bg-base relative" style="background: radial-gradient(ellipse 60% 80% at 80% 50%, rgba(139,92,246,0.25), transparent 60%), linear-gradient(180deg, #06080d, #11151f);">
+            <div class="absolute top-4 left-4 right-4 flex gap-2">
+              <div class="h-6 w-20 rounded-full bg-overlay"></div>
+              <div class="h-6 w-16 rounded-full" style="background: rgba(0,229,255,0.2);"></div>
+            </div>
+          </div>
+          <div class="flex items-baseline justify-between">
+            <div class="font-display font-semibold text-fg-strong text-xl">Concept B · Studio</div>
+            <span class="chip" style="background: rgba(139,92,246,0.18); color: #a78bfa;">Recommended</span>
+          </div>
+          <p class="mt-2 text-sm text-fg-muted">Dark with violet/cyan accents, more breathing room, grouped panes, Ableton-style.</p>
+        </a>
+      </div>
+    </div>
+
+    <div class="mt-16 text-center text-xs text-fg-faint">
+      <div class="font-mono">DPA Portal v4.5.0 · concept previews</div>
+      <a href="/" class="hover:text-fg-default transition-colors">← Back to live portal</a>
+    </div>
+  </div>
+</body>
+</html>

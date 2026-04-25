@@ -2,35 +2,41 @@ import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { BrandMarkComponent } from '../../components/brand-mark/brand-mark.component';
 import { InternalOperatorAuthService } from '../../services/internal-operator-auth.service';
 
 @Component({
   selector: 'app-internal-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, BrandMarkComponent],
+  imports: [CommonModule, FormsModule],
   template: `
-    <div class="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-8">
-      <div class="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900/70 p-8 shadow-2xl shadow-black/30">
-        <app-brand-mark tone="teal" size="compact" suffix="INTERNAL"></app-brand-mark>
-        <h1 class="mt-6 text-2xl font-bold tracking-tight text-slate-50">Operator Access</h1>
-        <p class="mt-3 text-sm leading-6 text-slate-400">
+    <div class="flex min-h-screen items-center justify-center px-4 py-8 relative overflow-hidden" style="background: var(--bg-canvas);">
+      <div class="absolute -top-1/3 -left-1/4 w-1/2 h-1/2 rounded-full blur-3xl pointer-events-none" style="background: var(--accent-glow); opacity: 0.12;"></div>
+      <div class="absolute -bottom-1/3 -right-1/4 w-1/2 h-1/2 rounded-full blur-3xl pointer-events-none" style="background: rgba(99,102,241,0.12);"></div>
+
+      <div class="w-full max-w-md surface p-8 anim-fade-up z-10" style="box-shadow: var(--shadow-2xl);">
+        <div class="flex items-center gap-2">
+          <span class="h-1.5 w-1.5 rounded-full animate-pulse" style="background: var(--warning);"></span>
+          <span class="eyebrow" style="color: var(--warning);">DPA / Internal</span>
+        </div>
+        <h1 class="h-display-3 mt-2">Operator Access</h1>
+        <p class="mt-3 text-sm leading-6 text-fg-muted">
           Private DPAC ingest is isolated behind a separate operator session. This surface is not linked from creator or fan navigation.
         </p>
 
         <label class="mt-6 block">
-          <div class="text-[11px] uppercase tracking-[0.22em] text-slate-500">Operator Passphrase</div>
+          <div class="stat-label">Operator Passphrase</div>
           <input
             [(ngModel)]="passphrase"
             type="password"
             autocomplete="current-password"
-            class="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 outline-none transition-colors focus:border-teal-500"
+            class="mt-2 w-full rounded-xl px-4 py-3 text-sm text-fg-strong outline-none transition-colors font-mono"
+            style="background: var(--bg-base); border: 1px solid var(--border-subtle);"
             (keydown.enter)="login()"
           >
         </label>
 
         @if (message()) {
-          <div class="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          <div class="mt-4 rounded-xl px-4 py-3 text-sm" style="background: var(--danger-soft); border: 1px solid rgba(248,113,113,0.3); color: var(--danger);">
             {{ message() }}
           </div>
         }
@@ -40,21 +46,21 @@ import { InternalOperatorAuthService } from '../../services/internal-operator-au
             type="button"
             (click)="login()"
             [disabled]="submitting()"
-            class="flex-1 rounded-full bg-teal-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-teal-500 disabled:cursor-not-allowed disabled:opacity-60"
+            class="btn btn-accent flex-1 btn-lg"
           >
-            {{ submitting() ? 'Signing In...' : 'Enter Internal Surface' }}
+            {{ submitting() ? 'Signing in…' : 'Enter Internal Surface' }}
           </button>
           <button
             type="button"
             (click)="router.navigateByUrl('/login')"
-            class="rounded-full border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500"
+            class="btn btn-ghost btn-lg"
           >
             Exit
           </button>
         </div>
 
-        <div class="mt-6 text-xs text-slate-500">
-          API state: {{ auth.state() }}
+        <div class="mt-6 text-xs text-fg-faint font-mono">
+          api_state: {{ auth.state() }}
         </div>
       </div>
     </div>

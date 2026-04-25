@@ -3,33 +3,27 @@
   <div class="space-y-6">
     
     <!-- Tab Navigation -->
-    <div class="border-b border-slate-800">
+    <div class="border-b" style="border-color: var(--border-subtle);">
       <nav class="-mb-px flex space-x-8 overflow-x-auto">
-        <button 
+        <button
           (click)="setTab('overview')"
-          [class.border-teal-500]="activeTab() === 'overview'"
-          [class.text-teal-400]="activeTab() === 'overview'"
-          [class.border-transparent]="activeTab() !== 'overview'"
-          [class.text-slate-400]="activeTab() !== 'overview'"
-          class="whitespace-nowrap border-b-2 px-1 pb-4 text-sm font-medium hover:text-slate-200 transition-colors">
+          class="whitespace-nowrap border-b-2 px-1 pb-4 text-sm font-medium transition-colors"
+          [style.border-color]="activeTab() === 'overview' ? 'var(--accent)' : 'transparent'"
+          [style.color]="activeTab() === 'overview' ? 'var(--fg-strong)' : 'var(--fg-muted)'">
           Fleet Overview
         </button>
-        <button 
+        <button
           (click)="setTab('resales')"
-          [class.border-rose-500]="activeTab() === 'resales'"
-          [class.text-rose-400]="activeTab() === 'resales'"
-          [class.border-transparent]="activeTab() !== 'resales'"
-          [class.text-slate-400]="activeTab() !== 'resales'"
-          class="whitespace-nowrap border-b-2 px-1 pb-4 text-sm font-medium hover:text-slate-200 transition-colors">
-          Resale Market & Royalties
+          class="whitespace-nowrap border-b-2 px-1 pb-4 text-sm font-medium transition-colors"
+          [style.border-color]="activeTab() === 'resales' ? 'var(--danger)' : 'transparent'"
+          [style.color]="activeTab() === 'resales' ? 'var(--fg-strong)' : 'var(--fg-muted)'">
+          Resale Market &amp; Royalties
         </button>
-        <button 
+        <button
           (click)="setTab('economics')"
-          [class.border-indigo-500]="activeTab() === 'economics'"
-          [class.text-indigo-400]="activeTab() === 'economics'"
-          [class.border-transparent]="activeTab() !== 'economics'"
-          [class.text-slate-400]="activeTab() !== 'economics'"
-          class="whitespace-nowrap border-b-2 px-1 pb-4 text-sm font-medium hover:text-slate-200 transition-colors">
+          class="whitespace-nowrap border-b-2 px-1 pb-4 text-sm font-medium transition-colors"
+          [style.border-color]="activeTab() === 'economics' ? 'var(--info)' : 'transparent'"
+          [style.color]="activeTab() === 'economics' ? 'var(--fg-strong)' : 'var(--fg-muted)'">
           Unit Economics
         </button>
       </nav>
@@ -37,24 +31,11 @@
 
     <!-- TAB 1: FLEET OVERVIEW -->
     @if (activeTab() === 'overview') {
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 animate-fade-in">
-        <div class="rounded border border-slate-800 bg-slate-900/50 p-4">
-          <div class="text-xs text-slate-500 uppercase tracking-wide">Total Manufactured</div>
-          <div class="text-xl font-bold text-slate-100 mt-1">{{ a.economics?.totalManufactured | number }}</div>
-        </div>
-        <div class="rounded border border-slate-800 bg-slate-900/50 p-4">
-          <div class="text-xs text-slate-500 uppercase tracking-wide">Active / Paired</div>
-          <div class="text-xl font-bold text-teal-400 mt-1">{{ a.economics?.totalSold | number }}</div>
-          <div class="text-[10px] text-teal-500/80 mt-1">84.2% Sell-through</div>
-        </div>
-        <div class="rounded border border-slate-800 bg-slate-900/50 p-4">
-          <div class="text-xs text-slate-500 uppercase tracking-wide">Avg Session</div>
-          <div class="text-xl font-bold text-slate-100 mt-1">42m</div>
-        </div>
-        <div class="rounded border border-slate-800 bg-slate-900/50 p-4">
-          <div class="text-xs text-slate-500 uppercase tracking-wide">Active Firmware</div>
-          <div class="text-xl font-bold text-slate-100 mt-1">v2.4.1</div>
-        </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-7 anim-fade">
+        <div class="stat"><div class="stat-label">Total Manufactured</div><div class="stat-value">{{ a.economics?.totalManufactured | number }}</div></div>
+        <div class="stat"><div class="stat-label">Active / Paired</div><div class="stat-value" style="color: var(--success);">{{ a.economics?.totalSold | number }}</div><div class="stat-delta stat-delta-up">84.2% Sell-through</div></div>
+        <div class="stat"><div class="stat-label">Avg Session</div><div class="stat-value">42m</div></div>
+        <div class="stat"><div class="stat-label">Active Firmware</div><div class="stat-value">v2.4.1</div></div>
       </div>
 
       <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden animate-fade-in">

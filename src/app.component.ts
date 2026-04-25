@@ -3,22 +3,24 @@ import { Component, DestroyRef, inject, computed, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, Router, NavigationEnd } from '@angular/router';
 import { DeviceConnectionService } from './services/device-connection.service';
 import { UserService } from './services/user.service';
+import { ThemeModeService } from './services/theme-mode.service';
 import { filter } from 'rxjs/operators';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
 import { DeviceHudOverlayComponent } from './components/device-hud-overlay/device-hud-overlay.component';
 import { DeviceNotificationCenterComponent } from './components/device-notification-center/device-notification-center.component';
-import { BrandMarkComponent } from './components/brand-mark/brand-mark.component';
+import { ToastHostComponent } from './design/components/toast-host.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, DeviceHudOverlayComponent, DeviceNotificationCenterComponent, BrandMarkComponent],
+  imports: [RouterOutlet, RouterLink, DeviceHudOverlayComponent, DeviceNotificationCenterComponent, ToastHostComponent],
   templateUrl: './app.component.html'
 })
 export class AppComponent {
   connectionService = inject(DeviceConnectionService);
   userService = inject(UserService);
+  themeMode = inject(ThemeModeService);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
 
@@ -37,6 +39,7 @@ export class AppComponent {
     ),
     { initialValue: true } // Default to hidden (Login screen)
   );
+
 
   showGlobalDeviceUi = toSignal(
     this.router.events.pipe(

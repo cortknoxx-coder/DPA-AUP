@@ -1,126 +1,98 @@
 
-<div class="space-y-8">
-  <header class="flex items-center justify-between">
+<div class="space-y-7 anim-fade-up">
+  <header class="flex items-end justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-bold text-slate-50">Fleet Tracker</h1>
-      <p class="text-sm text-slate-400 mt-1">Live analytics from connected DPA devices.</p>
+      <div class="eyebrow">DPA / Fleet</div>
+      <h1 class="h-display-2 mt-1.5">Fleet Tracker</h1>
+      <p class="text-sm text-fg-muted mt-2">Live analytics from connected DPA devices.</p>
     </div>
-    <button (click)="refresh()"
-            class="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
-            [disabled]="fleet.loading()">
+    <button (click)="refresh()" class="btn btn-soft" [disabled]="fleet.loading()">
+      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" [class.anim-spin]="fleet.loading()"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114-3M20 15a8 8 0 01-14 3"/></svg>
       {{ fleet.loading() ? 'Loading…' : 'Refresh' }}
     </button>
   </header>
 
   @if (fleet.error()) {
-    <div class="rounded-lg border border-amber-800/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-300">
+    <div class="surface px-4 py-3 text-sm" style="border-color: rgba(251, 191, 36, 0.3); background: var(--warning-soft); color: var(--warning);">
       {{ fleet.error() }}
     </div>
   }
 
   <!-- KPI Cards -->
-  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Devices</div>
-      <div class="text-2xl font-bold text-slate-100 mt-2">{{ fleet.kpis().totalDevices | number }}</div>
-    </div>
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Online</div>
-      <div class="text-2xl font-bold text-emerald-400 mt-2">{{ fleet.kpis().onlineDevices | number }}</div>
-    </div>
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Plays</div>
-      <div class="text-2xl font-bold text-slate-100 mt-2">{{ fleet.kpis().totalPlays | number }}</div>
-    </div>
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Hearts</div>
-      <div class="text-2xl font-bold text-rose-400 mt-2">{{ fleet.kpis().totalHearts | number }}</div>
-    </div>
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Skips</div>
-      <div class="text-2xl font-bold text-slate-100 mt-2">{{ fleet.kpis().totalSkips | number }}</div>
-    </div>
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Listen Time</div>
-      <div class="text-2xl font-bold text-teal-400 mt-2">{{ formatListenTime(fleet.kpis().totalListenMs) }}</div>
-    </div>
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div class="stat"><div class="stat-label">Devices</div><div class="stat-value">{{ fleet.kpis().totalDevices | number }}</div></div>
+    <div class="stat"><div class="stat-label">Online</div><div class="stat-value" style="color: var(--success);">{{ fleet.kpis().onlineDevices | number }}</div></div>
+    <div class="stat"><div class="stat-label">Total Plays</div><div class="stat-value">{{ fleet.kpis().totalPlays | number }}</div></div>
+    <div class="stat"><div class="stat-label">Total Hearts</div><div class="stat-value" style="color: var(--danger);">{{ fleet.kpis().totalHearts | number }}</div></div>
+    <div class="stat"><div class="stat-label">Total Skips</div><div class="stat-value">{{ fleet.kpis().totalSkips | number }}</div></div>
+    <div class="stat"><div class="stat-label">Listen Time</div><div class="stat-value" style="color: var(--accent);">{{ formatListenTime(fleet.kpis().totalListenMs) }}</div></div>
   </div>
 
   <!-- Main Content Grid -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
     <!-- Device Table (takes 2/3 on lg) -->
-    <div class="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-      <div class="p-4 border-b border-slate-800">
-        <h3 class="text-sm font-semibold text-slate-100">Fleet Devices</h3>
+    <div class="lg:col-span-2 surface overflow-hidden">
+      <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color: var(--border-subtle);">
+        <h3 class="text-sm font-semibold text-fg-strong">Fleet Devices</h3>
+        <span class="chip">{{ fleet.fleetDevices().length }} total</span>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-xs">
           <thead>
-            <tr class="text-slate-500 uppercase tracking-wider border-b border-slate-800">
-              <th class="text-left px-4 py-3 font-semibold">Status</th>
-              <th class="text-left px-4 py-3 font-semibold">DUID</th>
-              <th class="text-left px-4 py-3 font-semibold hidden md:table-cell">Label</th>
-              <th class="text-left px-4 py-3 font-semibold hidden lg:table-cell">Firmware</th>
-              <th class="text-left px-4 py-3 font-semibold">Last Seen</th>
+            <tr class="border-b" style="border-color: var(--border-subtle);">
+              <th class="text-left px-4 py-2.5 stat-label">Status</th>
+              <th class="text-left px-4 py-2.5 stat-label">DUID</th>
+              <th class="text-left px-4 py-2.5 stat-label hidden md:table-cell">Label</th>
+              <th class="text-left px-4 py-2.5 stat-label hidden lg:table-cell">Firmware</th>
+              <th class="text-left px-4 py-2.5 stat-label">Last Seen</th>
             </tr>
           </thead>
           <tbody>
             @for (device of fleet.fleetDevices(); track device.deviceId) {
-              <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 cursor-pointer transition-colors"
+              <tr class="border-b cursor-pointer transition-colors hover:bg-white/[0.025]"
+                  style="border-color: var(--border-subtle);"
                   (click)="toggleDevice(device.deviceId)">
                 <td class="px-4 py-3">
                   <span class="inline-block w-2 h-2 rounded-full" [ngClass]="reachabilityClass(device.reachability)"></span>
-                  <span class="ml-2 capitalize text-slate-400">{{ device.reachability }}</span>
+                  <span class="ml-2 capitalize text-fg-muted">{{ device.reachability }}</span>
                 </td>
-                <td class="px-4 py-3 font-mono text-slate-200">{{ device.deviceId }}</td>
-                <td class="px-4 py-3 text-slate-400 hidden md:table-cell">{{ device.label }}</td>
-                <td class="px-4 py-3 text-slate-500 hidden lg:table-cell font-mono">{{ device.firmwareVersion || '—' }}</td>
-                <td class="px-4 py-3 text-slate-500">{{ device.lastSeenAt ? (device.lastSeenAt | date:'short') : '—' }}</td>
+                <td class="px-4 py-3 font-mono text-fg-strong">{{ device.deviceId }}</td>
+                <td class="px-4 py-3 text-fg-muted hidden md:table-cell">{{ device.label }}</td>
+                <td class="px-4 py-3 text-fg-faint hidden lg:table-cell font-mono">{{ device.firmwareVersion || '—' }}</td>
+                <td class="px-4 py-3 text-fg-faint font-mono">{{ device.lastSeenAt ? (device.lastSeenAt | date:'short') : '—' }}</td>
               </tr>
 
               <!-- Expanded Detail Row -->
               @if (expandedDevice() === device.deviceId) {
-                <tr class="bg-slate-800/20">
+                <tr style="background: var(--bg-overlay);">
                   <td colspan="5" class="px-4 py-4">
                     @if (detailLoading()) {
-                      <div class="text-sm text-slate-500 animate-pulse">Loading analytics for {{ device.deviceId }}…</div>
+                      <div class="text-sm text-fg-muted animate-pulse">Loading analytics for {{ device.deviceId }}…</div>
                     } @else if (deviceDetail()) {
                       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                        <div>
-                          <span class="text-slate-500">Plays</span>
-                          <div class="text-lg font-bold text-slate-200">{{ deviceDetail()?.counts?.['play']?.count || 0 | number }}</div>
-                        </div>
-                        <div>
-                          <span class="text-slate-500">Skips</span>
-                          <div class="text-lg font-bold text-slate-200">{{ deviceDetail()?.counts?.['skip']?.count || 0 | number }}</div>
-                        </div>
-                        <div>
-                          <span class="text-slate-500">Hearts</span>
-                          <div class="text-lg font-bold text-rose-400">{{ deviceDetail()?.counts?.['heart']?.count || 0 | number }}</div>
-                        </div>
-                        <div>
-                          <span class="text-slate-500">Listen Time</span>
-                          <div class="text-lg font-bold text-teal-400">{{ formatListenTime(deviceDetail()?.counts?.['listen_ms']?.totalValue || 0) }}</div>
-                        </div>
+                        <div><span class="stat-label">Plays</span><div class="text-lg font-mono font-semibold text-fg-strong mt-1">{{ (deviceDetail()?.counts?.['play']?.count || 0) | number }}</div></div>
+                        <div><span class="stat-label">Skips</span><div class="text-lg font-mono font-semibold text-fg-strong mt-1">{{ (deviceDetail()?.counts?.['skip']?.count || 0) | number }}</div></div>
+                        <div><span class="stat-label">Hearts</span><div class="text-lg font-mono font-semibold mt-1" style="color: var(--danger);">{{ (deviceDetail()?.counts?.['heart']?.count || 0) | number }}</div></div>
+                        <div><span class="stat-label">Listen Time</span><div class="text-lg font-mono font-semibold mt-1" style="color: var(--accent);">{{ formatListenTime(deviceDetail()?.counts?.['listen_ms']?.totalValue || 0) }}</div></div>
                       </div>
                       @if (deviceDetail()?.topTracks?.length) {
-                        <div class="mt-3 text-xs text-slate-500">
-                          <span class="font-semibold text-slate-400">Top Tracks:</span>
+                        <div class="mt-3 text-xs text-fg-muted">
+                          <span class="stat-label">Top Tracks</span>
                           @for (t of deviceDetail()!.topTracks.slice(0, 5); track t.path) {
-                            <span class="ml-2 text-slate-300">{{ t.title }} ({{ t.plays }})</span>
+                            <span class="ml-2 text-fg-default">{{ t.title }} <span class="text-fg-faint font-mono">({{ t.plays }})</span></span>
                           }
                         </div>
                       }
                     } @else {
-                      <div class="text-sm text-slate-600">No analytics data available.</div>
+                      <div class="text-sm text-fg-faint">No analytics data available.</div>
                     }
                   </td>
                 </tr>
               }
             } @empty {
               <tr>
-                <td colspan="5" class="px-4 py-8 text-center text-slate-600">
+                <td colspan="5" class="px-4 py-8 text-center text-fg-faint">
                   {{ fleet.loading() ? 'Loading fleet…' : 'No devices registered yet.' }}
                 </td>
               </tr>
@@ -131,34 +103,29 @@
     </div>
 
     <!-- Right Column -->
-    <div class="space-y-6">
+    <div class="space-y-5">
 
       <!-- Live Activity Feed -->
-      <div class="rounded-xl border border-slate-800 bg-slate-900/50 h-[350px] flex flex-col">
-        <div class="p-4 border-b border-slate-800 flex items-center gap-2">
-          <span class="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
-          <h3 class="text-sm font-semibold text-slate-100">Live Activity Feed</h3>
+      <div class="surface h-[350px] flex flex-col">
+        <div class="px-4 py-3 border-b flex items-center gap-2" style="border-color: var(--border-subtle);">
+          <span class="h-2 w-2 rounded-full animate-pulse" style="background: var(--danger);"></span>
+          <h3 class="text-sm font-semibold text-fg-strong">Live Activity</h3>
         </div>
         <div class="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
           @for (event of fleet.activityFeed(); track event.id) {
             <div class="flex items-start gap-3">
-              <div class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 mt-0.5"
-                   [class.bg-teal-500/20]="event.type === 'play'"
-                   [class.bg-amber-500/20]="event.type === 'skip'"
-                   [class.bg-rose-500/20]="event.type === 'heart'"
-                   [class.bg-indigo-500/20]="event.type === 'listen_ms'">
+              <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] shrink-0 mt-0.5"
+                   [style.background]="event.type === 'play' ? 'var(--accent-soft)' : event.type === 'skip' ? 'var(--warning-soft)' : event.type === 'heart' ? 'var(--danger-soft)' : 'var(--info-soft)'">
                 {{ getEventIcon(event.type) }}
               </div>
-              <div class="flex-1 text-slate-400">
-                <span class="font-semibold text-slate-300">{{ event.message }}</span>
-                @if (event.deviceId) {
-                  <span class="text-slate-600"> • {{ event.deviceId }}</span>
-                }
-                <span class="block text-[10px] text-slate-600 font-mono">{{ event.timestamp | date:'HH:mm:ss' }}</span>
+              <div class="flex-1">
+                <span class="font-semibold text-fg-default">{{ event.message }}</span>
+                @if (event.deviceId) { <span class="text-fg-faint font-mono"> · {{ event.deviceId }}</span> }
+                <div class="text-[10px] text-fg-faint font-mono">{{ event.timestamp | date:'HH:mm:ss' }}</div>
               </div>
             </div>
           } @empty {
-            <div class="text-center text-slate-600 pt-8">
+            <div class="text-center text-fg-faint pt-8 px-4 leading-relaxed">
               {{ fleet.loading() ? 'Loading…' : 'No activity events yet. Connect a device to start seeing data.' }}
             </div>
           }
@@ -166,25 +133,25 @@
       </div>
 
       <!-- Top Tracks -->
-      <div class="rounded-xl border border-slate-800 bg-slate-900/50">
-        <div class="p-4 border-b border-slate-800">
-          <h3 class="text-sm font-semibold text-slate-100">Top Tracks</h3>
+      <div class="surface">
+        <div class="px-4 py-3 border-b" style="border-color: var(--border-subtle);">
+          <h3 class="text-sm font-semibold text-fg-strong">Top Tracks</h3>
         </div>
-        <div class="p-4 space-y-3">
+        <div class="p-4 space-y-3.5">
           @for (track of fleet.topTracks(); track track.path) {
             <div>
-              <div class="flex justify-between text-xs mb-1">
-                <span class="font-semibold text-slate-300 truncate">{{ track.title || track.path }}</span>
-                <span class="text-slate-500 shrink-0 ml-2">{{ track.plays }} plays</span>
+              <div class="flex justify-between text-xs mb-1.5">
+                <span class="font-medium text-fg-default truncate">{{ track.title || track.path }}</span>
+                <span class="text-fg-faint shrink-0 ml-2 font-mono">{{ track.plays }}</span>
               </div>
-              <div class="h-1.5 bg-slate-800 rounded-full">
+              <div class="h-1 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.05);">
                 @if (fleet.topTracks().length && fleet.topTracks()[0].plays > 0) {
-                  <div class="h-full bg-teal-500 rounded-full transition-all" [style.width.%]="(track.plays / fleet.topTracks()[0].plays) * 100"></div>
+                  <div class="h-full rounded-full transition-all" style="background: var(--accent);" [style.width.%]="(track.plays / fleet.topTracks()[0].plays) * 100"></div>
                 }
               </div>
             </div>
           } @empty {
-            <div class="text-xs text-slate-600 text-center py-4">No track data yet.</div>
+            <div class="text-xs text-fg-faint text-center py-4">No track data yet.</div>
           }
         </div>
       </div>

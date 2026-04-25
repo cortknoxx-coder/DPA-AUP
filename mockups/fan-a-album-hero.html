@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="streaming">
+<head>
+  <meta charset="utf-8">
+  <title>Fan · Concept A · Album as Hero</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="preconnect" href="https://rsms.me/">
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../src/design/tokens.css">
+  <style>
+    :root {
+      --album-accent: #ff4d8d;
+      --album-accent-soft: rgba(255,77,141,0.18);
+      --album-accent-glow: rgba(255,77,141,0.42);
+    }
+    .art-1 { background: linear-gradient(135deg, #ff4d8d 0%, #ff8a3d 50%, #1a0033 100%); }
+    .art-2 { background: linear-gradient(135deg, #00e5ff 0%, #8b5cf6 100%); }
+    .art-3 { background: linear-gradient(135deg, #fbbf24 0%, #fb7185 100%); }
+    .art-4 { background: linear-gradient(135deg, #34d399 0%, #0ea5e9 100%); }
+    .art-5 { background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%); }
+
+    .hero-bg {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 30% 0%, var(--album-accent-glow), transparent 55%),
+        radial-gradient(ellipse 60% 50% at 80% 30%, rgba(255,138,61,0.32), transparent 60%),
+        linear-gradient(180deg, #1a0510 0%, var(--bg-canvas) 60%);
+    }
+  </style>
+</head>
+<body data-mode="streaming" class="min-h-screen text-fg-default">
+
+  <!-- Top bar -->
+  <header class="sticky top-0 z-40 backdrop-blur-glass" style="background: rgba(7,9,15,0.65); border-bottom: 1px solid var(--border-subtle);">
+    <div class="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="./index.html" class="text-xs text-fg-faint hover:text-fg-default">← Concepts</a>
+        <span class="text-fg-dim">·</span>
+        <span class="font-mono text-xs text-fg-muted">FAN · CONCEPT A · ALBUM AS HERO</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="chip chip-success"><span class="h-1.5 w-1.5 rounded-full bg-current animate-pulse"></span>Verified · DPA-AB12</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="relative overflow-hidden">
+    <div class="hero-bg"></div>
+    <div class="relative max-w-7xl mx-auto px-6 pt-16 pb-20">
+      <div class="flex flex-col lg:flex-row gap-12 items-end">
+        <div class="art-1 aspect-square w-72 lg:w-96 rounded-2xl shadow-album-glow flex items-end p-6">
+          <div class="font-display text-white/90 text-3xl font-bold tracking-tight leading-none drop-shadow">NIGHT<br>RIDE</div>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="eyebrow" style="color: var(--album-accent);">Now playing on your DPA</div>
+          <h1 class="h-display-1 mt-4">Night Ride</h1>
+          <div class="mt-2 flex items-center gap-3 text-fg-muted">
+            <span class="text-fg-strong font-medium">Cortknox</span>
+            <span class="text-fg-dim">·</span>
+            <span>2026</span>
+            <span class="text-fg-dim">·</span>
+            <span>12 tracks</span>
+            <span class="text-fg-dim">·</span>
+            <span class="font-mono text-xs">42:18</span>
+          </div>
+
+          <div class="mt-8 flex flex-wrap items-center gap-3">
+            <button class="btn btn-accent btn-lg" style="--accent: var(--album-accent); --accent-glow: var(--album-accent-glow);">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              Resume Playback
+            </button>
+            <button class="btn btn-ghost btn-lg">Shuffle</button>
+            <button class="btn-icon btn btn-ghost" title="Heart"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
+              <button class="btn-icon btn btn-ghost" title="Share"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Track list -->
+  <section class="max-w-7xl mx-auto px-6 -mt-4">
+    <div class="glass-strong p-6 lg:p-8" style="background: var(--glass-bg-strong);">
+      <div class="grid grid-cols-12 px-3 pb-2 text-xs font-medium text-fg-muted uppercase tracking-widest border-b border-default">
+        <div class="col-span-1">#</div>
+        <div class="col-span-6">Title</div>
+        <div class="col-span-3">Plays</div>
+        <div class="col-span-2 text-right">Length</div>
+      </div>
+
+      <div class="divide-y" style="border-color: var(--border-subtle);">
+        <!-- row template, 6 entries -->
+        <div class="grid grid-cols-12 px-3 py-3 items-center group hover:bg-white/[0.03] transition-colors cursor-pointer">
+          <div class="col-span-1 font-mono text-fg-muted group-hover:text-fg-strong text-sm">01</div>
+          <div class="col-span-6 flex items-center gap-3">
+            <div class="art-1 w-10 h-10 rounded shrink-0"></div>
+            <div class="min-w-0">
+              <div class="text-fg-strong font-medium truncate">Drift Lane</div>
+              <div class="text-xs text-fg-faint mt-0.5">DPA · 24-bit · 96 kHz</div>
+            </div>
+          </div>
+          <div class="col-span-3 font-mono text-sm text-fg-muted">142</div>
+          <div class="col-span-2 text-right font-mono text-sm text-fg-muted">3:42</div>
+        </div>
+        <div class="grid grid-cols-12 px-3 py-3 items-center group hover:bg-white/[0.03] transition-colors cursor-pointer">
+          <div class="col-span-1 font-mono text-fg-muted text-sm">02</div>
+          <div class="col-span-6 flex items-center gap-3">
+            <div class="art-1 w-10 h-10 rounded shrink-0 opacity-80"></div>
+            <div class="min-w-0">
+              <div class="text-fg-strong font-medium">Glasshouse</div>
+              <div class="text-xs text-fg-faint mt-0.5">DPA · 24-bit · 96 kHz</div>
+            </div>
+          </div>
+          <div class="col-span-3 font-mono text-sm text-fg-muted">98</div>
+          <div class="col-span-2 text-right font-mono text-sm text-fg-muted">4:11</div>
+        </div>
+        <div class="grid grid-cols-12 px-3 py-3 items-center group hover:bg-white/[0.03] transition-colors cursor-pointer" style="background: var(--album-accent-soft);">
+          <div class="col-span-1 font-mono text-sm" style="color: var(--album-accent);">▶ 03</div>
+          <div class="col-span-6 flex items-center gap-3">
+            <div class="art-1 w-10 h-10 rounded shrink-0"></div>
+            <div class="min-w-0">
+              <div class="font-medium" style="color: var(--album-accent);">Lowtide</div>
+              <div class="text-xs text-fg-muted mt-0.5">Now playing · 1:24 / 4:48</div>
+            </div>
+          </div>
+          <div class="col-span-3 font-mono text-sm" style="color: var(--album-accent);">231</div>
+          <div class="col-span-2 text-right font-mono text-sm" style="color: var(--album-accent);">4:48</div>
+        </div>
+        <div class="grid grid-cols-12 px-3 py-3 items-center group hover:bg-white/[0.03] transition-colors cursor-pointer">
+          <div class="col-span-1 font-mono text-fg-muted text-sm">04</div>
+          <div class="col-span-6 flex items-center gap-3">
+            <div class="art-1 w-10 h-10 rounded shrink-0 opacity-80"></div>
+            <div class="min-w-0">
+              <div class="text-fg-strong font-medium">No Sleep</div>
+              <div class="text-xs text-fg-faint mt-0.5">DPA · 24-bit · 96 kHz</div>
+            </div>
+          </div>
+          <div class="col-span-3 font-mono text-sm text-fg-muted">76</div>
+          <div class="col-span-2 text-right font-mono text-sm text-fg-muted">3:21</div>
+        </div>
+        <div class="grid grid-cols-12 px-3 py-3 items-center group hover:bg-white/[0.03] transition-colors cursor-pointer">
+          <div class="col-span-1 font-mono text-fg-muted text-sm">05</div>
+          <div class="col-span-6 flex items-center gap-3">
+            <div class="art-1 w-10 h-10 rounded shrink-0 opacity-80"></div>
+            <div class="min-w-0">
+              <div class="text-fg-strong font-medium">Velvet Static</div>
+              <div class="text-xs text-fg-faint mt-0.5">DPA · 24-bit · 96 kHz</div>
+            </div>
+          </div>
+          <div class="col-span-3 font-mono text-sm text-fg-muted">112</div>
+          <div class="col-span-2 text-right font-mono text-sm text-fg-muted">5:02</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capsules + Perks rails -->
+  <section class="max-w-7xl mx-auto px-6 mt-12 grid lg:grid-cols-2 gap-8">
+    <div>
+      <div class="flex items-baseline justify-between mb-4">
+        <h2 class="h-display-3">Capsule Drops</h2>
+        <a class="text-xs text-fg-muted hover:text-fg-default">View all →</a>
+      </div>
+      <div class="space-y-3">
+        <div class="surface p-4 flex items-center gap-4 cursor-pointer hover:border-default transition-colors">
+          <div class="art-2 w-14 h-14 rounded-lg shrink-0"></div>
+          <div class="min-w-0 flex-1">
+            <div class="chip chip-info text-[10px] mb-1">Visual</div>
+            <div class="text-fg-strong font-medium">Behind the Lens — Lowtide</div>
+            <div class="text-xs text-fg-faint mt-0.5">Unlocks after 3 plays · 2 days ago</div>
+          </div>
+        </div>
+        <div class="surface p-4 flex items-center gap-4 cursor-pointer hover:border-default transition-colors">
+          <div class="art-3 w-14 h-14 rounded-lg shrink-0"></div>
+          <div class="min-w-0 flex-1">
+            <div class="chip chip-warning text-[10px] mb-1">Concert</div>
+            <div class="text-fg-strong font-medium">DPA-Exclusive · Berlin Stop</div>
+            <div class="text-xs text-fg-faint mt-0.5">Geo-locked to EU · 5 days ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="flex items-baseline justify-between mb-4">
+        <h2 class="h-display-3">Perks Unlocked</h2>
+        <span class="chip chip-success">3 active</span>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="surface p-4">
+          <div class="text-2xl mb-1">🎟</div>
+          <div class="text-fg-strong text-sm font-medium">Pre-sale ticket</div>
+          <div class="text-xs text-fg-faint mt-1">Tour 2026</div>
+        </div>
+        <div class="surface p-4">
+          <div class="text-2xl mb-1">📀</div>
+          <div class="text-fg-strong text-sm font-medium">Vinyl bundle</div>
+          <div class="text-xs text-fg-faint mt-1">Ships May 12</div>
+        </div>
+        <div class="surface p-4">
+          <div class="text-2xl mb-1">🎚</div>
+          <div class="text-fg-strong text-sm font-medium">Stems pack</div>
+          <div class="text-xs text-fg-faint mt-1">All 12 tracks</div>
+        </div>
+        <div class="surface p-4 opacity-50">
+          <div class="text-2xl mb-1 grayscale">🔒</div>
+          <div class="text-fg-default text-sm font-medium">3 plays to unlock</div>
+          <div class="text-xs text-fg-faint mt-1">Studio session</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Mini player -->
+  <div class="fixed bottom-4 inset-x-4 z-50 flex justify-center pointer-events-none">
+    <div class="glass-strong pointer-events-auto px-4 py-3 flex items-center gap-4 shadow-lg" style="min-width: min(680px, 100%);">
+      <div class="art-1 w-12 h-12 rounded-md shrink-0"></div>
+      <div class="min-w-0 flex-1">
+        <div class="text-fg-strong font-medium text-sm truncate">Lowtide</div>
+        <div class="text-xs text-fg-faint truncate">Cortknox · DPA · DPA1 24/96</div>
+        <div class="mt-1.5 h-1 rounded-full bg-elev relative overflow-hidden">
+          <div class="absolute inset-y-0 left-0 rounded-full" style="background: var(--album-accent); width: 28%; box-shadow: 0 0 12px var(--album-accent-glow);"></div>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button class="btn-icon btn btn-ghost"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M19 20l-9-8 9-8v16zM5 4h2v16H5V4z"/></svg></button>
+        <button class="btn-icon btn btn-accent" style="--accent: var(--album-accent);"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg></button>
+        <button class="btn-icon btn btn-ghost"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M5 4l9 8-9 8V4zM17 4h2v16h-2V4z"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="h-32"></div>
+</body>
+</html>

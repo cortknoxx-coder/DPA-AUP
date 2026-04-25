@@ -1,11 +1,12 @@
 
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="dark" data-mode="studio">
   <head>
-    <meta charset="utf-t" />
-    <title>DPA Artist Portal</title>
+    <meta charset="utf-8" />
+    <title>DPA Portal</title>
     <base href="/" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#06080d" />
     <meta name="dpa-internal-api-base" content="" />
     <meta name="dpa-cloud-control-base" content="" />
     <meta name="dpa-relay-ws-url" content="" />
@@ -14,74 +15,106 @@
     <meta name="dpa-api-base-url" content="" />
     <meta name="dpa-device-api-base" content="" />
     <meta name="dpa-device-upload-base" content="" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      /* Custom scrollbar for pro-audio look */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #0f172a;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #334155;
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #475569;
-      }
-      body {
-        background-color: #020617; /* Slate 950 */
-        color: #f8fafc; /* Slate 50 */
-      }
 
-      /* Hide number input spinners */
-      input[type=number]::-webkit-inner-spin-button,
-      input[type=number]::-webkit-outer-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-      }
-      input[type=number] {
-        -moz-appearance: textfield;
-      }
-      
-      /* Animations for "Fun" Factor */
-      @keyframes breathe {
-        0%, 100% { box-shadow: 0 0 20px -5px var(--glow-color, transparent); }
-        50% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); }
-      }
-      @keyframes pulse-fast {
-        0%, 100% { box-shadow: 0 0 20px -5px var(--glow-color, transparent); }
-        50% { box-shadow: 0 0 30px 0px var(--glow-color, transparent); }
-      }
-      @keyframes spin-slow {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      @keyframes fade-in-up {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes bounce {
-        0%, 100% { transform: scaleY(0.4); }
-        50% { transform: scaleY(1.0); }
-      }
-      
-      @keyframes flash {
-        0%, 100% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
-        10%, 90% { box-shadow: 0 0 40px 8px var(--glow-color, transparent); opacity: 1; }
-      }
-      @keyframes rhythmic-pulse {
-        0%, 100% { box-shadow: 0 0 15px -5px var(--glow-color, transparent); }
-        50% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); }
-      }
-      @keyframes fade-glow {
-        0% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
-        30% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); opacity: 1; }
-        70% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); opacity: 1; }
-        100% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
-      }
+    <!-- Fonts: Inter (UI), Geist (display), JetBrains Mono (mono) -->
+    <link rel="preconnect" href="https://rsms.me/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+
+    <!-- Design tokens are injected from angular.json styles array -->
+
+    <!-- Tailwind via CDN with extended config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              display: ['Geist', 'Inter', 'system-ui', 'sans-serif'],
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+              mono: ['JetBrains Mono', 'SF Mono', 'ui-monospace', 'monospace'],
+            },
+            colors: {
+              canvas: 'var(--bg-canvas)',
+              base: 'var(--bg-base)',
+              raised: 'var(--bg-raised)',
+              overlay: 'var(--bg-overlay)',
+              elev: 'var(--bg-elev)',
+              fg: {
+                strong: 'var(--fg-strong)',
+                DEFAULT: 'var(--fg-default)',
+                muted: 'var(--fg-muted)',
+                faint: 'var(--fg-faint)',
+                dim: 'var(--fg-dim)',
+              },
+              accent: {
+                DEFAULT: 'var(--accent)',
+                soft: 'var(--accent-soft)',
+                glow: 'var(--accent-glow)',
+              },
+              album: {
+                DEFAULT: 'var(--album-accent)',
+                soft: 'var(--album-accent-soft)',
+                glow: 'var(--album-accent-glow)',
+              },
+            },
+            borderColor: {
+              subtle: 'var(--border-subtle)',
+              default: 'var(--border-default)',
+              strong: 'var(--border-strong)',
+              bright: 'var(--border-bright)',
+            },
+            borderRadius: {
+              xs: '4px',
+              md: '10px',
+              lg: '14px',
+              xl: '20px',
+              '2xl': '28px',
+            },
+            boxShadow: {
+              xs: 'var(--shadow-xs)',
+              sm: 'var(--shadow-sm)',
+              md: 'var(--shadow-md)',
+              lg: 'var(--shadow-lg)',
+              xl: 'var(--shadow-xl)',
+              glow: 'var(--shadow-glow)',
+              'album-glow': 'var(--shadow-album-glow)',
+            },
+            transitionTimingFunction: {
+              emphasis: 'var(--ease-emphasis)',
+              standard: 'var(--ease-standard)',
+              spring: 'var(--ease-spring)',
+            },
+            transitionDuration: {
+              fast: '140ms',
+              normal: '220ms',
+              slow: '360ms',
+            },
+            backdropBlur: {
+              glass: '28px',
+              'glass-strong': '40px',
+            },
+          },
+        },
+      };
+    </script>
+
+    <style>
+      input[type='number']::-webkit-inner-spin-button,
+      input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+      input[type='number'] { -moz-appearance: textfield; }
+
+      /* Legacy device LED preview animations preserved for components that consume them */
+      @keyframes breathe { 0%, 100% { box-shadow: 0 0 20px -5px var(--glow-color, transparent); } 50% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); } }
+      @keyframes pulse-fast { 0%, 100% { box-shadow: 0 0 20px -5px var(--glow-color, transparent); } 50% { box-shadow: 0 0 30px 0px var(--glow-color, transparent); } }
+      @keyframes spin-slow { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+      @keyframes fade-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes flash { 0%, 100% { box-shadow: 0 0 0 0 transparent; opacity: 0; } 10%, 90% { box-shadow: 0 0 40px 8px var(--glow-color, transparent); opacity: 1; } }
+      @keyframes rhythmic-pulse { 0%, 100% { box-shadow: 0 0 15px -5px var(--glow-color, transparent); } 50% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); } }
+      @keyframes fade-glow { 0% { box-shadow: 0 0 0 0 transparent; opacity: 0; } 30% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); opacity: 1; } 70% { box-shadow: 0 0 35px 5px var(--glow-color, transparent); opacity: 1; } 100% { box-shadow: 0 0 0 0 transparent; opacity: 0; } }
 
       .animate-breathe { animation: breathe 4s ease-in-out infinite; }
       .animate-pulse-fast { animation: pulse-fast 1.2s ease-in-out infinite; }
@@ -93,29 +126,30 @@
       .led-solid { box-shadow: 0 0 30px 4px var(--glow-color, transparent); }
       .led-off { box-shadow: none !important; opacity: 0; }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "d3": "https://esm.sh/d3@7.9.0?conditions=es2015",
-    "rxjs": "https://esm.sh/rxjs@^7.8.2?conditions=es2015",
-    "rxjs/operators": "https://esm.sh/rxjs@^7.8.2/operators?conditions=es2015",
-    "rxjs/ajax": "https://esm.sh/rxjs@^7.8.2/ajax?conditions=es2015",
-    "rxjs/webSocket": "https://esm.sh/rxjs@^7.8.2/webSocket?conditions=es2015",
-    "rxjs/testing": "https://esm.sh/rxjs@^7.8.2/testing?conditions=es2015",
-    "rxjs/fetch": "https://esm.sh/rxjs@^7.8.2/fetch?conditions=es2015",
-    "@angular/compiler": "https://next.esm.sh/@angular/compiler@^21.0.6?external=rxjs",
-    "@angular/core": "https://next.esm.sh/@angular/core@^21.0.6?external=rxjs",
-    "@angular/router": "https://next.esm.sh/@angular/router@^21.0.6?external=rxjs",
-    "@angular/platform-browser": "https://next.esm.sh/@angular/platform-browser@^21.0.6?external=rxjs",
-    "@angular/forms": "https://next.esm.sh/@angular/forms@^21.0.6?external=rxjs",
-    "@angular/common": "https://next.esm.sh/@angular/common@^21.0.6?external=rxjs",
-    "@angular/core/rxjs-interop": "https://next.esm.sh/@angular/core@^21.0.6/rxjs-interop?external=rxjs",
-    "d3-geo": "https://next.esm.sh/d3-geo@^3.1.1?external=rxjs",
-    "geojson": "https://next.esm.sh/geojson@^0.5.0?external=rxjs"
-  }
-}
-</script>
-</head>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "d3": "https://esm.sh/d3@7.9.0?conditions=es2015",
+          "rxjs": "https://esm.sh/rxjs@^7.8.2?conditions=es2015",
+          "rxjs/operators": "https://esm.sh/rxjs@^7.8.2/operators?conditions=es2015",
+          "rxjs/ajax": "https://esm.sh/rxjs@^7.8.2/ajax?conditions=es2015",
+          "rxjs/webSocket": "https://esm.sh/rxjs@^7.8.2/webSocket?conditions=es2015",
+          "rxjs/testing": "https://esm.sh/rxjs@^7.8.2/testing?conditions=es2015",
+          "rxjs/fetch": "https://esm.sh/rxjs@^7.8.2/fetch?conditions=es2015",
+          "@angular/compiler": "https://next.esm.sh/@angular/compiler@^21.0.6?external=rxjs",
+          "@angular/core": "https://next.esm.sh/@angular/core@^21.0.6?external=rxjs",
+          "@angular/router": "https://next.esm.sh/@angular/router@^21.0.6?external=rxjs",
+          "@angular/platform-browser": "https://next.esm.sh/@angular/platform-browser@^21.0.6?external=rxjs",
+          "@angular/forms": "https://next.esm.sh/@angular/forms@^21.0.6?external=rxjs",
+          "@angular/common": "https://next.esm.sh/@angular/common@^21.0.6?external=rxjs",
+          "@angular/core/rxjs-interop": "https://next.esm.sh/@angular/core@^21.0.6/rxjs-interop?external=rxjs",
+          "d3-geo": "https://next.esm.sh/d3-geo@^3.1.1?external=rxjs",
+          "geojson": "https://next.esm.sh/geojson@^0.5.0?external=rxjs"
+        }
+      }
+    </script>
+  </head>
   <body>
     <app-root></app-root>
   </body>
