@@ -5,7 +5,19 @@ import { DeviceBleService } from './device-ble.service';
 import { DeviceWifiService } from './device-wifi.service';
 import { DeviceNfcService } from './device-nfc.service';
 import { ApiService } from './api.service';
-import { DpaDeviceInfo, LibraryIndex, Album, Track, FirmwareStatus, DeviceCapsuleRecord, DeviceRuntimeStatus, DeviceSession } from '../types';
+import {
+  DpaDeviceInfo,
+  LibraryIndex,
+  Album,
+  Track,
+  FirmwareStatus,
+  DeviceCapsuleRecord,
+  DeviceRuntimeStatus,
+  DeviceSession,
+  ConnectedAlbumPresentation,
+  DeviceAudioPresentation,
+  DeviceThemePresentation,
+} from '../types';
 import { DataService } from './data.service';
 import { normalizeDeviceAlbumMetaPayload, normalizeDeviceBookletPayload } from './device-content.utils';
 import { isHostedHttps } from '../dpa-device-http';
@@ -78,6 +90,31 @@ export class DeviceConnectionService {
     };
   });
   deviceRuntimeMessage = computed(() => this.describeRuntime(this.deviceRuntime()));
+  deviceStatus = computed<FirmwareStatus | null>(() =>
+    this.connectionStatus() === 'wifi' ? this.wifi.lastStatus() : null
+  );
+  connectedAlbum = computed<ConnectedAlbumPresentation | null>(() => {
+    const library = this.deviceLibrary();
+    const liveAlbum = library?.albums?.[0];
+    const authoredAlbum = this.dataService.albums()?.[0];
+    const status = this.deviceStatus();
+    const hasLiveDevice = !!liveAlbum || !!status;
+
+    if (!liveAlbum && !authoredAlbum && !status) return null;
+
+    return {
+      id: liveAlbum?.id || this.deviceInfo()?.serial || authoredAlbum?.albumId || 'device',
+      title: status?.album || liveAlbum?.title || authoredAlbum?.title || 'DPA Album',
+      artistName: status?.artist || authoredAlbum?.artistName || this.deviceInfo()?.serial || 'Unknown Artist',
+      artworkUrl: liveAlbum?.artworkUrl || authoredAlbum?.artworkUrl || '',
+      trackCount: library?.tracks?.length ?? authoredAlbum?.tracks?.length ?? 0,
+      source: hasLiveDevice && authoredAlbum ? 'merged' : hasLiveDevice ? 'device' : 'portal',
+    };
+  });
+  deviceAudio = computed<DeviceAudioPresentation | null>(() => this.wifi.audioPresentation(this.deviceStatus()));
+  deviceTheme = computed<DeviceThemePresentation | null>(() => this.wifi.themePresentation(this.deviceStatus()));
+  deviceBattery = computed(() => this.deviceStatus()?.battery ?? null);
+  deviceStorage = computed(() => this.deviceStatus()?.storage ?? null);
   connectionDiagnostics = signal<ConnectionDiagnosticEvent[]>([]);
   wifiRecoveryActive = signal(false);
   lastDisconnectEvent = computed<ConnectionDiagnosticEvent | null>(() => {
@@ -649,7 +686,7 @@ export class DeviceConnectionService {
         title: t.title,
         durationSec: Math.max(0, Math.round(t.durationMs / 1000)),
         trackNo: t.index + 1,
-        codec: 'audio/wav',
+        codec: t.format === 'dpa' ? 'audio/dpa' : 'audio/wav',
         blobId: t.filename,
       })),
     });

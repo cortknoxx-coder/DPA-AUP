@@ -118,10 +118,12 @@ export interface LedNotificationStep {
 // --- Firmware Communication Types ---
 
 export type PlaybackMode = 'normal' | 'repeat_one';
-export type EqPreset = 'flat' | 'bass' | 'bass_boost' | 'vocal' | 'warm';
+export type EqPreset = 'flat' | 'dpa_signature' | 'hip_hop' | 'pop' | 'vocal' | 'custom';
+export type AudioWidthMode = 'off' | 'enhanced';
 export type A2dpState = 'disconnected' | 'connecting' | 'connected' | 'playing';
 
 export interface BatteryStatus {
+  present?: boolean;
   voltage: number;
   percent: number;
   charging: boolean;
@@ -130,9 +132,40 @@ export interface BatteryStatus {
 export interface AudioStatus {
   volume: number;
   eq: EqPreset;
+  width?: AudioWidthMode;
   mode: PlaybackMode;
   a2dp: A2dpState;
   a2dpDevice: string;
+}
+
+export interface DeviceAudioPresentation extends AudioStatus {
+  hasLiveStatus: boolean;
+}
+
+export interface DeviceLedModePresentation {
+  color: string;
+  pattern: LedPattern;
+  fullSpectrum?: boolean;
+}
+
+export interface DeviceThemePresentation {
+  led: {
+    idle: DeviceLedModePresentation;
+    playback: DeviceLedModePresentation;
+    charging: DeviceLedModePresentation;
+    brightness: number;
+    gradEnd: string;
+  };
+  dcnp: Theme['dcnp'];
+}
+
+export interface ConnectedAlbumPresentation {
+  id: string;
+  title: string;
+  artistName: string;
+  artworkUrl: string;
+  trackCount: number;
+  source: 'device' | 'portal' | 'merged';
 }
 
 export interface StorageStatus {

@@ -7,11 +7,16 @@ import {
   DeviceTrack,
   StorageStatus,
   A2dpDevice,
+  A2dpState,
   PlaybackMode,
   EqPreset,
+  AudioWidthMode,
+  DeviceAudioPresentation,
+  DeviceThemePresentation,
   DeviceCapsuleRecord,
   DeviceBookletPayload,
   DeviceAlbumMetaPayload,
+  LedPattern,
 } from '../types';
 import {
   normalizeDeviceAlbumMetaPayload,
@@ -58,6 +63,20 @@ export interface LedPreviewParams {
   brightness?: number;
   gradEnd?: string;
 }
+
+const KNOWN_EQ_PRESETS: readonly EqPreset[] = ['flat', 'dpa_signature', 'hip_hop', 'pop', 'vocal', 'custom'];
+const KNOWN_AUDIO_WIDTH_MODES: readonly AudioWidthMode[] = ['off', 'enhanced'];
+const KNOWN_PLAYBACK_MODES: readonly PlaybackMode[] = ['normal', 'repeat_one'];
+const KNOWN_A2DP_STATES: readonly A2dpState[] = ['disconnected', 'connecting', 'connected', 'playing'];
+const KNOWN_LED_PATTERNS: ReadonlySet<LedPattern> = new Set<LedPattern>([
+  'off', 'solid', 'breathing', 'pulse',
+  'comet', 'rainbow', 'fire', 'sparkle',
+  'wave', 'dual_comet', 'meteor', 'theater', 'bounce',
+  'audio_pulse', 'audio_bass', 'audio_beat', 'audio_comet',
+  'audio_vu', 'vu_classic', 'vu_fill', 'vu_peak',
+  'vu_split', 'vu_bass', 'vu_energy',
+  'chase_fwd', 'chase_rev', 'heartbeat', 'fade_out',
+]);
 
 @Injectable({ providedIn: 'root' })
 export class DeviceWifiService {
@@ -682,6 +701,9 @@ export class DeviceWifiService {
 
   private mapTrackResponse(track: any, i: number): DeviceTrack {
     const path: string = track.path || track.file || track.filename || '';
+    const lowerPath = path.toLowerCase();
+    const inferredFormat: 'dpa' | 'wav' =
+      track.format === 'dpa' || lowerPath.endsWith('.dpa') ? 'dpa' : 'wav';
     const title =
       track.title ||
       path
@@ -698,8 +720,8 @@ export class DeviceWifiService {
       sizeMB: Number((sizeBytes / (1024 * 1024)).toFixed(2)),
       plays: Number(track.plays || 0),
       durationMs: Number(track.durationMs || 0),
-      format: track.format === 'dpa' ? 'dpa' : 'wav',
-      codec: track.codec || (track.format === 'dpa' ? 'wav' : 'wav'),
+      format: inferredFormat,
+      codec: track.codec || (inferredFormat === 'dpa' ? 'dpa' : 'wav'),
       sampleRate: track.sampleRate ? Number(track.sampleRate) : undefined,
       channels: track.channels ? Number(track.channels) : undefined,
       bitsPerSample: track.bitsPerSample ? Number(track.bitsPerSample) : undefined,
@@ -856,9 +878,15 @@ export class DeviceWifiService {
 
   async setEqPreset(preset: EqPreset): Promise<boolean> {
     try {
-      // Portal UI alias -> firmware canonical preset
-      const mapped = preset === 'bass' ? 'bass_boost' : preset;
-      const response = await fetch(`${this.baseUrl}/api/eq?preset=${mapped}`);
+      const response = await fetch(`${this.baseUrl}/api/eq?preset=${preset}`);
+      const result = await response.json();
+      return result.ok === true;
+    } catch { return false; }
+  }
+
+  async setStereoWidth(mode: AudioWidthMode): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/audio/stereo-width?mode=${mode}`);
       const result = await response.json();
       return result.ok === true;
     } catch { return false; }
@@ -1088,19 +1116,125 @@ export class DeviceWifiService {
     }
   }
 
+  audioPresentation(status: FirmwareStatus | null = this.lastStatus()): DeviceAudioPresentation | null {
+    if (!status) return null;
+    return {
+      ...status.audio,
+      width: status.audio.width ?? 'off',
+      hasLiveStatus: true,
+    };
+  }
+
+  themePresentation(status: FirmwareStatus | null = this.lastStatus()): DeviceThemePresentation | null {
+    if (!status) return null;
+    const led = status.led;
+    const dcnp = status.dcnp;
+    return {
+      led: {
+        idle: {
+          color: led?.idle?.color ?? '#ff4bcb',
+          pattern: this.normalizeLedPattern(led?.idle?.pattern, 'breathing'),
+          fullSpectrum: led?.idle?.fullSpectrum === true,
+        },
+        playback: {
+          color: led?.playback?.color ?? '#00f1df',
+          pattern: this.normalizeLedPattern(led?.playback?.pattern, 'vu_classic'),
+          fullSpectrum: led?.playback?.fullSpectrum === true,
+        },
+        charging: {
+          color: led?.charging?.color ?? '#ffcc33',
+          pattern: this.normalizeLedPattern(led?.charging?.pattern, 'breathing'),
+          fullSpectrum: led?.charging?.fullSpectrum === true,
+        },
+        brightness: this.clampPercent(led?.brightness ?? 80),
+        gradEnd: this.normalizeColor(led?.gradEnd, '#ff6600'),
+      },
+      dcnp: {
+        concert: this.normalizeColor(dcnp?.concert, '#ff3366'),
+        video: this.normalizeColor(dcnp?.video, '#3366ff'),
+        merch: this.normalizeColor(dcnp?.merch, '#33ff99'),
+        signing: this.normalizeColor(dcnp?.signing, '#ffcc00'),
+        remix: this.normalizeColor(dcnp?.remix, '#cc33ff'),
+        other: this.normalizeColor(dcnp?.other, '#ffffff'),
+      },
+    };
+  }
+
   private syncStatusSignals(status: FirmwareStatus) {
-    this.lastStatus.set(status);
+    const normalizedStatus = this.normalizeFirmwareStatus(status);
+    this.lastStatus.set(normalizedStatus);
     this.isConnected.set(true);
     this.lastStatusAt = Date.now();
 
-    if (status.sta?.connected && status.sta.ip) {
+    if (normalizedStatus.sta?.connected && normalizedStatus.sta.ip) {
       this.staConnected.set(true);
-      this.staIp.set(status.sta.ip);
-      localStorage.setItem(DEVICE_IP_KEY, status.sta.ip);
+      this.staIp.set(normalizedStatus.sta.ip);
+      localStorage.setItem(DEVICE_IP_KEY, normalizedStatus.sta.ip);
     } else {
       this.staConnected.set(false);
       this.staIp.set('');
     }
+  }
+
+  private normalizeFirmwareStatus(status: FirmwareStatus): FirmwareStatus {
+    const normalizedAudio = {
+      volume: this.clampPercent(status.audio?.volume ?? 75),
+      eq: this.normalizeEqPreset(status.audio?.eq),
+      width: this.normalizeAudioWidthMode(status.audio?.width),
+      mode: this.normalizePlaybackMode(status.audio?.mode),
+      a2dp: this.normalizeA2dpState(status.audio?.a2dp),
+      a2dpDevice: typeof status.audio?.a2dpDevice === 'string' ? status.audio.a2dpDevice : '',
+    };
+
+    const theme = this.themePresentation(status);
+
+    return {
+      ...status,
+      battery: {
+        present: status.battery?.present,
+        voltage: Number(status.battery?.voltage ?? 0),
+        percent: this.clampPercent(status.battery?.percent ?? 0),
+        charging: status.battery?.charging === true,
+      },
+      audio: normalizedAudio,
+      led: theme?.led,
+      dcnp: theme?.dcnp,
+      favorites: {
+        count: Math.max(0, Number(status.favorites?.count ?? 0)),
+        items: Array.isArray(status.favorites?.items)
+          ? status.favorites!.items.filter((item): item is string => typeof item === 'string')
+          : [],
+        current: status.favorites?.current === true,
+      },
+    };
+  }
+
+  private clampPercent(value: number): number {
+    return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+  }
+
+  private normalizeEqPreset(value: unknown): EqPreset {
+    return KNOWN_EQ_PRESETS.includes(value as EqPreset) ? (value as EqPreset) : 'flat';
+  }
+
+  private normalizeAudioWidthMode(value: unknown): AudioWidthMode {
+    return KNOWN_AUDIO_WIDTH_MODES.includes(value as AudioWidthMode) ? (value as AudioWidthMode) : 'off';
+  }
+
+  private normalizePlaybackMode(value: unknown): PlaybackMode {
+    return KNOWN_PLAYBACK_MODES.includes(value as PlaybackMode) ? (value as PlaybackMode) : 'normal';
+  }
+
+  private normalizeA2dpState(value: unknown): A2dpState {
+    return KNOWN_A2DP_STATES.includes(value as A2dpState) ? (value as A2dpState) : 'disconnected';
+  }
+
+  private normalizeLedPattern(value: unknown, fallback: LedPattern): LedPattern {
+    return KNOWN_LED_PATTERNS.has(value as LedPattern) ? (value as LedPattern) : fallback;
+  }
+
+  private normalizeColor(value: unknown, fallback: string): string {
+    return typeof value === 'string' && /^#([0-9a-f]{6})$/i.test(value.trim()) ? value.trim() : fallback;
   }
 
   private assetCacheKey(path: string): string {

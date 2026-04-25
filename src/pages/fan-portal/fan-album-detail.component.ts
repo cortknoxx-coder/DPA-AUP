@@ -44,16 +44,16 @@ export class FanAlbumDetailComponent {
   defaultCover = DEFAULT_COVER_DATA_URL;
 
   @Input() id!: string;
+  connectedAlbum = computed(() => this.connectionService.connectedAlbum());
+  deviceStatus = computed(() => this.connectionService.deviceStatus());
 
   // Use dataService for metadata, fall back to deviceLibrary info for firmware albums.
   // When WiFi-connected, prefer device-reported artist/album over mock DataService.
   albumMetadata = computed<Album | null>(() => {
     const fromData = this.dataService.getAlbum(this.id)();
-
-    // Pull live artist/album from device status when WiFi connected
-    const status = this.wifi.lastStatus();
-    const deviceArtist = status?.artist || '';
-    const deviceAlbum = status?.album || '';
+    const connectedAlbum = this.connectedAlbum();
+    const deviceArtist = connectedAlbum?.artistName || this.deviceStatus()?.artist || '';
+    const deviceAlbum = connectedAlbum?.title || this.deviceStatus()?.album || '';
 
     if (fromData) {
       // Override mock names with real device data when connected
@@ -74,8 +74,8 @@ export class FanAlbumDetailComponent {
         id: '0',
         albumId: libAlbum.id,
         artistId: 'device',
-        title: deviceAlbum || libAlbum.title,
-        artistName: deviceArtist || 'Artist',
+        title: deviceAlbum || libAlbum.title || connectedAlbum?.title || 'DPA Album',
+        artistName: deviceArtist || connectedAlbum?.artistName || 'Artist',
         skuType: 'premium',
         status: 'ready',
         dpacVersion: 1,
@@ -85,7 +85,7 @@ export class FanAlbumDetailComponent {
         tracks: [],
         dcnpEvents: [],
         booklet: { credits: '', gallery: [], videos: [] },
-        artworkUrl: libAlbum.artworkUrl || '',
+        artworkUrl: libAlbum.artworkUrl || connectedAlbum?.artworkUrl || '',
       };
     }
     return null;
@@ -129,6 +129,7 @@ export class FanAlbumDetailComponent {
   albumCoverUrl = computed(() => {
     if (this.connectionService.connectionStatus() === 'wifi') {
       const liveArtwork = this.connectionService.deviceLibrary()?.albums?.find((album) => album.id === this.id)?.artworkUrl
+        || this.connectedAlbum()?.artworkUrl
         || this.connectionService.deviceLibrary()?.albums?.[0]?.artworkUrl
         || '';
       if (liveArtwork) return liveArtwork;
@@ -234,7 +235,7 @@ export class FanAlbumDetailComponent {
     const trackRefs = tracks.map((t, i) => ({
       trackId: `fw-${t.index}`,
       blobId: t.filename,
-      codec: 'audio/wav',
+      codec: t.format === 'dpa' ? 'audio/dpa' : 'audio/wav',
       title: t.title,
       trackNo: i + 1,
       durationSec: Math.max(0, Math.round(t.durationMs / 1000)),
@@ -253,7 +254,7 @@ export class FanAlbumDetailComponent {
         blobId: t.blobId,
         sha256: '',
         size: 0,
-        mime: 'audio/wav',
+        mime: t.codec === 'audio/dpa' ? 'audio/dpa' : 'audio/wav',
         kind: 'audio' as const
       })),
       tracks: trackRefs,

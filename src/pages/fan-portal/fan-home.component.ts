@@ -22,11 +22,12 @@ export class FanHomeComponent {
   defaultCover = DEFAULT_COVER_DATA_URL;
   allCapsules = this.dataService.getAllCapsules();
   library = computed(() => this.connectionService.deviceLibrary());
+  connectedAlbum = computed(() => this.connectionService.connectedAlbum());
   capsules = computed(() =>
     mergeCapsuleFeeds(this.allCapsules(), this.connectionService.deviceCapsules(), {
-      albumId: this.library()?.albums?.[0]?.id,
-      albumTitle: this.library()?.albums?.[0]?.title,
-      artistName: this.dataService.albums()?.[0]?.artistName,
+      albumId: this.connectedAlbum()?.id,
+      albumTitle: this.connectedAlbum()?.title,
+      artistName: this.connectedAlbum()?.artistName,
     })
   );
   latestCapsule = computed(() => this.capsules()?.[0]);

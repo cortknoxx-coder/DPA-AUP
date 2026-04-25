@@ -92,15 +92,8 @@ export class FanDeviceRegistrationComponent {
         }
       });
 
-      const dcnpSub = this.dcnpForm.valueChanges.subscribe(() => {
-        if (this.realTimeMode() && !this.isHydratingFromFirmware) {
-          void this.pushThemeToDevice(true);
-        }
-      });
-
       return () => {
         ledSub.unsubscribe();
-        dcnpSub.unsubscribe();
       };
     });
 
@@ -175,19 +168,19 @@ export class FanDeviceRegistrationComponent {
     this.isSyncingLed.set(true);
     if (!silent) {
       this.pushStatus.set('pushing');
-      this.pushMessage.set('Syncing LED/theme state from device firmware...');
+      this.pushMessage.set('Syncing live lighting from device firmware...');
     }
     try {
       const status = await this.deviceService.wifi.getStatus();
       this.applyFirmwareState(status);
       if (!silent) {
         this.pushStatus.set('ok');
-        this.pushMessage.set('Synced LED/theme controls from device firmware.');
+        this.pushMessage.set('Live lighting synced from device firmware.');
       }
     } catch {
       if (!silent) {
         this.pushStatus.set('error');
-        this.pushMessage.set('Failed to sync from firmware. Verify device WiFi and retry.');
+        this.pushMessage.set('Failed to sync live lighting. Verify device WiFi and retry.');
       }
     } finally {
       this.isSyncingLed.set(false);
@@ -198,14 +191,14 @@ export class FanDeviceRegistrationComponent {
     if (this.deviceService.connectionStatus() !== 'wifi') {
       if (!silent) {
         this.pushStatus.set('error');
-        this.pushMessage.set('Connect to your DPA via WiFi to push theme changes.');
+        this.pushMessage.set('Connect to your DPA via WiFi to save lighting changes.');
       }
       return;
     }
 
     this.isPushingTheme.set(true);
     this.pushStatus.set('pushing');
-    if (!silent) this.pushMessage.set('Pushing theme to device...');
+    if (!silent) this.pushMessage.set('Saving live lighting to device...');
 
     const success = await this.deviceService.wifi.pushTheme(
       this.getThemeDraft(),
@@ -218,17 +211,16 @@ export class FanDeviceRegistrationComponent {
     if (success) {
       await this.syncThemeFromFirmware(true);
       this.pushStatus.set('ok');
-      if (!silent) this.pushMessage.set('Theme pushed to device firmware.');
+      if (!silent) this.pushMessage.set('Live lighting saved to device firmware.');
     } else {
       this.pushStatus.set('error');
-      if (!silent) this.pushMessage.set('Failed to push theme. Verify device WiFi and retry.');
+      if (!silent) this.pushMessage.set('Failed to save lighting. Verify device WiFi and retry.');
     }
   }
 
   private getThemeDraft(): Theme {
     const led = this.ledForm.value as Theme['led'];
-    const dcnp = this.dcnpForm.value as Theme['dcnp'];
-    return { led, dcnp } as Theme;
+    return { led } as Theme;
   }
 
   private asLedPattern(value: string | null | undefined, fallback: LedPattern): LedPattern {
